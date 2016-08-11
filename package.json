@@ -1,0 +1,37 @@
+{
+  "name": "gl-waveform",
+  "version": "1.0.0",
+  "description": "Draw waveform in webgl or canvas2d",
+  "main": "index.js",
+  "scripts": {
+    "test": "budo test.js",
+    "test:browser": "budo test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/audio-lab/gl-waveform.git"
+  },
+  "keywords": [
+    "waveform",
+    "time-data",
+    "audio",
+    "spectrum",
+    "spectrogram"
+  ],
+  "author": "ΔY <dfcreative@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/audio-lab/gl-waveform/issues"
+  },
+  "homepage": "https://github.com/audio-lab/gl-waveform#readme",
+  "dependencies": {
+    "gl-component": "^1.4.20",
+    "inherits": "^2.0.1",
+    "just-extend": "^1.1.19",
+    "plot-grid": "^1.2.1"
+  },
+  "devDependencies": {
+    "insert-styles": "^1.2.1",
+    "settings-panel": "^1.8.3"
+  }
+}

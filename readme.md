@@ -91,5 +91,7 @@ Update options, if required. Like, palette, grid type etc.
 
 ## Related
 
+> [gl-spectrogram](https://github.com/audio-lab/gl-spectrogram) — spectrogram painter for any signal.
+> [gl-spectrum](https://github.com/audio-lab/gl-spectrum) — nice-looking signal spectrum visualiser for.
 > [colormap](https://github.com/bpostlethwaite/colormap) — list of js color maps.<br/>
 > [waveform-data](https://www.npmjs.com/package/waveform-data) - similar waveform drawing component.</br>

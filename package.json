@@ -27,11 +27,13 @@
   "dependencies": {
     "gl-component": "^1.4.20",
     "inherits": "^2.0.1",
+    "interpolation-arrays": "0.0.0",
     "just-extend": "^1.1.19",
     "plot-grid": "^1.2.1"
   },
   "devDependencies": {
     "insert-styles": "^1.2.1",
-    "settings-panel": "^1.8.3"
+    "settings-panel": "^1.8.3",
+    "tinycolor2": "^1.4.1"
   }
 }

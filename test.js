@@ -1,11 +1,15 @@
 const createSettings = require('../settings-panel');
 const createWaveform = require('./src/core');
 const insertCss =  require('insert-styles');
+const Color = require('tinycolor2');
 
 insertCss(`
 	body {
 		padding: 0;
 		margin: 0;
+	}
+	.grid .grid-label {
+		top: 0;
 	}
 `);
 
@@ -16,12 +20,16 @@ let settings = createSettings([
 
 	}},
 	{id: 'grid', label: 'Grid', title: 'Grid', type: 'checkbox', value: true, change: v => {
-
+		waveform.update({grid: v});
 	}},
 	{id: 'palette', label: 'Colors', type: 'select', value: 'grays', options: ['grays'], change: v => {
 
 	}},
-	{id: 'decibels', label: 'Db', type: 'interval', min: -100, max: 0, value: [-90, -30]},
+	{id: 'decibels', label: 'Db', type: 'interval', min: -100, max: 0, value: [-90, -30], change: v => {
+		waveform.minDecibels = v[0];
+		waveform.maxDecibels = v[1];
+		waveform.update();
+	}},
 	{id: 'width', label: 'Width', type: 'range', min: 2, max: 40000, precision: 0, log: true, value: 1000, change: v => {
 		waveform.width = v;
 	}, style: `width: 12em;`},
@@ -33,7 +41,7 @@ let settings = createSettings([
 	css: `
 		:host {
 			z-index: 1;
-			position: absolute;
+			position: fixed;
 			bottom: 0;
 			right: 0;
 			left: 0;
@@ -60,9 +68,12 @@ let settings = createSettings([
 	`
 });
 
-
 let waveform = createWaveform({
-	offset: null
+	offset: null,
+	palette: settings.theme.palette.map(v => {
+		let rgb = Color(v).toRgb();
+		return [rgb.r, rgb.g, rgb.b]
+	})
 });
 
 let start = Date.now();

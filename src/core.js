@@ -44,9 +44,10 @@ function Waveform (options) {
 // 	alpha: true
 // };
 Waveform.prototype.context = '2d';
-
+Waveform.prototype.fill = true;
 Waveform.prototype.float = false;
 
+Waveform.prototype.db = true;
 Waveform.prototype.maxDecibels = -0;
 Waveform.prototype.minDecibels = -50;
 Waveform.prototype.sampleRate = 44100;
@@ -58,9 +59,7 @@ Waveform.prototype.width = 1024;
 //disable overrendering
 Waveform.prototype.autostart = false;
 
-//options for grid
-Waveform.prototype.grid = {
-};
+Waveform.prototype.grid = true;
 Waveform.prototype.log = true;
 
 //default palette to draw lines in
@@ -109,18 +108,29 @@ Waveform.prototype.init = function init () {
 	// 	viewport: () => this.viewport
 	// });
 
+	let that = this;
+	function getTitle (v) {
+		if (that.log) {
+			return that.db ? toDb(v).toFixed(0) : v.toPrecision(2);
+		}
+		else {
+			return that.db ? v : v.toPrecision(1);
+		}
+	}
+
 	//paint grid
 	this.topGrid = new Grid({
 		container: this.container,
 		lines: [
 			{
 				orientation: 'y',
-				titles: (v) => !this.log ? v : toDb(v).toFixed(0)
+				titles: getTitle
 			}
 		],
 		className: 'grid-top',
 		axes: [{
 			labels: (value, idx, stats) => {
+				if (!this.db && value <= fromDb(this.minDecibels)) return '0';
 				if (stats.titles[idx] == this.minDecibels) return '-∞';
 				else return stats.titles[idx];
 			}
@@ -133,12 +143,13 @@ Waveform.prototype.init = function init () {
 		lines: [
 			{
 				orientation: 'y',
-				titles: (v) => !this.log ? v : toDb(v).toFixed(0)
+				titles: getTitle
 			}
 		],
 		axes: [{
 			// hide label
 			labels: (value, idx, stats) => {
+				if (!this.db && value <= fromDb(this.minDecibels)) return '';
 				if (stats.titles[idx] == this.minDecibels) return '';
 				else return stats.titles[idx];
 			}
@@ -164,6 +175,8 @@ Waveform.prototype.update = function update (opts) {
 	if (this.grid) {
 		this.topGrid.element.removeAttribute('hidden');
 		this.bottomGrid.element.removeAttribute('hidden');
+		let dbMin = fromDb(this.minDecibels);
+		let dbMax = fromDb(this.maxDecibels);
 		if (this.log) {
 			let values = [this.minDecibels,
 				this.maxDecibels - 10,
@@ -180,30 +193,30 @@ Waveform.prototype.update = function update (opts) {
 			].map(fromDb);
 			this.topGrid.update({
 				lines: [{
-					min: fromDb(this.minDecibels),
-					max: fromDb(this.maxDecibels),
+					min: dbMin,
+					max: dbMax,
 					values: values
 				}]
 			});
 			this.bottomGrid.update({
 				lines: [{
-					max: fromDb(this.minDecibels),
-					min: fromDb(this.maxDecibels),
+					max: dbMin,
+					min: dbMax,
 					values: values
 				}]
 			});
 		} else {
 			this.topGrid.update({
 				lines: [{
-					min: this.minDecibels,
-					max: this.maxDecibels,
+					min: this.db ? this.minDecibels : dbMin,
+					max: this.db ? this.maxDecibels : dbMax,
 					values: null
 				}]
 			});
 			this.bottomGrid.update({
 				lines: [{
-					max: this.minDecibels,
-					min: this.maxDecibels,
+					max: this.db ? this.minDecibels : dbMin,
+					min: this.db ? this.maxDecibels : dbMax,
 					values: null
 				}]
 			});
@@ -267,18 +280,28 @@ Waveform.prototype.draw = function draw () {
 	ctx.moveTo(-padding + left, top + (height*.5 - amp*height*.5 ));
 
 	//FIXME: for widths more than vp we should group line by min/max sample
-	for (var i = 0; i < this.width; i++) {
+	var x;
+	for (let i = 0; i < this.width; i++) {
+		//ignore out of range data
 		if (i + start >= this.samples.length) break;
 
 		amp = this.f(this.samples[i + start]);
-		let x = ( i / (this.width-1) ) * width;
+		x = ( i / (this.width-1) ) * width;
 
 		ctx.lineTo(x + left, top + (height*.5 - amp*height*.5 ));
 	}
 
-	ctx.strokeStyle = this.getColor(0);
-	ctx.stroke();
-	ctx.closePath();
+	if (!this.fill) {
+		ctx.strokeStyle = this.getColor(0);
+		ctx.stroke();
+		ctx.closePath();
+	}
+	else if (this.fill) {
+		ctx.lineTo(x + left, top + height*.5);
+		ctx.lineTo(-padding + left, top + height*.5)
+		ctx.fillStyle = this.getColor(.5);
+		ctx.fill();
+	}
 
 	return this;
 };
@@ -293,14 +316,15 @@ Waveform.prototype.f = function (ratio) {
 
 		let dbRatio = (db - this.minDecibels) / (this.maxDecibels - this.minDecibels);
 
-		if (ratio < 0) dbRatio = -dbRatio;
-		ratio = dbRatio;
+		ratio = ratio < 0 ? -dbRatio : dbRatio;
 	}
 	else {
 		let min = fromDb(this.minDecibels);
 		let max = fromDb(this.maxDecibels);
+		let v = clamp(Math.abs(ratio), min, max);
 
-		ratio = (ratio - min) / (max - min);
+		v = (v - min) / (max - min);
+		ratio = ratio < 0 ? -v : v;
 	}
 
 	return clamp(ratio, -1, 1);

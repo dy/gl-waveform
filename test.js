@@ -45,15 +45,20 @@ insertCss(`
 
 
 let settings = createSettings([
+	{id: 'fill', label: 'Fill', type: 'checkbox', value: true, change: v => {
+		waveform.update({fill: v});
+	}},
+	{id: 'db', label: 'Db', type: 'checkbox', value: false, change: v => {
+		waveform.update({db: v});
+	}},
 	{id: 'log', label: 'Log', type: 'checkbox', value: true, change: v => {
 		waveform.update({log: v});
 	}},
 	{id: 'grid', label: 'Grid', title: 'Grid', type: 'checkbox', value: true, change: v => {
 		waveform.update({grid: v});
 	}},
-	{id: 'natural', label: 'Natural', title: 'Dye waveform into a natural color depending on frequency contents', type: 'checkbox', value: true, change: v => {
-
-	}},
+	// {id: 'natural', label: 'Natural', title: 'Dye waveform into a natural color depending on frequency contents', type: 'checkbox', value: true, change: v => {
+	// }},
 	{id: 'colors', label: 'Colors', type: 'select', value: 'custom', options: (() => {let opts = Object.keys(colormaps); opts.push('custom'); return opts;})(), change: v => {
 	}},
 	// {id: 'offset', label: 'Offset', type: 'range', min: -100, max: 100, precision: 0, value: 0, change: v => {waveform.offset = v;}},
@@ -72,6 +77,7 @@ let settings = createSettings([
 			display: inline-block;
 			vertical-align: middle;
 			cursor: pointer;
+			margin-right: 1em;
 		`;
 		el.title = 'Randomize palette';
 		let settings = this.panel;
@@ -126,7 +132,7 @@ let settings = createSettings([
 		waveform.minDecibels = v[0];
 		waveform.maxDecibels = v[1];
 		waveform.update();
-	}, style: `width: 16em;`},
+	}, style: `width: 20em;`},
 	{id: 'width', label: 'Width', type: 'range', min: 2, max: 40000, precision: 0, log: true, value: 1000, change: v => {
 		waveform.width = v;
 	}, style: `width: 12em;`},
@@ -186,4 +192,4 @@ let t = 0;
 setInterval(function pushData () {
 	waveform.push(Math.sin(t));
 	t += 1/10;
-}, 50);
+}, 10);

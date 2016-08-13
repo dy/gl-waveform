@@ -122,11 +122,11 @@ let settings = createSettings([
 		}
 		return el;
 	}},
-	{id: 'decibels', label: 'Db', type: 'interval', min: -100, max: 0, value: [-90, -30], change: v => {
+	{id: 'decibels', label: 'Db', type: 'interval', min: -100, max: 0, value: [-60, -0], change: v => {
 		waveform.minDecibels = v[0];
 		waveform.maxDecibels = v[1];
 		waveform.update();
-	}},
+	}, style: `width: 16em;`},
 	{id: 'width', label: 'Width', type: 'range', min: 2, max: 40000, precision: 0, log: true, value: 1000, change: v => {
 		waveform.width = v;
 	}, style: `width: 12em;`},

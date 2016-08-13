@@ -41,7 +41,7 @@ Create waveform instance based off options:
 //container to place waveform element
 container: document.body,
 
-//decibels data, -100...0
+//waveform data, floats from -1..1 range
 samples: timeDomainData,
 
 //audio viewport settings
@@ -53,17 +53,20 @@ sampleRate: 44100,
 width: 1024,
 
 //how many samples to skip from the left side of the buffer.
-//undefined offset will move the window to the tail, negative - from the tail.
+//undefined offset will move window to the tail of data, negative - from the tail.
 offset: null,
 
-//render line or bars
+//render line or fill
 type: 'line',
 
-//draw time/decibels grid. Pass an object for custom grid options, see plot-grid module
+//draw amplitude grid
 grid: true,
 
-//place decibels lines in logarithmic fashion, which is more contrast compared to linear
+//place lines in logarithmic fashion, which makes contrast of peaks
 log: true,
+
+//use db units or 0..1 range
+db: true,
 
 // List of colors to dye the data in, i. e. colormap
 palette: ['white', 'black'],

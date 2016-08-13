@@ -47,8 +47,8 @@ Waveform.prototype.context = '2d';
 
 Waveform.prototype.float = false;
 
-Waveform.prototype.maxDecibels = -30;
-Waveform.prototype.minDecibels = -90;
+Waveform.prototype.maxDecibels = -0;
+Waveform.prototype.minDecibels = -50;
 Waveform.prototype.sampleRate = 44100;
 
 //offset within samples, null means to the end
@@ -238,6 +238,9 @@ Waveform.prototype.draw = function draw () {
 	ctx.fillStyle = this.active || this.getColor(.5);
 	ctx.fillRect(left, top + height*.5, width, .5);
 
+	//ignore empty set
+	if (!this.samples.length) return;
+
 	//create line path
 	ctx.beginPath();
 	this.width = Math.floor(this.width);
@@ -272,8 +275,6 @@ Waveform.prototype.draw = function draw () {
 
 		ctx.lineTo(x + left, top + (height*.5 - amp*height*.5 ));
 	}
-	amp = this.f(this.samples[start+this.width]);
-	ctx.lineTo(width + padding + left, top + (height*.5 - amp*height*.5 ));
 
 	ctx.strokeStyle = this.getColor(0);
 	ctx.stroke();
@@ -288,11 +289,11 @@ Waveform.prototype.draw = function draw () {
 Waveform.prototype.f = function (ratio) {
 	if (this.log) {
 		let db = toDb(Math.abs(ratio));
+		db = clamp(db, this.minDecibels, this.maxDecibels);
 
 		let dbRatio = (db - this.minDecibels) / (this.maxDecibels - this.minDecibels);
 
 		if (ratio < 0) dbRatio = -dbRatio;
-
 		ratio = dbRatio;
 	}
 	else {

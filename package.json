@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "budo test.js",
-    "test:browser": "budo test.js"
+    "test:browser": "budo test.js",
+    "build": "browserify test.js -g bubleify -o demo/index.js"
   },
   "repository": {
     "type": "git",
@@ -33,6 +34,7 @@
     "plot-grid": "^1.2.1"
   },
   "devDependencies": {
+    "bubleify": "^0.5.1",
     "insert-styles": "^1.2.1",
     "nice-color-palettes": "^1.0.1",
     "settings-panel": "^1.8.3",

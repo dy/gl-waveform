@@ -7,6 +7,8 @@ const inherits = require('inherits');
 const Component = require('gl-component');
 const Grid = require('../../plot-grid');
 const lerp = require('interpolation-arrays');
+var clamp = require('mumath/clamp');
+var lg = require('mumath/lg');
 
 
 module.exports = Waveform;
@@ -59,7 +61,7 @@ Waveform.prototype.autostart = false;
 //options for grid
 Waveform.prototype.grid = {
 };
-Waveform.prototype.log = false;
+Waveform.prototype.log = true;
 
 //default palette to draw lines in
 Waveform.prototype.palette = [[0,0,0], [255,255,255]];
@@ -113,26 +115,35 @@ Waveform.prototype.init = function init () {
 		lines: [
 			{
 				orientation: 'y',
-				logarithmic: this.log,
-				min: this.minDecibels,
-				max: this.maxDecibels
+				titles: (v) => !this.log ? v : toDb(v).toFixed(0)
 			}
 		],
-		axes: [true],
-		viewport: () => [this.viewport[0] + 40, this.viewport[1], this.viewport[2], this.viewport[3]/2]
+		className: 'grid-top',
+		axes: [{
+			labels: (value, idx, stats) => {
+				if (stats.titles[idx] == this.minDecibels) return '-∞';
+				else return stats.titles[idx];
+			}
+		}],
+		viewport: () => [this.viewport[0], this.viewport[1], this.viewport[2], this.viewport[3]/2]
 	});
 	this.bottomGrid = new Grid({
 		container: this.container,
+		className: 'grid-bottom',
 		lines: [
 			{
 				orientation: 'y',
-				logarithmic: this.log,
-				max: this.minDecibels,
-				min: this.maxDecibels
+				titles: (v) => !this.log ? v : toDb(v).toFixed(0)
 			}
 		],
-		axes: [true],
-		viewport: () => [this.viewport[0] + 40, this.viewport[1] + this.viewport[3]/2, this.viewport[2], this.viewport[3]/2]
+		axes: [{
+			// hide label
+			labels: (value, idx, stats) => {
+				if (stats.titles[idx] == this.minDecibels) return '';
+				else return stats.titles[idx];
+			}
+		}],
+		viewport: () => [this.viewport[0], this.viewport[1] + this.viewport[3]/2, this.viewport[2], this.viewport[3]/2]
 	});
 };
 
@@ -145,32 +156,65 @@ Waveform.prototype.update = function update (opts) {
 	this.getColor = v => `rgb(${pick(v).map(v=>v.toFixed(0)).join(',')})`;
 
 	this.canvas.style.backgroundColor = this.getColor(1);
+	this.topGrid.element.style.color = this.getColor(0);
+	this.bottomGrid.element.style.color = this.getColor(0);
 	// this.timeGrid.update();
+
 
 	if (this.grid) {
 		this.topGrid.element.removeAttribute('hidden');
 		this.bottomGrid.element.removeAttribute('hidden');
-		this.topGrid.update({
-			lines: [
-				{
+		if (this.log) {
+			let values = [this.minDecibels,
+				this.maxDecibels - 10,
+				// this.maxDecibels - 9,
+				// this.maxDecibels - 8,
+				this.maxDecibels - 7,
+				this.maxDecibels - 6,
+				this.maxDecibels - 5,
+				this.maxDecibels - 4,
+				this.maxDecibels - 3,
+				this.maxDecibels - 2,
+				this.maxDecibels - 1,
+				this.maxDecibels
+			].map(fromDb);
+			this.topGrid.update({
+				lines: [{
+					min: fromDb(this.minDecibels),
+					max: fromDb(this.maxDecibels),
+					values: values
+				}]
+			});
+			this.bottomGrid.update({
+				lines: [{
+					max: fromDb(this.minDecibels),
+					min: fromDb(this.maxDecibels),
+					values: values
+				}]
+			});
+		} else {
+			this.topGrid.update({
+				lines: [{
 					min: this.minDecibels,
-					max: this.maxDecibels
-				}
-			]
-		});
-		this.bottomGrid.update({
-			lines: [
-				{
+					max: this.maxDecibels,
+					values: null
+				}]
+			});
+			this.bottomGrid.update({
+				lines: [{
 					max: this.minDecibels,
-					min: this.maxDecibels
-				}
-			]
-		});
+					min: this.maxDecibels,
+					values: null
+				}]
+			});
+		}
 	}
 	else {
 		this.topGrid.element.setAttribute('hidden', true);
 		this.bottomGrid.element.setAttribute('hidden', true);
 	}
+
+	this.render();
 
 	return this;
 };
@@ -183,10 +227,16 @@ Waveform.prototype.draw = function draw () {
 
 	let width = this.viewport[2];
 	let height = this.viewport[3];
+	let left = this.viewport[0];
+	let top = this.viewport[1];
 
-	let padding = 5;
+	let padding = 1;
 
-	ctx.clearRect(this.viewport[0], this.viewport[1], width, height);
+	ctx.clearRect(this.viewport[0] - padding, this.viewport[1] - padding, width + padding*2, height + padding*2);
+
+	//draw central line with active color
+	ctx.fillStyle = this.active || this.getColor(.5);
+	ctx.fillRect(left, top + height*.5, width, .5);
 
 	//create line path
 	ctx.beginPath();
@@ -210,28 +260,58 @@ Waveform.prototype.draw = function draw () {
 	// 	});
 	// }
 
-	let amp = this.samples[start];
-	ctx.moveTo(-padding, (height*.5 - amp*height*.5 ));
+	let amp = this.f(this.samples[start]);
+	ctx.moveTo(-padding + left, top + (height*.5 - amp*height*.5 ));
 
 	//FIXME: for widths more than vp we should group line by min/max sample
 	for (var i = 0; i < this.width; i++) {
-		amp = this.samples[i + start];
+		if (i + start >= this.samples.length) break;
+
+		amp = this.f(this.samples[i + start]);
 		let x = ( i / (this.width-1) ) * width;
 
-		ctx.lineTo(x, (height*.5 - amp*height*.5 ));
+		ctx.lineTo(x + left, top + (height*.5 - amp*height*.5 ));
 	}
-	amp = this.samples[start+this.width];
-	ctx.lineTo(width + padding, (height*.5 - amp*height*.5 ));
+	amp = this.f(this.samples[start+this.width]);
+	ctx.lineTo(width + padding + left, top + (height*.5 - amp*height*.5 ));
 
 	ctx.strokeStyle = this.getColor(0);
 	ctx.stroke();
 	ctx.closePath();
 
-	//draw central line with active color
-	ctx.fillStyle = this.active || this.getColor(.5);
-	ctx.fillRect(0, height*.5, width, 1);
-
 	return this;
 };
 
 //TODO: think on adding preview block
+
+
+Waveform.prototype.f = function (ratio) {
+	if (this.log) {
+		let db = toDb(Math.abs(ratio));
+
+		let dbRatio = (db - this.minDecibels) / (this.maxDecibels - this.minDecibels);
+
+		if (ratio < 0) dbRatio = -dbRatio;
+
+		ratio = dbRatio;
+	}
+	else {
+		let min = fromDb(this.minDecibels);
+		let max = fromDb(this.maxDecibels);
+
+		ratio = (ratio - min) / (max - min);
+	}
+
+	return clamp(ratio, -1, 1);
+}
+
+
+function toDb (p) {
+	let p0 = 1;
+	return 10*Math.log10(p / p0);
+}
+
+function fromDb (db) {
+	let p0 = 1;
+	return Math.pow(10, db/10) * p0;
+}

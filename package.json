@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "insert-styles": "^1.2.1",
+    "nice-color-palettes": "^1.0.1",
     "settings-panel": "^1.8.3",
     "tinycolor2": "^1.4.1"
   }

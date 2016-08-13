@@ -1,4 +1,4 @@
-const createSettings = require('../settings-panel');
+const createSettings = require('settings-panel');
 const createWaveform = require('./src/core');
 const insertCss =  require('insert-styles');
 const Color = require('tinycolor2');
@@ -59,8 +59,8 @@ let settings = createSettings([
 	}},
 	// {id: 'natural', label: 'Natural', title: 'Dye waveform into a natural color depending on frequency contents', type: 'checkbox', value: true, change: v => {
 	// }},
-	{id: 'colors', label: 'Colors', type: 'select', value: 'custom', options: (() => {let opts = Object.keys(colormaps); opts.push('custom'); return opts;})(), change: v => {
-	}},
+	// {id: 'colors', label: 'Colors', type: 'select', value: 'custom', options: (() => {let opts = Object.keys(colormaps); opts.push('custom'); return opts;})(), change: v => {
+	// }},
 	// {id: 'offset', label: 'Offset', type: 'range', min: -100, max: 100, precision: 0, value: 0, change: v => {waveform.offset = v;}},
 	// {id: 'padding', label: 'Padding', type: 'range', min: 0, max: 100, precision: 0, value: 50, change: v => {
 	// 	waveform.padding = v;
@@ -138,7 +138,7 @@ let settings = createSettings([
 	}, style: `width: 12em;`},
 ], {
 	// title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
-	theme: require('../settings-panel/theme/flat'),
+	theme: require('settings-panel/theme/flat'),
 	fontSize: 12,
 	css: `
 		:host {

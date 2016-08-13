@@ -5,7 +5,7 @@
 const extend = require('just-extend');
 const inherits = require('inherits');
 const Component = require('gl-component');
-const Grid = require('../../plot-grid');
+const Grid = require('plot-grid');
 const lerp = require('interpolation-arrays');
 const clamp = require('mumath/clamp');
 const fromDb = require('decibels/to-gain');
@@ -49,7 +49,7 @@ Waveform.prototype.float = false;
 
 Waveform.prototype.db = true;
 Waveform.prototype.maxDecibels = -0;
-Waveform.prototype.minDecibels = -50;
+Waveform.prototype.minDecibels = -100;
 Waveform.prototype.sampleRate = 44100;
 
 //offset within samples, null means to the end

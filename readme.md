@@ -24,7 +24,7 @@ setTimeout(() => {
 }, 50);
 ```
 
-[**`See in action`**](TODO requirebin)
+<!-- [**`See in action`**](TODO requirebin) -->
 
 ## API
 
@@ -45,7 +45,7 @@ container: document.body,
 samples: timeDomainData,
 
 //audio viewport settings
-maxDecibels: -30,
+maxDecibels: -0,
 minDecibels: -100,
 sampleRate: 44100,
 

@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/audio-lab/gl-waveform#readme",
   "dependencies": {
+    "decibels": "^1.0.1",
     "gl-component": "^1.4.20",
     "inherits": "^2.0.1",
     "interpolation-arrays": "0.0.0",

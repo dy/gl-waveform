@@ -48,7 +48,7 @@ let settings = createSettings([
 	{id: 'fill', label: 'Fill', type: 'checkbox', value: true, change: v => {
 		waveform.update({fill: v});
 	}},
-	{id: 'db', label: 'Db', type: 'checkbox', value: false, change: v => {
+	{id: 'db', label: 'Db', title: 'Display units in decibels', type: 'checkbox', value: true, change: v => {
 		waveform.update({db: v});
 	}},
 	{id: 'log', label: 'Log', type: 'checkbox', value: true, change: v => {
@@ -128,12 +128,12 @@ let settings = createSettings([
 		}
 		return el;
 	}},
-	{id: 'decibels', label: 'Db', type: 'interval', min: -100, max: 0, value: [-60, -0], change: v => {
+	{id: 'decibels', label: 'Range', type: 'interval', min: -100, max: 0, value: [-60, -0], change: v => {
 		waveform.minDecibels = v[0];
 		waveform.maxDecibels = v[1];
 		waveform.update();
 	}, style: `width: 20em;`},
-	{id: 'width', label: 'Width', type: 'range', min: 2, max: 40000, precision: 0, log: true, value: 1000, change: v => {
+	{id: 'width', label: 'Width', type: 'range', min: 2, max: 50000, precision: 0, log: true, value: 1000, change: v => {
 		waveform.width = v;
 	}, style: `width: 12em;`},
 ], {

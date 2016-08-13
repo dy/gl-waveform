@@ -92,6 +92,10 @@ Update options, if required. Like, palette, grid type etc.
 
 </details>
 
+## Credits
+
+> [Drawing waveforms](http://www.supermegaultragroovy.com/2009/10/06/drawing-waveforms/) — some insights on the way to draw waveforms.<br/>
+
 ## Related
 
 > [gl-spectrogram](https://github.com/audio-lab/gl-spectrogram) — spectrogram painter for any signal.<br/>

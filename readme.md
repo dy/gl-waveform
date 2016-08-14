@@ -83,7 +83,12 @@ context: {
 </details>
 <details><summary>**`waveform.push(data)`**</summary>
 
-Add the new data for the waveform to buffer. Data is treated as float values from `0..1` range therefore it can be an _Array_, _FloatArray_ or any other collection. The visible slice is
+Add new data for the waveform. Data is whether single sample or array/float array with float values from `0..1` range. The visible slice will be automatically rerendered in next frame. So safely call push as many times as you need.
+
+</details>
+<details><summary>**`waveform.set(data)`**</summary>
+
+Similar to push, but discards old data.
 
 </details>
 <details><summary>**`waveform.update(options?)`**</summary>

@@ -330,7 +330,7 @@ Waveform.prototype.draw = function draw (data) {
 
 	let mid = height*.5;
 
-	ctx.clearRect(this.viewport[0], this.viewport[1], width, height);
+	ctx.clearRect(this.viewport[0] - 1, this.viewport[1] - 1, width + 2, height + 2);
 
 	//draw central line with active color
 	ctx.fillStyle = this.active || this.getColor(0);
@@ -341,11 +341,12 @@ Waveform.prototype.draw = function draw (data) {
 	ctx.beginPath();
 
 	let amp = data[0];
-	ctx.moveTo(left, top + mid - amp*mid);
+	ctx.moveTo(left + .5, top + mid - amp*mid);
 
 	//paint outline, usually for the large dataset
 	if (outline) {
-		for (let x = 0; x < width; x++) {
+		let half = data.length / 2;
+		for (let x = 0; x < half; x++) {
 			amp = data[x];
 			ctx.lineTo(x + left, top + mid - amp*mid);
 		}
@@ -369,9 +370,9 @@ Waveform.prototype.draw = function draw (data) {
 
 	//otherwise we render straight line
 	else {
-		for (let x = 0; x < width; x++) {
+		for (let x = 0; x < data.length; x++) {
 			amp = data[x];
-			ctx.lineTo(x + .5 + left, top + mid - amp*mid);
+			ctx.lineTo(x + left, top + mid - amp*mid);
 		}
 
 		if (!this.fill) {
@@ -381,7 +382,7 @@ Waveform.prototype.draw = function draw (data) {
 		}
 		else if (this.fill) {
 			ctx.lineTo(data.length + left, top + mid);
-			ctx.lineTo(left, top + height*.5);
+			ctx.lineTo(left, top + mid);
 			ctx.closePath();
 			ctx.fillStyle = this.getColor(.5);
 			ctx.fill();

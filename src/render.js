@@ -32,11 +32,13 @@ function render (samples, opts) {
 
 	//non-outline is simple line by amplitudes
 	if (!outline) {
-		for (let i = 0; i < number; i++) {
+		for (let x = .5; x < width; x++) {
+			let i = number * x / width;
+
 			//ignore out of range data
 			if (i + start >= samples.length) break;
 
-			amp = f(samples[i + start], log, min, max);
+			amp = f(inter(samples, i + start), log, min, max);
 
 			data.push(amp);
 		}
@@ -77,6 +79,17 @@ function render (samples, opts) {
 	return data;
 }
 
+function inter (data, idx) {
+	let lIdx = Math.floor( idx ),
+		rIdx = Math.ceil( idx );
+
+	let t = idx - lIdx;
+
+	let left = data[lIdx], right = data[rIdx];
+
+	return left * (1 - t) + right * t;
+}
+
 
 function f(ratio, log, min, max) {
 	if (log) {
@@ -88,8 +101,8 @@ function f(ratio, log, min, max) {
 		ratio = ratio < 0 ? -dbRatio : dbRatio;
 	}
 	else {
-		let min = fromDb(min);
-		let max = fromDb(max);
+		min = fromDb(min);
+		max = fromDb(max);
 		let v = clamp(Math.abs(ratio), min, max);
 
 		v = (v - min) / (max - min);

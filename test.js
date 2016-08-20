@@ -1,10 +1,13 @@
 const createSettings = require('settings-panel');
 const createWaveform = require('./src/core');
+const createAudio = require('app-audio');
+const createFps = require('../fps-indicator');
 const insertCss =  require('insert-styles');
 const Color = require('tinycolor2');
 const colormap = require('colormap');
 const colorScales = require('colormap/colorScales');
 let palettes = require('nice-color-palettes/500');
+
 
 
 let colormaps = {};
@@ -40,6 +43,14 @@ insertCss(`
 	}
 	.grid .grid-label {
 		top: 0;
+	}
+
+	select option {
+		-webkit-appearance: none;
+		appearance: none;
+		display: block;
+		background: white;
+		position: absolute;
 	}
 `);
 
@@ -84,7 +95,7 @@ let settings = createSettings([
 		setColors(el, settings.theme.palette, settings.theme.active);
 
 		el.onclick = () => {
-			settings.set('colors', 'custom');
+			// settings.set('colors', 'custom');
 
 			let palette = palettes[Math.floor((palettes.length - 1) * Math.random())];
 			let bg = palette[palette.length -1];
@@ -94,10 +105,13 @@ let settings = createSettings([
 				style: `background-image: linear-gradient(to top, ${Color(bg).setAlpha(.9).toString()} 0%, ${Color(bg).setAlpha(0).toString()} 120%);`});
 
 			//FIXME: avoid rgb array palette
-			let arrPalette = setColors(el, palette);
+			setColors(el, palette);
 			waveform.update({
 				palette: arrPalette
 			});
+
+			audio.update({color: palette[0]});
+			fps.element.style.color = palette[0];
 		}
 
 		//create colors in the element
@@ -118,13 +132,6 @@ let settings = createSettings([
 					background-color: ${palette[i] || 'transparent'}
 				`;
 			}
-
-			palette = palette.map(c => {
-				let rgb = Color(c).toRgb();
-				return [rgb.r, rgb.g, rgb.b];
-			});
-
-			return palette;
 		}
 		return el;
 	}},
@@ -133,7 +140,7 @@ let settings = createSettings([
 		waveform.maxDecibels = v[1];
 		waveform.update();
 	}, style: `width: 20em;`},
-	{id: 'width', label: 'Width', type: 'range', min: 2, max: 50000, precision: 0, log: true, value: 1000, change: v => {
+	{id: 'width', label: 'Width', type: 'range', min: 2, max: 1e10, precision: 0, log: true, value: 44100/2, change: v => {
 		waveform.width = v;
 	}, style: `width: 12em;`},
 ], {
@@ -171,8 +178,15 @@ let settings = createSettings([
 });
 
 
+//show framerate
+let fps = createFps();
+fps.element.style.color = settings.theme.palette[0];
+fps.element.style.fontFamily = settings.theme.fontFamily;
+fps.element.style.fontWeight = 500;
 
 
+
+//hook up waveform
 let waveform = createWaveform({
 	offset: null,
 	palette: settings.theme.palette.map(v => {
@@ -186,10 +200,35 @@ let waveform = createWaveform({
 waveform.topGrid.element.style.fontFamily = settings.theme.fontFamily;
 waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;
 
-let start = Date.now();
-let f = 440;
-let t = 0;
-setInterval(function pushData () {
-	waveform.push(Math.sin(t));
-	t += 1/10;
-}, 10);
+// let start = Date.now();
+// let f = 440;
+// let t = 0;
+// setInterval(function pushData () {
+// 	waveform.samples.push(Math.sin(t));
+// 	t += 1/10;
+// 	waveform.render();
+// }, 10);
+
+
+//create audio source
+let audio = createAudio({
+	color: settings.theme.palette[0],
+	source: 'https://soundcloud.com/8day-montreal/premiere-morningglasses-snifit-echonomist-remix-motek'
+}).on('ready', (node) => {
+	let scriptNode = audio.context.createScriptProcessor(512, 2, 2);
+
+	scriptNode.addEventListener('audioprocess', e => {
+		let input = e.inputBuffer.getChannelData(0);
+		waveform.push(input);
+
+		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
+		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
+	});
+
+	node.disconnect();
+	node.connect(scriptNode);
+	scriptNode.connect(audio.gainNode);
+
+});
+
+audio.element.style.fontFamily = settings.theme.fontFamily;

@@ -26,14 +26,17 @@
   },
   "homepage": "https://github.com/audio-lab/gl-waveform#readme",
   "dependencies": {
+    "app-audio": "^1.1.4",
+    "color-interpolate": "^1.0.2",
     "decibels": "^1.0.1",
+    "fps-indicator": "^1.0.1",
     "gl-component": "^1.4.20",
     "inherits": "^2.0.1",
-    "interpolation-arrays": "0.0.0",
     "just-extend": "^1.1.19",
     "plot-grid": "^1.2.1"
   },
   "devDependencies": {
+    "audio-context": "^0.1.0",
     "bubleify": "^0.5.1",
     "insert-styles": "^1.2.1",
     "nice-color-palettes": "^1.0.1",

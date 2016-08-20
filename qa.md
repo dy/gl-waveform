@@ -1,3 +1,7 @@
+## Q: should we get rid of push and leave only set?
++ simplifies API
++
+
 ## Q: how do we measure and render time?
 
 * We have sample rate and data length, therefore we know time.

@@ -6,7 +6,7 @@ const extend = require('just-extend');
 const inherits = require('inherits');
 const Component = require('gl-component');
 const Grid = require('plot-grid');
-const lerp = require('interpolation-arrays');
+const Interpolate = require('color-interpolate');
 const clamp = require('mumath/clamp');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
@@ -30,7 +30,7 @@ function Waveform (options) {
 	this.update();
 
 	//preset initial freqs
-	this.push(this.samples);
+	this.set(this.samples);
 
 	this.on('resize', () => {
 		this.update();
@@ -63,7 +63,7 @@ Waveform.prototype.grid = true;
 Waveform.prototype.log = true;
 
 //default palette to draw lines in
-Waveform.prototype.palette = [[0,0,0], [255,255,255]];
+Waveform.prototype.palette = ['black', 'white'];
 
 //main data
 Waveform.prototype.samples = [];
@@ -136,14 +136,12 @@ Waveform.prototype.init = function init () {
 };
 
 //push a new data to the cache
+//FIXME: remove, leave only set
 Waveform.prototype.push = function (data) {
 	if (!data) return this;
-	if (typeof data === 'number') {
-		this.samples.push(data);
-	}
 
-	else {
-		this.samples = Array.prototype.concat.call(this.samples, data);
+	for (let i = 0; i < data.length; i++) {
+		this.samples.push(data[i]);
 	}
 
 	this.render();
@@ -153,8 +151,16 @@ Waveform.prototype.push = function (data) {
 
 //rewrite samples with a new data
 Waveform.prototype.set = function (data) {
-	if (!data) return this;
-	this.samples = data;
+	if (!data) {
+		this.samples = [];
+		return this;
+	}
+
+	this.samples = Array.prototype.slice.call(data);
+
+	this.render();
+
+	return this;
 };
 
 
@@ -163,8 +169,7 @@ Waveform.prototype.update = function update (opts) {
 	extend(this, opts);
 
 	//generate palette functino
-	let pick = lerp(this.palette);
-	this.getColor = v => `rgb(${pick(v).map(v=>v.toFixed(0)).join(',')})`;
+	this.getColor = Interpolate(this.palette);
 
 	this.canvas.style.backgroundColor = this.getColor(1);
 	this.topGrid.element.style.color = this.getColor(0);

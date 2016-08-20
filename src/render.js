@@ -48,32 +48,36 @@ function render (samples, opts) {
 		//collect tops/bottoms first
 		let tops = [], bottoms = [];
 		let lastX = 0, maxTop = 0, maxBottom = 0;
-		for (let i = 0; i < number; i++) {
+
+		for (let x = .5; x < width; x++) {
+			let i = number * x / width;
+
 			//ignore out of range data
 			if (i + start >= samples.length) break;
 
-			amp = f(samples[i + start], log, min, max);
+			let lx = Math.floor(x);
+			let rx = Math.ceil(x);
+			let li = number * lx / width;
+			let ri = number * rx / width;
 
-			if (amp > 0) {
-				maxTop = Math.max(maxTop, amp);
-			}
-			else {
-				maxBottom = Math.min(maxBottom, amp);
+			for (let i = Math.floor(li); i < ri; i++) {
+				amp = f(samples[i + start], log, min, max);
+
+				if (amp > 0) {
+					maxTop = Math.max(maxTop, amp);
+				}
+				else {
+					maxBottom = Math.min(maxBottom, amp);
+				}
 			}
 
-			x = ( (i+.5) / number ) * width;
-
-			//if we got a new pixel
-			if (x - lastX > 1) {
-				lastX = x;
-				tops.push(maxTop);
-				bottoms.push(maxBottom);
-				maxTop = 0;
-				maxBottom = 0;
-			}
+			tops.push(maxTop);
+			bottoms.push(maxBottom);
+			maxTop = 0;
+			maxBottom = 0;
 		}
 
-		data = tops.concat(bottoms.reverse());
+		data = tops.concat(bottoms);
 	}
 
 	return data;

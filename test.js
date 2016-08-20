@@ -140,7 +140,7 @@ let settings = createSettings([
 		waveform.maxDecibels = v[1];
 		waveform.update();
 	}, style: `width: 20em;`},
-	{id: 'width', label: 'Width', type: 'range', min: 2, max: 1e10, precision: 0, log: true, value: 400, change: v => {
+	{id: 'width', label: 'Width', type: 'range', min: 2, max: 1e10, precision: 0, log: true, value: 2000, change: v => {
 		waveform.width = v;
 	}, style: `width: 12em;`},
 ], {
@@ -204,18 +204,19 @@ let waveform = createWaveform({
 waveform.topGrid.element.style.fontFamily = settings.theme.fontFamily;
 waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;
 
-let start = Date.now();
-let f = 440;
-let t = 0;
-setInterval(function pushData () {
-	waveform.samples.push(Math.sin(t));
-	t += 1/10;
-	waveform.render();
-}, 30);
+
+// let start = Date.now();
+// let f = 440;
+// let t = 0;
+// setInterval(function pushData () {
+// 	waveform.samples.push(Math.sin(t));
+// 	t += 1/10;
+// 	waveform.render();
+// }, 20);
 
 
 //create audio source
-/*
+
 let audio = createAudio({
 	color: settings.theme.palette[0],
 	source: 'https://soundcloud.com/8day-montreal/premiere-morningglasses-snifit-echonomist-remix-motek'
@@ -241,4 +242,3 @@ let audio = createAudio({
 audio.element.style.fontFamily = settings.theme.fontFamily;
 audio.element.style.fontSize = settings.theme.fontSize;
 audio.update();
-*/

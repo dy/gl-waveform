@@ -8,9 +8,17 @@ const inherits = require('inherits');
 const Component = require('gl-component');
 const Grid = require('plot-grid');
 const Interpolate = require('color-interpolate');
-const clamp = require('mumath/clamp');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
+const getData = require('./render');
+const uid = require('get-uid');
+
+let isWorkerAvailable = window.Worker;
+let webworkify, worker;
+if (isWorkerAvailable) {
+	webworkify = require('webworkify');
+	worker = require('./worker');
+}
 
 module.exports = Waveform;
 
@@ -39,42 +47,70 @@ function Waveform (options) {
 }
 
 
-// Waveform.prototype.context = {
-// 	antialias: false,
-// 	premultipliedAlpha: true,
-// 	alpha: true
-// };
-Waveform.prototype.context = '2d';
+//fill or stroke waveform
 Waveform.prototype.fill = true;
-Waveform.prototype.float = false;
 
-Waveform.prototype.db = true;
-Waveform.prototype.maxDecibels = -0;
-Waveform.prototype.minDecibels = -100;
-Waveform.prototype.sampleRate = 44100;
-
-//offset within samples, null means to the end
-Waveform.prototype.offset = null;
-Waveform.prototype.width = 1024;
-
-//disable overrendering
-Waveform.prototype.autostart = false;
-
-Waveform.prototype.grid = true;
+//render in log fashion
 Waveform.prototype.log = true;
+
+//display db units instead of amplitude, for grid axis
+Waveform.prototype.db = true;
+
+//force painting/disabling outline mode - undefined, to detect automatically
+Waveform.prototype.outline;
+
+//display grid
+Waveform.prototype.grid = true;
 
 //default palette to draw lines in
 Waveform.prototype.palette = ['black', 'white'];
 
-//main data
-Waveform.prototype.samples = [];
+//amplitude subrange
+Waveform.prototype.maxDecibels = -0;
+Waveform.prototype.minDecibels = -100;
+
+//for time calculation
+Waveform.prototype.sampleRate = 44100;
+
+//offset within samples, null means to the end
+Waveform.prototype.offset = null;
+
+//visible window width
+Waveform.prototype.width = 1024;
+
+
+//FIXME: make more generic
+Waveform.prototype.context = '2d';
+Waveform.prototype.float = false;
+
+//disable overrendering
+Waveform.prototype.autostart = false;
+
+//process data in worker
+Waveform.prototype.worker = true;
+
 
 //init routine
 Waveform.prototype.init = function init () {
 	let that = this;
 
-	//init audio
-	this.samples = [];
+	this.id = uid();
+
+	//init worker - on messages from worker we plan rerender
+	if (this.worker) {
+		this.worker = worker;
+
+		this.worker.addEventListener('message', (e) => {
+			//other instance’s data
+			if (e.data.id !== this.id) return;
+
+			this.render(e.data.data);
+		});
+	}
+	else {
+		this.samples = [];
+	}
+
 
 	//create grids
 	// this.timeGrid = new Grid({
@@ -145,24 +181,41 @@ Waveform.prototype.init = function init () {
 Waveform.prototype.push = function (data) {
 	if (!data) return this;
 
-	for (let i = 0; i < data.length; i++) {
-		this.samples.push(data[i]);
+	if (this.worker) {
+		this.worker.postMessage({
+			id: this.id,
+			action: 'push',
+			samples: data
+		});
+	}
+	else {
+		for (let i = 0; i < data.length; i++) {
+			this.samples.push(data[i]);
+		}
+
+		this.render();
 	}
 
-	this.render();
 
 	return this;
 };
 
 //rewrite samples with a new data
 Waveform.prototype.set = function (data) {
-	if (!data) {
-		return this;
+	if (!data) return this;
+
+	if (this.worker) {
+		this.worker.postMessage({
+			id: this.id,
+			action: 'set',
+			samples: data
+		});
 	}
+	else {
+		this.samples = Array.prototype.slice.call(data);
 
-	this.samples = Array.prototype.slice.call(data);
-
-	this.render();
+		this.render();
+	}
 
 	return this;
 };
@@ -239,15 +292,35 @@ Waveform.prototype.update = function update (opts) {
 	//TODO: acquire sampled data (for datasets more that viewport we should store sampled items)
 
 	//render the new properties
-	this.render();
+	if (!this.worker) this.render();
 
 	return this;
 };
 
 
 //draw routine
+//data is amplitudes for curve
 //FIXME: move to 2d
-Waveform.prototype.draw = function draw () {
+Waveform.prototype.draw = function draw (data) {
+	//if data length is more than viewport width - we render an outline shape
+	let outline = this.outline != null ? this.outline : this.width > this.viewport[2];
+
+	if (!data) {
+		//ignore empty worker data
+		if (this.worker) return this;
+
+		//get the data, if not explicitly passed
+		data = getData(this.samples, {
+			min: this.minDecibels,
+			max: this.maxDecibels,
+			log: this.log,
+			offset: this.offset,
+			number: this.width,
+			width: this.viewport[2],
+			outline: outline
+		});
+	}
+
 	let ctx = this.context;
 
 	let width = this.viewport[2];
@@ -255,113 +328,61 @@ Waveform.prototype.draw = function draw () {
 	let left = this.viewport[0];
 	let top = this.viewport[1];
 
-	let padding = 1;
+	let mid = height*.5;
 
-	ctx.clearRect(this.viewport[0] - padding, this.viewport[1] - padding, width + padding*2, height + padding*2);
+	ctx.clearRect(this.viewport[0], this.viewport[1], width, height);
 
 	//draw central line with active color
-	ctx.fillStyle = this.active || this.getColor(.5);
-	ctx.fillRect(left, top + height*.5, width, .5);
+	ctx.fillStyle = this.active || this.getColor(0);
+	ctx.fillRect(left, top + mid, width, .5);
 
-	//ignore empty set
-	if (!this.samples.length) return;
 
 	//create line path
 	ctx.beginPath();
-	this.width = Math.floor(this.width);
 
-	let start = this.offset == null ? -this.width : this.offset;
-	if (start < 0) {
-		start = this.samples.length + start;
-	}
-	start = Math.max(start, 0);
+	let amp = data[0];
+	ctx.moveTo(left, top + mid - amp*mid);
 
-	//for negative offset shift time
-	// if (this.offset < 0 || this.offset == null) {
-	// 	this.timeGrid.update({
-	// 		lines: [
-	// 			{
-	// 				min: start / this.sampleRate,
-	// 				max: (start + this.width) / this.sampleRate
-	// 			}
-	// 		]
-	// 	});
-	// }
-
-	let amp = this.f(this.samples[start]);
-	ctx.moveTo(-padding + left, top + (height*.5 - amp*height*.5 ));
-
-	let x;
-
-	//if samples are too dense, we should create outline shape based on max values
-	if (this.width <= width) {
-		for (let i = 0; i < this.width; i++) {
-			//ignore out of range data
-			if (i + start >= this.samples.length) break;
-
-			amp = this.f(this.samples[i + start]);
-			x = ( i / (this.width-1) ) * width;
-
-			ctx.lineTo(x + left, top + (height*.5 - amp*height*.5 ));
+	//paint outline, usually for the large dataset
+	if (outline) {
+		for (let x = 0; x < width; x++) {
+			amp = data[x];
+			ctx.lineTo(x + left, top + mid - amp*mid);
+		}
+		ctx.moveTo(left + width - 1, data[width]);
+		for (let x = 0; x < width; x++) {
+			amp = data[width + x];
+			ctx.lineTo(left + width - 1 - x, top + mid - amp*mid);
 		}
 
 		if (!this.fill) {
-			ctx.strokeStyle = this.getColor(0);
+			ctx.strokeStyle = this.getColor(.5);
 			ctx.stroke();
 			ctx.closePath();
 		}
 		else if (this.fill) {
-			ctx.lineTo(x + left, top + height*.5);
-			ctx.lineTo(-padding + left, top + height*.5)
+			ctx.closePath();
 			ctx.fillStyle = this.getColor(.5);
 			ctx.fill();
 		}
 	}
+
+	//otherwise we render straight line
 	else {
-		ctx.moveTo(left, top + height*.5);
-
-		//collect tops/bottoms first
-		let tops = [], bottoms = [];
-		let lastX = 0, maxTop = 0, maxBottom = 0;
-		for (let i = 0; i < this.width; i++) {
-			//ignore out of range data
-			if (i + start >= this.samples.length) break;
-
-			amp = this.f(this.samples[i + start]);
-
-			if (amp > 0) {
-				maxTop = Math.max(maxTop, amp);
-			}
-			else {
-				maxBottom = Math.min(maxBottom, amp);
-			}
-
-			x = ( i / (this.width-1) ) * width;
-
-			//if we got a new pixel
-			if (Math.floor(x) > lastX) {
-				lastX = Math.floor(x);
-				tops.push(maxTop);
-				bottoms.push(maxBottom);
-				maxTop = 0;
-				maxBottom = 0;
-			}
-		}
-
-		//build the line
-		for (let i = 0; i < tops.length; i++) {
-			ctx.lineTo(left + i, top + (height*.5 - tops[i]*height*.5 ));
-		}
-		for (let i = bottoms.length; i--;) {
-			ctx.lineTo(i + left, top + (height*.5 - bottoms[i]*height*.5 ));
+		for (let x = 0; x < width; x++) {
+			amp = data[x];
+			ctx.lineTo(x + .5 + left, top + mid - amp*mid);
 		}
 
 		if (!this.fill) {
-			ctx.closePath();
-			ctx.strokeStyle = this.getColor(0);
+			ctx.strokeStyle = this.getColor(.5);
 			ctx.stroke();
+			ctx.closePath();
 		}
 		else if (this.fill) {
+			ctx.lineTo(data.length + left, top + mid);
+			ctx.lineTo(left, top + height*.5);
+			ctx.closePath();
 			ctx.fillStyle = this.getColor(.5);
 			ctx.fill();
 		}
@@ -369,27 +390,3 @@ Waveform.prototype.draw = function draw () {
 
 	return this;
 };
-
-//TODO: think on adding preview block
-
-
-Waveform.prototype.f = function (ratio) {
-	if (this.log) {
-		let db = toDb(Math.abs(ratio));
-		db = clamp(db, this.minDecibels, this.maxDecibels);
-
-		let dbRatio = (db - this.minDecibels) / (this.maxDecibels - this.minDecibels);
-
-		ratio = ratio < 0 ? -dbRatio : dbRatio;
-	}
-	else {
-		let min = fromDb(this.minDecibels);
-		let max = fromDb(this.maxDecibels);
-		let v = clamp(Math.abs(ratio), min, max);
-
-		v = (v - min) / (max - min);
-		ratio = ratio < 0 ? -v : v;
-	}
-
-	return clamp(ratio, -1, 1);
-}

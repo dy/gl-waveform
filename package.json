@@ -30,10 +30,12 @@
     "color-interpolate": "^1.0.2",
     "decibels": "^1.0.1",
     "fps-indicator": "^1.0.1",
+    "get-uid": "^1.0.1",
     "gl-component": "^1.4.20",
     "inherits": "^2.0.1",
     "just-extend": "^1.1.19",
-    "plot-grid": "^1.2.1"
+    "plot-grid": "^1.2.1",
+    "webworkify": "^1.3.0"
   },
   "devDependencies": {
     "audio-context": "^0.1.0",

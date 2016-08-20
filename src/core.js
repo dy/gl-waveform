@@ -11,12 +11,11 @@ const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
 const getData = require('./render');
-const uid = require('get-uid');
 
 let isWorkerAvailable = window.Worker;
-let webworkify, worker;
+let workify, worker;
 if (isWorkerAvailable) {
-	webworkify = require('webworkify');
+	workify = require('webworkify');
 	worker = require('./worker');
 }
 
@@ -94,17 +93,11 @@ Waveform.prototype.worker = true;
 Waveform.prototype.init = function init () {
 	let that = this;
 
-	this.id = uid();
-
 	//init worker - on messages from worker we plan rerender
 	if (this.worker) {
-		this.worker = worker;
-
+		this.worker = workify(worker);
 		this.worker.addEventListener('message', (e) => {
-			//other instance’s data
-			if (e.data.id !== this.id) return;
-
-			this.render(e.data.data);
+			this.render(e.data);
 		});
 	}
 	else {
@@ -177,15 +170,16 @@ Waveform.prototype.init = function init () {
 };
 
 //push a new data to the cache
-//FIXME: remove, leave only set
 Waveform.prototype.push = function (data) {
 	if (!data) return this;
 
+	if (typeof data === 'number') data = [data];
+
 	if (this.worker) {
 		this.worker.postMessage({
-			id: this.id,
 			action: 'push',
-			samples: data
+			data: data,
+			options: this.getRenderOptions()
 		});
 	}
 	else {
@@ -206,9 +200,9 @@ Waveform.prototype.set = function (data) {
 
 	if (this.worker) {
 		this.worker.postMessage({
-			id: this.id,
 			action: 'set',
-			samples: data
+			data: data,
+			options: this.getRenderOptions()
 		});
 	}
 	else {
@@ -303,22 +297,14 @@ Waveform.prototype.update = function update (opts) {
 //FIXME: move to 2d
 Waveform.prototype.draw = function draw (data) {
 	//if data length is more than viewport width - we render an outline shape
-	let outline = this.outline != null ? this.outline : this.width > this.viewport[2];
+	let opts = this.getRenderOptions();
 
 	if (!data) {
 		//ignore empty worker data
 		if (this.worker) return this;
 
 		//get the data, if not explicitly passed
-		data = getData(this.samples, {
-			min: this.minDecibels,
-			max: this.maxDecibels,
-			log: this.log,
-			offset: this.offset,
-			number: this.width,
-			width: this.viewport[2],
-			outline: outline
-		});
+		data = getData(this.samples, opts);
 	}
 
 	let ctx = this.context;
@@ -344,7 +330,7 @@ Waveform.prototype.draw = function draw (data) {
 	ctx.moveTo(left + .5, top + mid - amp*mid);
 
 	//paint outline, usually for the large dataset
-	if (outline) {
+	if (opts.outline) {
 		let half = data.length / 2;
 		for (let x = 0; x < half; x++) {
 			amp = data[x];
@@ -391,3 +377,17 @@ Waveform.prototype.draw = function draw (data) {
 
 	return this;
 };
+
+
+//just a helper
+Waveform.prototype.getRenderOptions = function () {
+	return {
+		min: this.minDecibels,
+		max: this.maxDecibels,
+		log: this.log,
+		offset: this.offset,
+		number: this.width,
+		width: this.viewport[2],
+		outline: this.outline != null ? this.outline : this.width > this.viewport[2]
+	};
+}

@@ -5,20 +5,35 @@
  * We have to do it here.
  */
 
+const render = require('./render');
+
+
 module.exports = (self) => {
+	//samples for worker instance
+	let samples = [];
+	let options;
+
 	self.addEventListener('message', (e) => {
-		let samples = e.samples, result = [];
+		let {action, data} = e.data;
+		options = e.data.options;
 
-		//ignore empty data
-		if (!data) return postMessage();
+		//save samples
+		if (action === 'push') {
+			for (let i = 0; i < data.length; i++) {
+				samples.push(data[i]);
+			}
+		}
+		else if (action === 'set') {
+			samples = Array.prototype.slice.call(data);
 
-		result = render(samples);
-
-		self.postMessage(result);
+		}
 	});
+
+	setInterval(() => {
+		if (!samples.length || !options) return;
+
+		let result = render(samples, options);
+
+		postMessage(result);
+	}, 10);
 };
-
-
-function render (samples) {
-
-}

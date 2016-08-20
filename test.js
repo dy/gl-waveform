@@ -140,7 +140,7 @@ let settings = createSettings([
 		waveform.maxDecibels = v[1];
 		waveform.update();
 	}, style: `width: 20em;`},
-	{id: 'width', label: 'Width', type: 'range', min: 2, max: 1e10, precision: 0, log: true, value: 2000, change: v => {
+	{id: 'width', label: 'Width', type: 'range', min: 2, max: 1e10, precision: 0, log: true, value: 44100*2, change: v => {
 		waveform.update({width: v});
 	}, style: `width: 12em;`},
 ], {
@@ -191,7 +191,7 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 let waveform = createWaveform({
-	worker: false,
+	// worker: false,
 	offset: null,
 	palette: settings.theme.palette.map(v => {
 		let rgb = Color(v).toRgb();
@@ -209,10 +209,10 @@ waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;
 // let f = 440;
 // let t = 0;
 // setInterval(function pushData () {
-// 	waveform.samples.push(Math.sin(t));
+// 	waveform.push([Math.sin(t)]);
 // 	t += 1/10;
 // 	waveform.render();
-// }, 20);
+// }, 10);
 
 
 //create audio source

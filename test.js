@@ -141,7 +141,7 @@ let settings = createSettings([
 		waveform.update();
 	}, style: `width: 20em;`},
 	{id: 'width', label: 'Width', type: 'range', min: 2, max: 1e10, precision: 0, log: true, value: 2000, change: v => {
-		waveform.width = v;
+		waveform.update({width: v});
 	}, style: `width: 12em;`},
 ], {
 	// title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
@@ -199,7 +199,7 @@ let waveform = createWaveform({
 	}),
 	active: settings.theme.active,
 	padding: 50,
-	viewport: function (w, h) { return [60, 20, w - 60, h - 40] }
+	viewport: function (w, h) { return [60, 60, w - 60, h - 120] }
 });
 waveform.topGrid.element.style.fontFamily = settings.theme.fontFamily;
 waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;

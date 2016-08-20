@@ -1,6 +1,7 @@
 /**
  * @module  gl-waveform
  */
+'use strict';
 
 const extend = require('just-extend');
 const inherits = require('inherits');
@@ -70,6 +71,11 @@ Waveform.prototype.samples = [];
 
 //init routine
 Waveform.prototype.init = function init () {
+	let that = this;
+
+	//init audio
+	this.samples = [];
+
 	//create grids
 	// this.timeGrid = new Grid({
 	// 	container: this.container,
@@ -85,7 +91,6 @@ Waveform.prototype.init = function init () {
 	// 	viewport: () => this.viewport
 	// });
 
-	let that = this;
 	function getTitle (v) {
 		if (that.log) {
 			return that.db ? toDb(v).toFixed(0) : v.toPrecision(2);
@@ -152,7 +157,6 @@ Waveform.prototype.push = function (data) {
 //rewrite samples with a new data
 Waveform.prototype.set = function (data) {
 	if (!data) {
-		this.samples = [];
 		return this;
 	}
 

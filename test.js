@@ -1,7 +1,7 @@
 const createSettings = require('settings-panel');
 const createWaveform = require('./src/core');
-const createAudio = require('app-audio');
-const createFps = require('../fps-indicator');
+const createAudio = require('../app-audio');
+const createFps = require('fps-indicator');
 const insertCss =  require('insert-styles');
 const Color = require('tinycolor2');
 const colormap = require('colormap');
@@ -107,11 +107,11 @@ let settings = createSettings([
 			//FIXME: avoid rgb array palette
 			setColors(el, palette);
 			waveform.update({
-				palette: arrPalette
+				palette: palette
 			});
 
 			audio.update({color: palette[0]});
-			fps.element.style.color = palette[0];
+			fps.element.style.color = waveform.getColor(0);
 		}
 
 		//create colors in the element
@@ -183,6 +183,9 @@ let fps = createFps();
 fps.element.style.color = settings.theme.palette[0];
 fps.element.style.fontFamily = settings.theme.fontFamily;
 fps.element.style.fontWeight = 500;
+fps.element.style.fontSize = '12px';
+fps.element.style.marginTop = '1rem';
+fps.element.style.marginRight = '1rem';
 
 
 
@@ -219,16 +222,20 @@ let audio = createAudio({
 
 	scriptNode.addEventListener('audioprocess', e => {
 		let input = e.inputBuffer.getChannelData(0);
-		waveform.push(input);
-
 		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
 		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
+
+		if (!input[0]) return;
+
+		waveform.push(e.outputBuffer.getChannelData(0));
 	});
 
 	node.disconnect();
 	node.connect(scriptNode);
-	scriptNode.connect(audio.gainNode);
+	scriptNode.connect(audio.context.destination);
 
 });
 
 audio.element.style.fontFamily = settings.theme.fontFamily;
+audio.element.style.fontSize = settings.theme.fontSize;
+audio.update();

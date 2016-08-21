@@ -15,17 +15,17 @@ module.exports = (self) => {
 
 	self.addEventListener('message', (e) => {
 		let {action, data} = e.data;
-		options = e.data.options;
 
-		//save samples
-		if (action === 'push') {
+		if (action === 'update') {
+			options = e.data.data;
+		}
+		else if (action === 'push') {
 			for (let i = 0; i < data.length; i++) {
 				samples.push(data[i]);
 			}
 		}
 		else if (action === 'set') {
 			samples = Array.prototype.slice.call(data);
-
 		}
 	});
 
@@ -35,5 +35,5 @@ module.exports = (self) => {
 		let result = render(samples, options);
 
 		postMessage(result);
-	}, 10);
+	}, 15);
 };

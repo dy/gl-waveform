@@ -178,8 +178,7 @@ Waveform.prototype.push = function (data) {
 	if (this.worker) {
 		this.worker.postMessage({
 			action: 'push',
-			data: data,
-			options: this.getRenderOptions()
+			data: data
 		});
 	}
 	else {
@@ -189,7 +188,6 @@ Waveform.prototype.push = function (data) {
 
 		this.render();
 	}
-
 
 	return this;
 };
@@ -201,8 +199,7 @@ Waveform.prototype.set = function (data) {
 	if (this.worker) {
 		this.worker.postMessage({
 			action: 'set',
-			data: data,
-			options: this.getRenderOptions()
+			data: data
 		});
 	}
 	else {
@@ -286,7 +283,14 @@ Waveform.prototype.update = function update (opts) {
 	//TODO: acquire sampled data (for datasets more that viewport we should store sampled items)
 
 	//render the new properties
-	if (!this.worker) this.render();
+	if (!this.worker) {
+		this.render();
+	} else {
+		this.worker.postMessage({
+			action: 'update',
+			data: this.getRenderOptions()
+		})
+	}
 
 	return this;
 };

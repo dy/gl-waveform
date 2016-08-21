@@ -13,7 +13,7 @@ const render = require('./render');
 module.exports = (self) => {
 	//samples for worker instance
 	let samples = [];
-	let options;
+	let options = {};
 	let amplitudes = [];
 	let lastLen = 0;
 
@@ -21,8 +21,7 @@ module.exports = (self) => {
 		let {action, data} = e.data;
 
 		if (action === 'update') {
-			options = e.data.data;
-			amplitudes = render(samples, options);
+			options = data;
 		}
 		else if (action === 'push') {
 			for (let i = 0; i < data.length; i++) {
@@ -31,11 +30,17 @@ module.exports = (self) => {
 		}
 		else if (action === 'set') {
 			samples = Array.prototype.slice.call(data);
+			lastLen = samples.length;
 		}
 	});
 
-	setInterval(() => {
-		if (options.outline) {
+	//60fps we want
+	function processData () {
+		if (!amplitudes.length || !options.outline) {
+			amplitudes = render(samples, options);
+		}
+
+		else if (options.outline) {
 			let skipped = samples.length - lastLen;
 			if (skipped > options.samplesPerPixel) {
 				let data = render(samples.slice(-skipped), options);
@@ -48,10 +53,10 @@ module.exports = (self) => {
 				lastLen = samples.length;
 			}
 		}
-		else {
-			lastLen = samples.length;
-			amplitudes = render(samples, options);
-		}
+
 		postMessage(amplitudes);
-	}, 20);
+
+		setTimeout(processData, 10);
+	}
+	processData();
 };

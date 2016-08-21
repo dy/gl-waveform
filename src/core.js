@@ -6,7 +6,7 @@
 const extend = require('just-extend');
 const inherits = require('inherits');
 const Component = require('gl-component');
-const Grid = require('plot-grid');
+const Grid = require('../../plot-grid');
 const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
@@ -327,6 +327,7 @@ Waveform.prototype.draw = function draw (data) {
 	ctx.fillStyle = this.active || this.getColor(0);
 	ctx.fillRect(left, top + mid, width, .5);
 
+	if (!data[0]) return;
 
 	//create line path
 	ctx.beginPath();
@@ -337,15 +338,41 @@ Waveform.prototype.draw = function draw (data) {
 	//paint outline, usually for the large dataset
 	if (opts.outline) {
 		let tops = data[0], bottoms = data[1];
-		for (let x = 0; x < tops.length; x++) {
-			amp = tops[x];
-			ctx.lineTo(x + left, top + mid - amp*mid);
+		let prev, next, curr;
+
+
+		//too dense guys cause audio glitch, therefore simplify render
+		if (this.width/20 > width) {
+			let items = [];
+			for (let x = 0; x < tops.length; x++) {
+				curr = Math.max(tops[x], -bottoms[x]);
+				amp = curr;
+				items.push(amp);
+				ctx.lineTo(x + left, top + mid - amp*mid);
+			}
+			for (let x = 0; x < items.length; x++) {
+				amp = items[items.length - 1 - x];
+				ctx.lineTo(items.length - 1 - x + left, top + mid + amp*mid);
+			}
+
+			//dirty hack to avoid
+			// ctx.lineTo(left + tops.length, top + mid);
+			ctx.lineTo(left, top + mid);
 		}
-		// ctx.moveTo(left + width - 1, data[width]);
-		for (let x = 0; x < bottoms.length; x++) {
-			amp = bottoms[bottoms.length - 1 - x];
-			ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
+		//if allowable - show more details
+		else {
+			for (let x = 0; x < tops.length; x++) {
+				curr = tops[x];
+				amp = curr;
+				ctx.lineTo(x + left, top + mid - amp*mid);
+			}
+			for (let x = 0; x < bottoms.length; x++) {
+				curr = bottoms[bottoms.length - 1 - x];
+				amp = curr;
+				ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
+			}
 		}
+
 
 		if (this.type !== 'fill') {
 			ctx.strokeStyle = this.getColor(.5);

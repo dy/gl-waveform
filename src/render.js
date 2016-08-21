@@ -48,34 +48,47 @@ function render (samples, opts) {
 	else {
 		//collect tops/bottoms first
 		let tops = [], bottoms = [];
-		let lastX = 0, maxTop = 0, maxBottom = 0;
+		let lastX = 0, maxTop = 0, maxBottom = 0, sum = 0, sumTop = 0, sumBottom = 0, count = 0;
 
 		for (let x = .5; x < width; x++) {
 			let i = number * x / width;
-
-			// ignore out of range data
-			if (i + start >= samples.length) break;
 
 			let lx = Math.floor(x);
 			let rx = Math.ceil(x);
 			let li = number * lx / width;
 			let ri = number * rx / width;
 
-			for (let i = Math.floor(li); i < ri; i++) {
+			// ignore out of range data
+			if (Math.ceil(ri) + start >= samples.length) break;
+
+			for (let i = Math.max(Math.floor(li), 0); i < ri; i++) {
 				amp = f(samples[i + start], log, min, max);
 
+				sum += amp;
+				count++;
+
 				if (amp > 0) {
+					sumTop += amp;
 					maxTop = Math.max(maxTop, amp);
 				}
 				else {
+					sumBottom += amp;
 					maxBottom = Math.min(maxBottom, amp);
 				}
 			}
 
-			tops.push(maxTop);
-			bottoms.push(maxBottom);
+			let avgTop = sumTop / count;
+			let avgBottom = sumBottom / count;
+			let top = avgTop*.15 + maxTop*.85;
+			let bottom = avgBottom*.15 + maxBottom*.85;
+
+			tops.push(top);
+			bottoms.push(bottom);
 			maxTop = 0;
 			maxBottom = 0;
+			sumTop = 0;
+			sumBottom = 0;
+			count = 0;
 		}
 
 		data = [tops, bottoms];

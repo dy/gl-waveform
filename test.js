@@ -191,7 +191,7 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 let waveform = createWaveform({
-	// worker: false,
+	worker: false,
 	offset: null,
 	palette: settings.theme.palette.map(v => {
 		let rgb = Color(v).toRgb();
@@ -225,6 +225,11 @@ let audio = createAudio({
 
 	scriptNode.addEventListener('audioprocess', e => {
 		let input = e.inputBuffer.getChannelData(0);
+
+		// for (let i = 0; i < input.length; i++) {
+		// 	input[i] = input[i]/2 + .45;
+		// }
+
 		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
 		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
 

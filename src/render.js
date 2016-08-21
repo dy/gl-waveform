@@ -3,6 +3,7 @@
  *
  * Acquire data for renderer, ie. samples → per-pixel amplitude values.
  */
+'use strict';
 
 const clamp = require('mumath/clamp');
 const fromDb = require('decibels/to-gain');
@@ -32,8 +33,8 @@ function render (samples, opts) {
 
 	//non-outline is simple line by amplitudes
 	if (!outline) {
-		for (let x = .5; x < width; x++) {
-			let i = number * x / width;
+		for (let x = 0; x < width; x++) {
+			let i = (number - 1) * x / width;
 
 			//ignore out of range data
 			if (i + start >= samples.length) break;
@@ -52,7 +53,7 @@ function render (samples, opts) {
 		for (let x = .5; x < width; x++) {
 			let i = number * x / width;
 
-			//ignore out of range data
+			// ignore out of range data
 			if (i + start >= samples.length) break;
 
 			let lx = Math.floor(x);
@@ -77,7 +78,7 @@ function render (samples, opts) {
 			maxBottom = 0;
 		}
 
-		data = tops.concat(bottoms);
+		data = [tops, bottoms];
 	}
 
 	return data;

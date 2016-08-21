@@ -335,15 +335,15 @@ Waveform.prototype.draw = function draw (data) {
 
 	//paint outline, usually for the large dataset
 	if (opts.outline) {
-		let half = data.length / 2;
-		for (let x = 0; x < half; x++) {
-			amp = data[x];
+		let tops = data[0], bottoms = data[1];
+		for (let x = 0; x < tops.length; x++) {
+			amp = tops[x];
 			ctx.lineTo(x + left, top + mid - amp*mid);
 		}
 		// ctx.moveTo(left + width - 1, data[width]);
-		for (let x = 0; x < half; x++) {
-			amp = data[data.length - 1 - x];
-			ctx.lineTo(left + half - 1 - x, top + mid - amp*mid);
+		for (let x = 0; x < bottoms.length; x++) {
+			amp = bottoms[bottoms.length - 1 - x];
+			ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
 		}
 
 		if (!this.fill) {

@@ -6456,7 +6456,7 @@ module.exports.get = function (element, properties) {
   }
 }
 
-},{"add-px-to-style":41,"prefix-style":100,"to-camel-case":127}],61:[function(require,module,exports){
+},{"add-px-to-style":41,"prefix-style":106,"to-camel-case":133}],61:[function(require,module,exports){
 'use strict';
 
 var trim = require('trim');
@@ -6544,7 +6544,7 @@ function numToString(value) {
   return value;
 }
 
-},{"./lib/properties":63,"prefix":101,"trim":130}],62:[function(require,module,exports){
+},{"./lib/properties":63,"prefix":107,"trim":136}],62:[function(require,module,exports){
 'use strict';
 
 exports = module.exports = compose;
@@ -6686,7 +6686,7 @@ function defaultUnit(unit) {
   };
 }
 
-},{"./compose":62,"trim":130}],64:[function(require,module,exports){
+},{"./compose":62,"trim":136}],64:[function(require,module,exports){
 module.exports = getSize
 
 function getSize(element) {
@@ -6809,7 +6809,7 @@ function fps (opts) {
 		raf(measure);
 	});
 }
-},{"raf":103,"right-now":104}],66:[function(require,module,exports){
+},{"raf":109,"right-now":110}],66:[function(require,module,exports){
 module.exports = getCanvasContext
 function getCanvasContext (type, opts) {
   if (typeof type !== 'string') {
@@ -7421,7 +7421,7 @@ Component.prototype.createProgram = function (vSrc, fSrc) {
 
 	return program;
 }
-},{"canvas-fit":44,"events":3,"get-canvas-context":66,"inherits":70,"is-browser":73,"is-plain-obj":77,"raf":103,"raf-loop":102,"xtend/mutable":132}],69:[function(require,module,exports){
+},{"canvas-fit":44,"events":3,"get-canvas-context":66,"inherits":70,"is-browser":73,"is-plain-obj":77,"raf":109,"raf-loop":108,"xtend/mutable":138}],69:[function(require,module,exports){
 module.exports = asString
 module.exports.add = append
 
@@ -7575,7 +7575,7 @@ function numerify (input, opts) {
 
 	return input;
 }
-},{"caret-position2":46,"mumath/clamp":93,"mumath/round":95}],72:[function(require,module,exports){
+},{"caret-position2":46,"mumath/clamp":93,"mumath/round":99}],72:[function(require,module,exports){
 (function (global){
 'use strict'
 
@@ -9554,7 +9554,73 @@ module.exports = function (str, locale) {
 module.exports = require('./wrap')(function(a, min, max){
 	return max > min ? Math.max(Math.min(a,max),min) : Math.max(Math.min(a,min),max);
 });
-},{"./wrap":96}],94:[function(require,module,exports){
+},{"./wrap":101}],94:[function(require,module,exports){
+/**
+ * @module  mumath/closest
+ */
+
+module.exports = function closest (num, arr) {
+	var curr = arr[0];
+	var diff = Math.abs (num - curr);
+	for (var val = 0; val < arr.length; val++) {
+		var newdiff = Math.abs (num - arr[val]);
+		if (newdiff < diff) {
+			diff = newdiff;
+			curr = arr[val];
+		}
+	}
+	return curr;
+}
+},{}],95:[function(require,module,exports){
+/**
+ * Base 10 logarithm
+ *
+ * @module mumath/lg
+ */
+module.exports = require('./wrap')(function (a) {
+	return Math.log(a) / Math.log(10);
+});
+},{"./wrap":101}],96:[function(require,module,exports){
+/**
+ * Looping function for any framesize.
+ * Like fmod.
+ *
+ * @module  mumath/loop
+ *
+ */
+
+module.exports = require('./wrap')(function (value, left, right) {
+	//detect single-arg case, like mod-loop or fmod
+	if (right === undefined) {
+		right = left;
+		left = 0;
+	}
+
+	//swap frame order
+	if (left > right) {
+		var tmp = right;
+		right = left;
+		left = tmp;
+	}
+
+	var frame = right - left;
+
+	value = ((value + left) % frame) - left;
+	if (value < left) value += frame;
+	if (value > right) value -= frame;
+
+	return value;
+});
+},{"./wrap":101}],97:[function(require,module,exports){
+/**
+ * @module mumath/order
+ */
+module.exports = require('./wrap')(function (n) {
+	n = Math.abs(n);
+	var order = Math.floor(Math.log(n) / Math.LN10 + 0.000000001);
+	return Math.pow(10,order);
+});
+},{"./wrap":101}],98:[function(require,module,exports){
 /**
  * @module  mumath/precision
  *
@@ -9574,7 +9640,7 @@ module.exports = require('./wrap')(function(n){
 
 	return !d ? 0 : s.length - d;
 });
-},{"./wrap":96}],95:[function(require,module,exports){
+},{"./wrap":101}],99:[function(require,module,exports){
 /**
  * Precision round
  *
@@ -9597,7 +9663,26 @@ module.exports = require('./wrap')(function(value, step) {
 	value = Math.round(value / step) * step;
 	return parseFloat(value.toFixed(precision(step)));
 });
-},{"./precision":94,"./wrap":96}],96:[function(require,module,exports){
+},{"./precision":98,"./wrap":101}],100:[function(require,module,exports){
+/**
+ * Whether element is between left & right including
+ *
+ * @param {number} a
+ * @param {number} left
+ * @param {number} right
+ *
+ * @return {Boolean}
+ */
+module.exports = require('./wrap')(function(a, left, right){
+	if (left > right) {
+		var tmp = left;
+		left = right;
+		right = tmp;
+	}
+	if (a <= right && a >= left) return true;
+	return false;
+});
+},{"./wrap":101}],101:[function(require,module,exports){
 /**
  * Get fn wrapped with array/object attrs recognition
  *
@@ -9639,9 +9724,9 @@ module.exports = function(fn){
 		}
 	};
 };
-},{}],97:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 module.exports=[["#69d2e7","#a7dbd8","#e0e4cc","#f38630","#fa6900"],["#fe4365","#fc9d9a","#f9cdad","#c8c8a9","#83af9b"],["#ecd078","#d95b43","#c02942","#542437","#53777a"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#fe4365","#fc9d9a","#f9cdad","#c8c8a9","#83af9b"],["#ecd078","#d95b43","#c02942","#542437","#53777a"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ecd078","#d95b43","#c02942","#542437","#53777a"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ffe181","#eee9e5","#fad3b2","#ffba7f","#ff9c97"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ffe181","#eee9e5","#fad3b2","#ffba7f","#ff9c97"],["#7e5686","#a5aad9","#e8f9a2","#f8a13f","#ba3c3d"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ffe181","#eee9e5","#fad3b2","#ffba7f","#ff9c97"],["#7e5686","#a5aad9","#e8f9a2","#f8a13f","#ba3c3d"],["#379f7a","#78ae62","#bbb749","#e0fbac","#1f1c0d"]]
-},{}],98:[function(require,module,exports){
+},{}],103:[function(require,module,exports){
 var sentenceCase = require('sentence-case')
 
 /**
@@ -9655,7 +9740,7 @@ module.exports = function (string, locale) {
   return sentenceCase(string, locale, '-')
 }
 
-},{"sentence-case":106}],99:[function(require,module,exports){
+},{"sentence-case":112}],104:[function(require,module,exports){
 (function (process){
 // Generated by CoffeeScript 1.7.1
 (function() {
@@ -9691,7 +9776,555 @@ module.exports = function (string, locale) {
 }).call(this);
 
 }).call(this,require('_process'))
-},{"_process":6}],100:[function(require,module,exports){
+},{"_process":6}],105:[function(require,module,exports){
+(function (Buffer){
+/**
+ * @module  plot-grid
+ */
+
+var extend = require('xtend/mutable');
+var isBrowser = require('is-browser');
+var lg = require('mumath/lg');
+var Emitter = require('events').EventEmitter;
+var inherits = require('inherits');
+var closestNumber = require('mumath/closest');
+var mod = require('mumath/mod');
+var mag = require('mumath/order');
+var within = require('mumath/within');
+var uid = require('get-uid');
+var insertStyles = require('insert-styles');
+
+
+insertStyles(Buffer("Omhvc3Qgew0KCXBvc2l0aW9uOiByZWxhdGl2ZTsNCn0NCg0KLmdyaWQgew0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl0b3A6IDA7DQoJbGVmdDogMDsNCglib3R0b206IDA7DQoJcmlnaHQ6IDA7DQoJcG9pbnRlci1ldmVudHM6IG5vbmU7DQoJZm9udC1mYW1pbHk6IHNhbnMtc2VyaWY7DQp9DQouZ3JpZC1saW5lcyB7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCXRvcDogMDsNCglsZWZ0OiAwOw0KCWJvdHRvbTogMDsNCglyaWdodDogMDsNCglvdmVyZmxvdzogaGlkZGVuOw0KCXBvaW50ZXItZXZlbnRzOiBub25lOw0KfQ0KDQouZ3JpZC1saW5lIHsNCglwb2ludGVyLWV2ZW50czogYWxsOw0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl0b3A6IDA7DQoJbGVmdDogMDsNCgl3aWR0aDogLjVyZW07DQoJaGVpZ2h0OiAuNXJlbTsNCglvcGFjaXR5OiAuMjU7DQp9DQouZ3JpZC1saW5lW2hpZGRlbl0gew0KCWRpc3BsYXk6IG5vbmU7DQp9DQouZ3JpZC1saW5lOmhvdmVyIHsNCglvcGFjaXR5OiAuNTsNCn0NCg0KQHN1cHBvcnRzICgtLWNzczogdmFyaWFibGVzKSB7DQoJLmdyaWQgew0KCQktLW9wYWNpdHk6IC4xNTsNCgl9DQoJLmdyaWQtbGluZSB7DQoJCW9wYWNpdHk6IHZhcigtLW9wYWNpdHkpOw0KCX0NCgkuZ3JpZC1saW5lOmhvdmVyIHsNCgkJb3BhY2l0eTogY2FsYyh2YXIoLS1vcGFjaXR5KSAqIDIpOw0KCX0NCn0NCg0KLmdyaWQtbGluZS14IHsNCgloZWlnaHQ6IDEwMCU7DQoJd2lkdGg6IDA7DQoJYm9yZGVyLWxlZnQ6IDFweCBzb2xpZDsNCgltYXJnaW4tbGVmdDogLTFweDsNCn0NCi5ncmlkLWxpbmUteDphZnRlciB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCXdpZHRoOiAuNXJlbTsNCgl0b3A6IDA7DQoJYm90dG9tOiAwOw0KCWxlZnQ6IC0uMjVyZW07DQp9DQouZ3JpZC1saW5lLXguZ3JpZC1saW5lLW1pbiB7DQoJbWFyZ2luLWxlZnQ6IDBweDsNCn0NCg0KLmdyaWQtbGluZS15IHsNCgl3aWR0aDogMTAwJTsNCgloZWlnaHQ6IDA7DQoJbWFyZ2luLXRvcDogLTFweDsNCglib3JkZXItdG9wOiAxcHggc29saWQ7DQp9DQouZ3JpZC1saW5lLXk6YWZ0ZXIgew0KCWNvbnRlbnQ6ICcnOw0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgloZWlnaHQ6IC41cmVtOw0KCWxlZnQ6IDA7DQoJcmlnaHQ6IDA7DQoJdG9wOiAtLjI1cmVtOw0KfQ0KLmdyaWQtbGluZS15LmdyaWQtbGluZS1tYXggew0KCW1hcmdpbi10b3A6IDBweDsNCn0NCg0KLyogcmFkaWFsIGxpbmVzICovDQouZ3JpZC1saW5lLXIgew0KCWhlaWdodDogMTAwJTsNCgl3aWR0aDogMTAwJTsNCglsZWZ0OiA1MCU7DQoJdG9wOiA1MCU7DQoJYm9yZGVyLXJhZGl1czogNTB2dzsNCglib3gtc2hhZG93OiBpbnNldCAwIDAgMCAxcHg7DQp9DQouZ3JpZC1saW5lLXIuZ3JpZC1saW5lLW1pbiB7DQp9DQoNCi8qIGFuZ3VsYXIgbGluZXMgKi8NCi5ncmlkLWxpbmUtYSB7DQoJaGVpZ2h0OiAwOw0KCXRvcDogNTAlOw0KCWxlZnQ6IDUwJTsNCgl0cmFuc2Zvcm0tb3JpZ2luOiBsZWZ0IGNlbnRlcjsNCgl3aWR0aDogNTAlOw0KCWJvcmRlci10b3A6IDFweCBzb2xpZDsNCn0NCi5ncmlkLWxpbmUtYTphZnRlciB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCWhlaWdodDogLjVyZW07DQoJbGVmdDogMDsNCglyaWdodDogMDsNCgl0b3A6IC0uMjVyZW07DQp9DQouZ3JpZC1saW5lLWE6YmVmb3JlIHsNCgljb250ZW50OiAnJzsNCglwb3NpdGlvbjogYWJzb2x1dGU7DQoJd2lkdGg6IC40cmVtOw0KCXJpZ2h0OiAwOw0KCXRvcDogLTFweDsNCgloZWlnaHQ6IDA7DQoJYm9yZGVyLWJvdHRvbTogMnB4IHNvbGlkOw0KfQ0KDQoNCi5ncmlkLWF4aXMgew0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCn0NCi5ncmlkLWF4aXMteCB7DQoJdG9wOiBhdXRvOw0KCWJvdHRvbTogMDsNCglyaWdodDogMDsNCglsZWZ0OiAwOw0KCWJvcmRlci1ib3R0b206IDJweCBzb2xpZDsNCgltYXJnaW4tYm90dG9tOiAtLjVyZW07DQp9DQouZ3JpZC1heGlzLXkgew0KCWJvcmRlci1sZWZ0OiAycHggc29saWQ7DQoJcmlnaHQ6IGF1dG87DQoJdG9wOiAwOw0KCWJvdHRvbTogMDsNCglsZWZ0OiAtMXB4Ow0KCW1hcmdpbi1sZWZ0OiAtLjVyZW07DQp9DQouZ3JpZC1heGlzLWEgew0KCWhlaWdodDogMTAwJTsNCgl3aWR0aDogMTAwJTsNCglsZWZ0OiA1MCU7DQoJdG9wOiA1MCU7DQoJYm9yZGVyLXJhZGl1czogNTB2dzsNCglib3gtc2hhZG93OiAwIDAgMCAycHg7DQp9DQouZ3JpZC1heGlzLXIgew0KCWJvcmRlci1sZWZ0OiAycHggc29saWQ7DQoJcmlnaHQ6IGF1dG87DQoJdG9wOiA1MCU7DQoJaGVpZ2h0OiAxMDAlOw0KCWxlZnQ6IC0xcHg7DQoJbWFyZ2luLWxlZnQ6IC0uNXJlbTsNCn0NCg0KLmdyaWQtbGFiZWwgew0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl0b3A6IGF1dG87DQoJbGVmdDogYXV0bzsNCgltaW4taGVpZ2h0OiAxcmVtOw0KCW1hcmdpbi10b3A6IC0uNXJlbTsNCglmb250LXNpemU6IC44cmVtOw0KCXBvaW50ZXItZXZlbnRzOiBhbGw7DQoJd2hpdGUtc3BhY2U6IG5vd3JhcDsNCn0NCi5ncmlkLWxhYmVsLXggew0KCWJvdHRvbTogYXV0bzsNCgl0b3A6IDEwMCU7DQoJbWFyZ2luLXRvcDogMS41cmVtOw0KCXdpZHRoOiAycmVtOw0KCW1hcmdpbi1sZWZ0OiAtMXJlbTsNCgl0ZXh0LWFsaWduOiBjZW50ZXI7DQp9DQouZ3JpZC1sYWJlbC14OmJlZm9yZSB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCWhlaWdodDogLjVyZW07DQoJd2lkdGg6IDA7DQoJYm9yZGVyLWxlZnQ6IDJweCBzb2xpZDsNCgl0b3A6IC0xcmVtOw0KCW1hcmdpbi1sZWZ0OiAtMXB4Ow0KCW1hcmdpbi10b3A6IC0ycHg7DQoJbGVmdDogMXJlbTsNCn0NCg0KLmdyaWQtbGFiZWwteSB7DQoJcmlnaHQ6IDEwMCU7DQoJbWFyZ2luLXJpZ2h0OiAxLjVyZW07DQoJbWFyZ2luLXRvcDogLS41cmVtOw0KfQ0KLmdyaWQtbGFiZWwteTpiZWZvcmUgew0KCWNvbnRlbnQ6ICcnOw0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl3aWR0aDogLjVyZW07DQoJaGVpZ2h0OiAwOw0KCWJvcmRlci10b3A6IDJweCBzb2xpZDsNCglyaWdodDogLTFyZW07DQoJdG9wOiAuNHJlbTsNCgltYXJnaW4tcmlnaHQ6IC0xcHg7DQp9DQoNCi5ncmlkLWxhYmVsLXIgew0KCXJpZ2h0OiAxMDAlOw0KCXRvcDogY2FsYyg1MCUgLSAuNXJlbSk7DQoJbWFyZ2luLXJpZ2h0OiAxLjVyZW07DQp9DQouZ3JpZC1sYWJlbC1yOmJlZm9yZSB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCXdpZHRoOiAuNXJlbTsNCgloZWlnaHQ6IDA7DQoJYm9yZGVyLXRvcDogMnB4IHNvbGlkOw0KCXJpZ2h0OiAtMXJlbTsNCgl0b3A6IC40cmVtOw0KCW1hcmdpbi1yaWdodDogLTFweDsNCn0NCg0KDQouZ3JpZC1sYWJlbC1hIHsNCglib3R0b206IGF1dG87DQoJd2lkdGg6IDJyZW07DQoJdGV4dC1hbGlnbjogY2VudGVyOw0KfQ==","base64"));
+
+
+module.exports = Grid;
+
+/**
+ * @constructor
+ */
+function Grid (options) {
+	if (!(this instanceof Grid)) return new Grid(options);
+
+	extend(this, options);
+
+	this.id = uid();
+
+	if (!isBrowser) return;
+
+	//obtian container
+	this.container = options.container || document.body;
+	if (typeof this.container === 'string') this.container = document.querySelector(this.container);
+	this.container.classList.add('grid-container');
+
+	this.element = document.createElement('div');
+	this.element.classList.add('grid');
+	this.container.appendChild(this.element);
+
+	if (this.className) this.element.className += ' ' + this.className;
+
+	//create lines container
+	this.linesContainer = document.createElement('div');
+	this.element.appendChild(this.linesContainer);
+	this.linesContainer.classList.add('grid-lines');
+
+	this.update(options);
+}
+
+inherits(Grid, Emitter);
+
+
+Grid.prototype.container = null;
+Grid.prototype.viewport = null;
+
+Grid.prototype.lines = null;
+Grid.prototype.axes = null;
+
+Grid.prototype.prefixes = {
+	8: 'Y', // yotta
+	7: 'Z', // zetta
+	6: 'E', // exa
+	5: 'P', // peta
+	4: 'T', // tera
+	3: 'G', // giga
+	2: 'M', // mega
+	1: 'k', // kilo
+	0: '',
+	'-1': 'm', // milli
+	'-2': 'µ', // micro
+	'-3': 'n', // nano
+	'-4': 'p', // pico
+	'-5': 'f', // femto
+	'-6': 'a', // atto
+	'-7': 'z', // zepto
+	'-8': 'y'  // ycoto
+};
+
+Grid.prototype.defaultLines = {
+	orientation: 'x',
+	logarithmic: false,
+	min: 0,
+	max: 100,
+	//detected from range
+	values: undefined,
+	//copied from values
+	titles: undefined,
+	format: true,
+	units: ''
+};
+
+Grid.prototype.defaultAxis = {
+	name: '',
+	//detected from range
+	values: undefined,
+	//copied from values
+	labels: undefined,
+	//copied from labels
+	titles: undefined,
+	format: true,
+	units: ''
+};
+
+Grid.prototype.update = function (options) {
+	var this$1 = this;
+
+	options = options || {};
+
+	var that = this;
+
+	var element = this.element;
+	var linesContainer = this.linesContainer;
+	var id = this.id;
+
+	//set viewport
+	if (options.viewport) this.viewport = options.viewport;
+	var viewport = this.viewport;
+
+	//hide element to avoid live calc
+	element.setAttribute('hidden', true);
+
+	var w = this.container.offsetWidth;
+	var h = this.container === document.body ? window.innerHeight : this.container.offsetHeight;
+
+	//calc viewport
+	if (viewport instanceof Function) {
+		viewport = viewport(w, h);
+	}
+
+	if (!viewport) viewport = [0,0,w,h];
+	if (viewport[2] < 0 || viewport[3] < 0) throw 'Viewport size is negative, probably because grid container size is 0 or something. Please, check the container size.';
+
+	element.style.left = viewport[0] + (typeof viewport[0] === 'number' ? 'px' : '');
+	element.style.top = viewport[1] + (typeof viewport[1] === 'number' ? 'px' : '');
+	element.style.width = viewport[2] + (typeof viewport[2] === 'number' ? 'px' : '');
+	element.style.height = viewport[3] + (typeof viewport[3] === 'number' ? 'px' : '');
+
+
+	//ensure lines values are not empty
+	this.lines = this.lines || [];
+	if (options.lines) {
+		this.lines = options.lines.map(function (lines, i) { return lines && extend({}, this$1.defaultLines, this$1.lines[i], lines); });
+	}
+	this.axes = this.axes || [];
+	if (options.axes) {
+		this.axes = options.axes.map(function (axis, i) { return axis && extend({}, this$1.defaultAxis, this$1.lines[i], axis); });
+	}
+
+	//exceptional case of overflow:hidden
+	// if (this.container === document.body) {
+	// 	if ((viewport[0] + viewport[2]) >= window.innerWidth || (viewport[1] + viewport[3]) >= window.innerHeight) {
+	// 		linesContainer.style.overflow = 'hidden';
+	// 	}
+	// 	else {
+	// 		linesContainer.style.overflow = 'visible';
+	// 	}
+	// }
+
+	//hide all lines, labels, axes first
+	var lines = element.querySelectorAll('.grid-line');
+	for (var i = 0; i < lines.length; i++) {
+		lines[i].setAttribute('hidden', true);
+	}
+	var axes = element.querySelectorAll('.grid-axis');
+	for (var i = 0; i < axes.length; i++) {
+		axes[i].setAttribute('hidden', true);
+	}
+	var labels = element.querySelectorAll('.grid-label');
+	for (var i = 0; i < labels.length; i++) {
+		labels[i].setAttribute('hidden', true);
+	}
+
+	//set lines
+	this.lines.forEach(function (lines, idx) {
+		if (!lines) return;
+
+		//temp object keeping state of current lines run
+		var stats = {
+			linesContainer: linesContainer,
+			idx: idx,
+			id: id
+		};
+
+		if (options.lines) {
+			if (options.lines[idx] && options.lines[idx].style) {
+				this.lines[idx].style = extend(this.lines[idx].style, options.lines[idx].style);
+				delete options.lines[idx].style;
+			}
+			this.lines[idx] = lines = extend(this.lines[idx], options.lines[idx]);
+		}
+		stats.lines = lines;
+		var linesMin = Math.min(lines.max, lines.min);
+		var linesMax = Math.max(lines.min, lines.max);
+		stats.min = linesMin;
+		stats.max = linesMax;
+
+		//detect steps, if not defined, as one per each 50px
+		var values = [];
+		var minW = Math.min(viewport[2], viewport[3]);
+		var intersteps = (lines.orientation === 'x' ? (typeof viewport[2] === 'number' ? viewport[2] : linesContainer.clientWidth) : lines.orientation === 'y' ? (typeof viewport[3] === 'number' ? viewport[3] : linesContainer.clientHeight) : /a/.test(lines.orientation) ? minW * 2 : minW ) / 50 ;
+		if (intersteps < 1) {
+			values = [linesMin, linesMax];
+		}
+		//for non-log scale do even distrib
+		else if (!lines.logarithmic) {
+			var stepSize = (linesMax - linesMin) / Math.floor(intersteps);
+			var order = mag(stepSize);
+
+			var scale = /a/.test(lines.orientation) ? [1.5, 3] : [1, 2, 2.5, 5, 10];
+
+			stepSize = closestNumber(stepSize, scale.map(function (v) { return v * order; }));
+
+			var start = stepSize * Math.round(linesMin / stepSize);
+
+			for (var step = start; step <= linesMax; step += stepSize) {
+				if (step < linesMin) continue;
+				values.push(step);
+			}
+		}
+		else {
+			//each logarithmic divisor
+			if (linesMin <= 0 && linesMax >= 0) throw Error('Cannot create logarithmic grid spanning over zero, including zero');
+
+			[1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(function (base) {
+				var order = mag(linesMin);
+				var start = base * order;
+				for (var step = Math.abs(start); step <= Math.abs(linesMax); step *=10) {
+					if (step < Math.abs(linesMin)) continue;
+					values.push(step);
+				}
+			});
+		}
+
+
+		values = lines.values instanceof Function ?
+			values.map(function (v, i) { return lines.values(v, i, stats); }, this).filter(function (v) { return v != null; }) :
+			lines.values || values;
+
+		//to avoid collisions
+		values = values.sort(function (a, b) { return a - b; });
+
+		stats.values = values;
+
+		//define titles
+		var titles = lines.titles instanceof Function ? values.map(function (v, i) { return lines.titles(v, i, stats); }, this) :
+			lines.titles === undefined ? values.map(function (value) {
+				var order = mag(value);
+				var power = Math.floor(Math.log(order) / Math.log(1000));
+				if (lines.format && that.prefixes[power]) {
+					if (power > 1) value /= (power*1000);
+					return value.toLocaleString() + that.prefixes[power] + lines.units;
+				}
+				else {
+					return value.toLocaleString() + lines.units;
+				}
+		}) : lines.titles;
+		stats.titles = titles;
+
+		//draw lines
+		var offsets = values.slice().reverse().map(function (value, i) {
+			var line = linesContainer.querySelector(("#grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
+			var ratio;
+			if (!line) {
+				line = document.createElement('span');
+				line.id = "grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id;
+				line.classList.add('grid-line');
+				line.classList.add(("grid-line-" + (lines.orientation)));
+				if (value === linesMin) line.classList.add('grid-line-min');
+				if (value === linesMax) line.classList.add('grid-line-max');
+				line.setAttribute('data-value', value);
+
+				linesContainer.appendChild(line);
+			}
+
+			titles && line.setAttribute('title', titles[values.length - 1 - i]);
+
+			if (!lines.logarithmic) {
+				ratio = (value - linesMin) / (linesMax - linesMin);
+			}
+			else {
+				ratio = (lg(value) - lg(linesMin)) / (lg(linesMax) - lg(linesMin));
+			}
+			if (lines.min > lines.max) ratio = 1 - ratio;
+
+			ratio *= 100;
+			if (lines.orientation === 'x') {
+				line.style.left = ratio + '%';
+			}
+			else if (lines.orientation === 'y' ) {
+				line.style.top = (100 - ratio) + '%';
+			}
+			else if (/r/.test(lines.orientation)) {
+				line.style.marginLeft = -minW*ratio*.005 + 'px';
+				line.style.marginTop = -minW*ratio*.005 + 'px';
+				line.style.width = minW*ratio*.01 + 'px';
+				line.style.height = minW*ratio*.01 + 'px';
+				line.style.borderRadius = minW + 'px';
+			}
+			else if (/a/.test(lines.orientation)) {
+				if (ratio && !mod(ratio/100 * 360, 360)) {
+					linesContainer.removeChild(line);
+				}
+				line.style.width = minW / 2 + 'px';
+				line.style.transform = "rotate(" + (-ratio * 360 / 100) + "deg)";
+			}
+
+			if (lines.style) {
+				for (var prop in lines.style) {
+					var val = lines.style[prop];
+					if (typeof val === 'number') val += 'px';
+					line.style[prop] = val;
+				}
+			}
+			line.removeAttribute('hidden');
+
+			return ratio;
+		}).reverse();
+		stats.offsets = offsets;
+
+		//draw axes
+		var axis = this.axes[idx];
+
+		//get axis element
+		var axisEl = element.querySelector(("#grid-axis-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + idx + "-" + id));
+
+		//do not paint inexisting axis
+		if (!axis) {
+			axisEl && axisEl.setAttribute('hidden', true);
+			return this;
+		}
+		else {
+			axisEl && axisEl.removeAttribute('hidden');
+		}
+
+		if (options.axes) axis = extend(this.axes[idx], options.axes[idx]);
+		stats.axis = axis;
+
+		//define values
+		var axisValues = axis.values || values;
+		stats.axisValues = axisValues;
+
+		//define titles
+		var axisTitles = axis.titles instanceof Function ? axisValues.map(function (v, i) { return axis.titles(v, i, stats); }, this) : axis.titles ? axis.titles : axisValues === values ? titles : axis.titles === undefined ? axisValues.slice().map(function (value) {
+			return value.toLocaleString();
+		}) : axis.titles;
+		stats.axisTitles = axisTitles;
+
+		//define labels
+		var labels = axis.labels instanceof Function ? axisValues.map(function (v, i) { return axis.labels(v, i, stats); }, this) : axis.labels || axisTitles;
+		stats.labels = labels;
+
+		if (!axisEl) {
+			axisEl = document.createElement('span');
+			axisEl.id = "grid-axis-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + idx + "-" + id;
+			axisEl.classList.add('grid-axis');
+			axisEl.classList.add(("grid-axis-" + (lines.orientation)));
+			axisEl.setAttribute('data-name', axis.name);
+			axisEl.setAttribute('title', axis.name);
+			element.appendChild(axisEl);
+
+		}
+		if (/a/.test(lines.orientation)) {
+			axisEl.style.marginLeft = -minW*100*.005 + 'px';
+			axisEl.style.marginTop = -minW*100*.005 + 'px';
+			axisEl.style.width = minW*100*.01 + 'px';
+			axisEl.style.height = minW*100*.01 + 'px';
+			axisEl.style.borderRadius = minW + 'px';
+		}
+		else if (/r/.test(lines.orientation)) {
+			axisEl.style.marginTop = -minW*100*.005 + 'px';
+			axisEl.style.height = minW*100*.01 + 'px';
+		}
+
+		axisEl.removeAttribute('hidden');
+
+		//draw labels
+		axisValues.forEach(function (value, i) {
+			if (value == null || labels[i] == null) return;
+
+			if (lines.orientation === 'x' || lines.orientation === 'y') {
+				var label = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
+
+				if (!label) {
+					label = document.createElement('label');
+					label.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id;
+					label.classList.add('grid-label');
+					label.classList.add(("grid-label-" + (lines.orientation)));
+					label.setAttribute('for', ("grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
+					element.appendChild(label);
+				}
+
+				label.innerHTML = labels[i];
+
+				axisTitles && label.setAttribute('title', axisTitles[i]);
+
+				label.setAttribute('data-value', value);
+
+				//hide label for special log case to avoid overlapping
+				if (lines.logarithmic) {
+					hideLogLabel(label, value, intersteps);
+				}
+
+				if (lines.orientation === 'x') {
+					label.style.left = offsets[i] + '%';
+				}
+				else if (lines.orientation === 'y') {
+					label.style.top = (100 - offsets[i]) + '%';
+				}
+
+				if (within(value, linesMin, linesMax)) {
+					label.removeAttribute('hidden');
+				} else {
+					label.setAttribute('hidden', true);
+				}
+			}
+			else if (/r/.test(lines.orientation)) {
+				var labelTop = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top"));
+				var labelBottom = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-bottom"));
+
+				if (!labelTop) {
+					labelTop = document.createElement('label');
+					labelTop.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top";
+					labelTop.classList.add('grid-label');
+					labelTop.classList.add(("grid-label-" + (lines.orientation)));
+					labelTop.setAttribute('for', ("grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
+					element.appendChild(labelTop);
+				}
+
+				labelTop.innerHTML = labels[i];
+
+				axisTitles && labelTop.setAttribute('title', axisTitles[i]);
+
+				labelTop.setAttribute('data-value', value);
+
+				if(!labelBottom) {
+					labelBottom = labelTop.cloneNode();
+					labelBottom.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-bottom";
+					if (offsets[i]) {
+						element.appendChild(labelBottom);
+					}
+				}
+
+				labelBottom.innerHTML = labels[i];
+
+				// labelTop.style.marginTop = -(minW*.5*offsets[i]/100) + 'px';
+				// labelBottom.style.marginTop = (minW*.5*offsets[i]/100) + 'px';
+				labelTop.style.top = viewport[3]/2 - (minW*.5*offsets[i]/100) + 'px';
+				labelBottom.style.top = viewport[3]/2 + (minW*.5*offsets[i]/100) + 'px';
+
+				if (within(value, linesMin, linesMax)) {
+					labelTop.removeAttribute('hidden');
+					labelBottom.removeAttribute('hidden');
+				} else {
+					labelTop.setAttribute('hidden', true);
+					labelBottom.setAttribute('hidden', true);
+				}
+
+				//hide label for special log case to avoid overlapping
+				if (lines.logarithmic) {
+					hideLogLabel(labelTop, value, intersteps * 1.7);
+					hideLogLabel(labelBottom, value, intersteps * 1.7);
+				}
+			}
+			else if (/a/.test(lines.orientation)) {
+				var label$1 = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top"));
+
+				if (!label$1) {
+					label$1 = document.createElement('label');
+					label$1.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top";
+					label$1.classList.add('grid-label');
+					label$1.classList.add(("grid-label-" + (lines.orientation)));
+					label$1.setAttribute('for', ("grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
+					element.appendChild(label$1);
+				}
+
+				label$1.innerHTML = labels[i];
+
+				axisTitles && label$1.setAttribute('title', axisTitles[i]);
+
+				label$1.setAttribute('data-value', value);
+
+				var angle = offsets[i] * Math.PI / 50;
+				var angleDeg = offsets[i] * 3.6;
+				// label.style.transform = `rotate(${angle}deg)`;
+				label$1.style.left = viewport[2]/2 + Math.cos(angle) * minW/2 + 'px';
+				label$1.style.top = viewport[3]/2 -Math.sin(angle) * minW/2 + 'px';
+				label$1.style.marginTop = (-Math.sin(angle) * .8 - .4) + 'rem';
+				label$1.style.marginLeft = -1 + (Math.cos(angle)) + 'rem';
+
+				if (within(value, linesMin, linesMax) && angleDeg < 360 ) {
+					label$1.removeAttribute('hidden');
+				} else {
+					label$1.setAttribute('hidden', true);
+				}
+			}
+		});
+
+
+		//bloody helpers
+
+		function hideLogLabel (label, value, intersteps) {
+			var start = parseInt(value.toExponential()[0]);
+
+			if (values.length > intersteps * 2.8) {
+				if (start == 2) label.innerHTML = '';
+			}
+			if (values.length > intersteps * 2.6) {
+				if (start == 5) label.innerHTML = '';
+			}
+			if (values.length > intersteps * 2.3) {
+				if (start == 3) label.innerHTML = '';
+			}
+			if (values.length > intersteps * 2) {
+				if (start == 7) label.innerHTML = '';
+			}
+			if (values.length > intersteps * 1.7) {
+				if (start == 4) label.innerHTML = '';
+			}
+			if (values.length > intersteps * 1.5) {
+				if (start == 6) label.innerHTML = '';
+			}
+			if (values.length > intersteps * 1.2) {
+				if (start == 8) label.innerHTML = '';
+			}
+			if (values.length > intersteps * .9) {
+				if (start == 9) label.innerHTML = '';
+			}
+		}
+
+	}, this);
+
+	element.removeAttribute('hidden');
+
+	this.emit('update');
+
+	return this;
+};
+
+function formatValue (v) {
+	return v.toExponential().replace('.', '-').replace('+', '-');
+}
+}).call(this,require("buffer").Buffer)
+},{"buffer":2,"events":3,"get-uid":67,"inherits":70,"insert-styles":72,"is-browser":73,"mumath/closest":94,"mumath/lg":95,"mumath/mod":96,"mumath/order":97,"mumath/within":100,"xtend/mutable":138}],106:[function(require,module,exports){
 var div = null
 var prefixes = [ 'Webkit', 'Moz', 'O', 'ms' ]
 
@@ -9723,14 +10356,14 @@ module.exports = function prefixStyle (prop) {
   return false
 }
 
-},{}],101:[function(require,module,exports){
+},{}],107:[function(require,module,exports){
 function identity(x) { return x; }
 
 module.exports = identity;
 module.exports.dash = identity;
 module.exports.dash = identity;
 
-},{}],102:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 var inherits = require('inherits')
 var EventEmitter = require('events').EventEmitter
 var now = require('right-now')
@@ -9775,7 +10408,7 @@ Engine.prototype.tick = function() {
     this.emit('tick', dt)
     this.last = time
 }
-},{"events":3,"inherits":70,"raf":103,"right-now":104}],103:[function(require,module,exports){
+},{"events":3,"inherits":70,"raf":109,"right-now":110}],109:[function(require,module,exports){
 (function (global){
 var now = require('performance-now')
   , root = typeof window === 'undefined' ? global : window
@@ -9851,7 +10484,7 @@ module.exports.polyfill = function() {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"performance-now":99}],104:[function(require,module,exports){
+},{"performance-now":104}],110:[function(require,module,exports){
 (function (global){
 module.exports =
   global.performance &&
@@ -9862,7 +10495,7 @@ module.exports =
   }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],105:[function(require,module,exports){
+},{}],111:[function(require,module,exports){
 module.exports = scope;
 scope.replace = replace;
 
@@ -9894,7 +10527,7 @@ function replace (css, replacer) {
 
 	return css.replace(/([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g, replacer);
 }
-},{}],106:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 var NON_WORD_REGEXP = require('./vendor/non-word-regexp')
@@ -9936,16 +10569,16 @@ module.exports = function (str, locale, replacement) {
   return lowerCase(str, locale)
 }
 
-},{"./vendor/camel-case-regexp":107,"./vendor/non-word-regexp":108,"./vendor/trailing-digit-regexp":109,"lower-case":92}],107:[function(require,module,exports){
+},{"./vendor/camel-case-regexp":113,"./vendor/non-word-regexp":114,"./vendor/trailing-digit-regexp":115,"lower-case":92}],113:[function(require,module,exports){
 module.exports = /([\u0061-\u007A\u00B5\u00DF-\u00F6\u00F8-\u00FF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0561-\u0587\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7FA\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A])([\u0041-\u005A\u00C0-\u00D6\u00D8-\u00DE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA\uFF21-\uFF3A\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])/g
 
-},{}],108:[function(require,module,exports){
+},{}],114:[function(require,module,exports){
 module.exports = /[^\u0041-\u005A\u0061-\u007A\u00AA\u00B5\u00BA\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u0527\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u08A0\u08A2-\u08AC\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0977\u0979-\u097F\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C33\u0C35-\u0C39\u0C3D\u0C58\u0C59\u0C60\u0C61\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D60\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F4\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191C\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19C1-\u19C7\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2183\u2184\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005\u3006\u3031-\u3035\u303B\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312D\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FCC\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA697\uA6A0-\uA6E5\uA717-\uA71F\uA722-\uA788\uA78B-\uA78E\uA790-\uA793\uA7A0-\uA7AA\uA7F8-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA80-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uABC0-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19]+/g
 
-},{}],109:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 module.exports = /([\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])([^\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])/g
 
-},{}],110:[function(require,module,exports){
+},{}],116:[function(require,module,exports){
 /**
  * @module settings-panel
  */
@@ -10407,7 +11040,7 @@ Panel.prototype.orientation = 'left';
 
 /** Display collapse button */
 Panel.prototype.collapsible = false;
-},{"./src/button":111,"./src/checkbox":112,"./src/color":113,"./src/custom":114,"./src/interval":115,"./src/range":116,"./src/select":117,"./src/switch":118,"./src/text":119,"./src/textarea":120,"./theme/none":123,"add-px-to-style":41,"dom-css":60,"events":3,"get-uid":67,"inherits":70,"insert-styles":72,"is-plain-obj":77,"just-extend":78,"param-case":98,"scope-css":105}],111:[function(require,module,exports){
+},{"./src/button":117,"./src/checkbox":118,"./src/color":119,"./src/custom":120,"./src/interval":121,"./src/range":122,"./src/select":123,"./src/switch":124,"./src/text":125,"./src/textarea":126,"./theme/none":129,"add-px-to-style":41,"dom-css":60,"events":3,"get-uid":67,"inherits":70,"insert-styles":72,"is-plain-obj":77,"just-extend":78,"param-case":103,"scope-css":111}],117:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -10440,7 +11073,7 @@ Button.prototype.update = function (opts) {
 };
 
 Button.prototype.label = false;
-},{"events":3,"inherits":70}],112:[function(require,module,exports){
+},{"events":3,"inherits":70}],118:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -10558,7 +11191,7 @@ Checkbox.prototype.update = function (opts) {
 
 	return this;
 }
-},{"events":3,"inherits":70,"just-extend":78,"param-case":98}],113:[function(require,module,exports){
+},{"events":3,"inherits":70,"just-extend":78,"param-case":103}],119:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -10663,7 +11296,7 @@ Color.prototype.update = function (opts) {
 
 	return this;
 }
-},{"dom-css":60,"events":3,"inherits":70,"input-number":71,"param-case":98,"simple-color-picker":124,"tinycolor2":126}],114:[function(require,module,exports){
+},{"dom-css":60,"events":3,"inherits":70,"input-number":71,"param-case":103,"simple-color-picker":130,"tinycolor2":132}],120:[function(require,module,exports){
 /**
  * @module  settings-panel/src/custom
  *
@@ -10718,7 +11351,7 @@ Custom.prototype.update = function (opts) {
 		// throw Error('`content` should be a function returning html element or string');
 	}
 };
-},{"events":3,"inherits":70,"just-extend":78}],115:[function(require,module,exports){
+},{"events":3,"inherits":70,"just-extend":78}],121:[function(require,module,exports){
 'use strict';
 
 var isNumeric = require('is-numeric')
@@ -10988,7 +11621,7 @@ Range.prototype.update = function (opts) {
 
 	return this;
 }
-},{"./value":121,"dom-css":60,"events":3,"inherits":70,"is-mobile":74,"is-numeric":76,"mumath/clamp":93,"mumath/precision":94,"param-case":98}],116:[function(require,module,exports){
+},{"./value":127,"dom-css":60,"events":3,"inherits":70,"is-mobile":74,"is-numeric":76,"mumath/clamp":93,"mumath/precision":98,"param-case":103}],122:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -11165,7 +11798,7 @@ Range.prototype.update = function (opts) {
 
 	return this;
 }
-},{"./value":121,"dom-css":60,"events":3,"inherits":70,"is-numeric":76,"mumath/precision":94,"param-case":98}],117:[function(require,module,exports){
+},{"./value":127,"dom-css":60,"events":3,"inherits":70,"is-numeric":76,"mumath/precision":98,"param-case":103}],123:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -11238,7 +11871,7 @@ Select.prototype.update = function (opts) {
 
 	return this;
 }
-},{"events":3,"inherits":70,"param-case":98}],118:[function(require,module,exports){
+},{"events":3,"inherits":70,"param-case":103}],124:[function(require,module,exports){
 'use strict';
 
 var inherits = require('inherits');
@@ -11301,7 +11934,7 @@ function Switch (opts) {
 Switch.prototype.update = function (opts) {
 	return this;
 }
-},{"events":3,"inherits":70,"just-extend":78,"param-case":98}],119:[function(require,module,exports){
+},{"events":3,"inherits":70,"just-extend":78,"param-case":103}],125:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -11348,7 +11981,7 @@ Text.prototype.update = function (opts) {
 	this.element.disabled = !!this.disabled;
 	return this;
 }
-},{"dom-css":60,"events":3,"inherits":70,"input-number":71,"just-extend":78}],120:[function(require,module,exports){
+},{"dom-css":60,"events":3,"inherits":70,"input-number":71,"just-extend":78}],126:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -11403,7 +12036,7 @@ Textarea.prototype.update = function (opts) {
 
 	return this;
 }
-},{"autosize":43,"dom-css":60,"events":3,"inherits":70,"just-extend":78}],121:[function(require,module,exports){
+},{"autosize":43,"dom-css":60,"events":3,"inherits":70,"just-extend":78}],127:[function(require,module,exports){
 'use strict';
 
 var num = require('input-number');
@@ -11444,7 +12077,7 @@ module.exports = function (opts) {
 
   return value
 }
-},{"input-number":71}],122:[function(require,module,exports){
+},{"input-number":71}],128:[function(require,module,exports){
 /**
  * @module prama/theme/flat
  *
@@ -11511,7 +12144,7 @@ function flat (opts) {
 function alpha (c, value) {
 	return color(c).setAlpha(value).toString();
 }
-},{"./none":123,"add-px-to-style":41,"color-interpolate":49,"google-fonts":69,"scope-css":105,"tinycolor2":126}],123:[function(require,module,exports){
+},{"./none":129,"add-px-to-style":41,"color-interpolate":49,"google-fonts":69,"scope-css":111,"tinycolor2":132}],129:[function(require,module,exports){
 /**
  * @module  settings-panel/theme/none
  */
@@ -11544,7 +12177,7 @@ function none (opts) {
 	//just size part
 	return ("\n\t\t:host {\n\t\t\tbackground: " + white + ";\n\t\t\tcolor: " + black + ";\n\t\t\tfont-family: " + font + ";\n\t\t\tfont-size: " + (px('font-size', fs)) + ";\n\t\t\tpadding: " + (h*2.5*padding) + "em;\n\t\t}\n\n\t\t.settings-panel-title {\n\t\t\tmin-height: " + h + "em;\n\t\t\tline-height: 1.5;\n\t\t\ttext-align: left;\n\t\t\tfont-size: " + (px('font-size',fs*1.333)) + ";\n\t\t\tpadding: " + (h * 2 * padding / 1.333) + "em " + (h * padding / 1.333) + "em;\n\t\t\tmin-height: " + (h/1.333) + "em;\n\t\t\tmargin: 0;\n\t\t}\n\n\t\t.settings-panel-field {\n\t\t\tpadding: " + (h * padding) + "em;\n\t\t}\n\n\t\t:host.settings-panel-orientation-left .settings-panel-label,\n\t\t:host .settings-panel-orientation-left .settings-panel-label,\n\t\t:host.settings-panel-orientation-right .settings-panel-label,\n\t\t:host .settings-panel-orientation-right .settings-panel-label {\n\t\t\twidth: " + (px('width', labelWidth)) + ";\n\t\t}\n\t\t:host.settings-panel-orientation-bottom .settings-panel-label {\n\t\t\tborder-top-width: " + h + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-bottom .settings-panel-label + .settings-panel-input {\n\t\t\ttop: " + (h/8) + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-left .settings-panel-label {\n\t\t\tpadding-right: " + (h/2) + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-right .settings-panel-label {\n\t\t\tpadding-left: " + (h/2) + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-right .settings-panel-label + .settings-panel-input {\n\t\t\twidth: calc(100% - " + labelWidth + ");\n\t\t}\n\n\t\t.settings-panel-text,\n\t\t.settings-panel-textarea,\n\t\t.settings-panel-range,\n\t\t.settings-panel-interval,\n\t\t.settings-panel-select,\n\t\t.settings-panel-color,\n\t\t.settings-panel-color-value,\n\t\t.settings-panel-value {\n\t\t\theight: " + h + "em;\n\t\t}\n\n\t\t.settings-panel-button,\n\t\t.settings-panel-input,\n\t\t.settings-panel-switch,\n\t\t.settings-panel-checkbox-group,\n\t\t.settings-panel-switch-label {\n\t\t\tmin-height: " + h + "em;\n\t\t}\n\t\t.settings-panel-input,\n\t\t.settings-panel-switch,\n\t\t.settings-panel-select,\n\t\t.settings-panel-checkbox-group,\n\t\t.settings-panel-switch-label {\n\t\t\tline-height: " + h + "em;\n\t\t}\n\n\t\t.settings-panel-switch-label,\n\t\t.settings-panel-checkbox,\n\t\t.settings-panel-checkbox-label,\n\t\t.settings-panel-button {\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.settings-panel-range::-webkit-slider-thumb {\n\t\t\tcursor: ew-resize;\n\t\t}\n\t\t.settings-panel-range::-moz-range-thumb {\n\t\t\tcursor: ew-resize;\n\t\t}\n\t\t.settings-panel-range::-ms-track {\n\t\t\tcursor: ew-resize;\n\t\t}\n\t\t.settings-panel-range::-ms-thumb {\n\t\t\tcursor: ew-resize;\n\t\t}\n\n\t\t/* Default triangle styles are from control theme, just set display: block */\n\t\t.settings-panel-select-triangle {\n\t\t\tdisplay: none;\n\t\t\tposition: absolute;\n\t\t\tborder-right: .3em solid transparent;\n\t\t\tborder-left: .3em solid transparent;\n\t\t\tline-height: " + h + "em;\n\t\t\tright: 2.5%;\n\t\t\theight: 0;\n\t\t\tz-index: 1;\n\t\t\tpointer-events: none;\n\t\t}\n\t\t.settings-panel-select-triangle--up {\n\t\t\ttop: " + (h/2) + "em;\n\t\t\tmargin-top: -" + (h/4 + h/24) + "em;\n\t\t\tborder-bottom: " + (h/4) + "em solid;\n\t\t\tborder-top: 0px transparent;\n\t\t}\n\t\t.settings-panel-select-triangle--down {\n\t\t\ttop: " + (h/2) + "em;\n\t\t\tmargin-top: " + (h/24) + "em;\n\t\t\tborder-top: " + (h/4) + "em solid;\n\t\t\tborder-bottom: .0 transparent;\n\t\t}\n\n\t\t:host hr {\n\t\t\topacity: .5;\n\n\t\t\tcolor: " + black + "\n\t\t}\n\t");
 }
-},{"add-px-to-style":41}],124:[function(require,module,exports){
+},{"add-px-to-style":41}],130:[function(require,module,exports){
 'use strict';
 
 var bindAll = require('lodash.bindall');
@@ -11907,13 +12540,13 @@ SimpleColorPicker.prototype._onHueMouseUp = function() {
 
 module.exports = SimpleColorPicker;
 
-},{"./src/utils/maths/clamp":125,"component-emitter":57,"dom-transform":61,"is-number":75,"lodash.bindall":85,"tinycolor2":126}],125:[function(require,module,exports){
+},{"./src/utils/maths/clamp":131,"component-emitter":57,"dom-transform":61,"is-number":75,"lodash.bindall":85,"tinycolor2":132}],131:[function(require,module,exports){
 'use strict';
 
 module.exports = function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 };
-},{}],126:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 // TinyColor v1.4.1
 // https://github.com/bgrins/TinyColor
 // Brian Grinstead, MIT License
@@ -13110,7 +13743,7 @@ else {
 
 })(Math);
 
-},{}],127:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 
 var space = require('to-space-case')
 
@@ -13133,7 +13766,7 @@ function toCamelCase(string) {
   })
 }
 
-},{"to-space-case":129}],128:[function(require,module,exports){
+},{"to-space-case":135}],134:[function(require,module,exports){
 
 /**
  * Export.
@@ -13202,7 +13835,7 @@ function uncamelize(string) {
   })
 }
 
-},{}],129:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 
 var clean = require('to-no-case')
 
@@ -13225,7 +13858,7 @@ function toSpaceCase(string) {
   }).trim()
 }
 
-},{"to-no-case":128}],130:[function(require,module,exports){
+},{"to-no-case":134}],136:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -13241,7 +13874,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],131:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -13310,7 +13943,7 @@ module.exports = function (fn, options) {
     return worker;
 };
 
-},{}],132:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -13331,7 +13964,7 @@ function extend(target) {
     return target
 }
 
-},{}],133:[function(require,module,exports){
+},{}],139:[function(require,module,exports){
 /**
  * @module  gl-waveform
  */
@@ -13340,7 +13973,7 @@ function extend(target) {
 var extend = require('just-extend');
 var inherits = require('inherits');
 var Component = require('gl-component');
-var Grid = require('../../plot-grid');
+var Grid = require('plot-grid');
 var Interpolate = require('color-interpolate');
 var fromDb = require('decibels/to-gain');
 var toDb = require('decibels/from-gain');
@@ -13764,7 +14397,7 @@ Waveform.prototype.getRenderOptions = function () {
 		outline: this.outline != null ? this.outline : this.width > this.viewport[2]
 	};
 }
-},{"../../plot-grid":137,"./render":134,"./worker":135,"color-interpolate":49,"decibels/from-gain":58,"decibels/to-gain":59,"gl-component":68,"inherits":70,"just-extend":78,"webworkify":131}],134:[function(require,module,exports){
+},{"./render":140,"./worker":141,"color-interpolate":49,"decibels/from-gain":58,"decibels/to-gain":59,"gl-component":68,"inherits":70,"just-extend":78,"plot-grid":105,"webworkify":137}],140:[function(require,module,exports){
 /**
  * @module  gl-waveform/src/render
  *
@@ -13902,7 +14535,7 @@ function f(ratio, log, min, max) {
 
 	return clamp(ratio, -1, 1);
 }
-},{"decibels/from-gain":58,"decibels/to-gain":59,"mumath/clamp":93}],135:[function(require,module,exports){
+},{"decibels/from-gain":58,"decibels/to-gain":59,"mumath/clamp":93}],141:[function(require,module,exports){
 /**
  * @module  gl-waveform/src/worker
  *
@@ -13922,8 +14555,6 @@ module.exports = function (self) {
 	var amplitudes = [];
 	var lastLen = 0;
 
-	var maxLen = 44100*60;
-
 	self.addEventListener('message', function (e) {
 		var ref = e.data;
 		var action = ref.action;
@@ -13940,9 +14571,6 @@ module.exports = function (self) {
 		else if (action === 'set') {
 			samples = Array.prototype.slice.call(data);
 			lastLen = samples.length;
-		}
-		if (samples.length > maxLen) {
-			samples = samples.slice(-maxLen);
 		}
 	});
 
@@ -13976,7 +14604,7 @@ module.exports = function (self) {
 	}
 	processData();
 };
-},{"./render":134}],136:[function(require,module,exports){
+},{"./render":140}],142:[function(require,module,exports){
 var createSettings = require('settings-panel');
 var createWaveform = require('./src/core');
 var createAudio = require('../app-audio');
@@ -14170,770 +14798,4 @@ var audio = createAudio({
 audio.element.style.fontFamily = settings.theme.fontFamily;
 audio.element.style.fontSize = settings.theme.fontSize;
 audio.update();
-},{"../app-audio":7,"./src/core":133,"colormap":56,"colormap/colorScales":55,"fps-indicator":65,"insert-styles":72,"nice-color-palettes/500":97,"settings-panel":110,"settings-panel/theme/flat":122,"tinycolor2":126}],137:[function(require,module,exports){
-(function (Buffer){
-/**
- * @module  plot-grid
- */
-
-var extend = require('xtend/mutable');
-var isBrowser = require('is-browser');
-var lg = require('mumath/lg');
-var Emitter = require('events').EventEmitter;
-var inherits = require('inherits');
-var closestNumber = require('mumath/closest');
-var mod = require('mumath/mod');
-var mag = require('mumath/order');
-var within = require('mumath/within');
-var uid = require('get-uid');
-var insertStyles = require('insert-styles');
-
-
-insertStyles(Buffer("Omhvc3Qgew0KCXBvc2l0aW9uOiByZWxhdGl2ZTsNCn0NCg0KLmdyaWQgew0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl0b3A6IDA7DQoJbGVmdDogMDsNCglib3R0b206IDA7DQoJcmlnaHQ6IDA7DQoJcG9pbnRlci1ldmVudHM6IG5vbmU7DQoJZm9udC1mYW1pbHk6IHNhbnMtc2VyaWY7DQp9DQouZ3JpZC1saW5lcyB7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCXRvcDogMDsNCglsZWZ0OiAwOw0KCWJvdHRvbTogMDsNCglyaWdodDogMDsNCglvdmVyZmxvdzogaGlkZGVuOw0KCXBvaW50ZXItZXZlbnRzOiBub25lOw0KfQ0KDQouZ3JpZC1saW5lIHsNCglwb2ludGVyLWV2ZW50czogYWxsOw0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl0b3A6IDA7DQoJbGVmdDogMDsNCgl3aWR0aDogLjVyZW07DQoJaGVpZ2h0OiAuNXJlbTsNCglvcGFjaXR5OiAuMjU7DQp9DQouZ3JpZC1saW5lW2hpZGRlbl0gew0KCWRpc3BsYXk6IG5vbmU7DQp9DQouZ3JpZC1saW5lOmhvdmVyIHsNCglvcGFjaXR5OiAuNTsNCn0NCg0KQHN1cHBvcnRzICgtLWNzczogdmFyaWFibGVzKSB7DQoJLmdyaWQgew0KCQktLW9wYWNpdHk6IC4xNTsNCgl9DQoJLmdyaWQtbGluZSB7DQoJCW9wYWNpdHk6IHZhcigtLW9wYWNpdHkpOw0KCX0NCgkuZ3JpZC1saW5lOmhvdmVyIHsNCgkJb3BhY2l0eTogY2FsYyh2YXIoLS1vcGFjaXR5KSAqIDIpOw0KCX0NCn0NCg0KLmdyaWQtbGluZS14IHsNCgloZWlnaHQ6IDEwMCU7DQoJd2lkdGg6IDA7DQoJYm9yZGVyLWxlZnQ6IDFweCBzb2xpZDsNCgltYXJnaW4tbGVmdDogLTFweDsNCn0NCi5ncmlkLWxpbmUteDphZnRlciB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCXdpZHRoOiAuNXJlbTsNCgl0b3A6IDA7DQoJYm90dG9tOiAwOw0KCWxlZnQ6IC0uMjVyZW07DQp9DQouZ3JpZC1saW5lLXguZ3JpZC1saW5lLW1pbiB7DQoJbWFyZ2luLWxlZnQ6IDBweDsNCn0NCg0KLmdyaWQtbGluZS15IHsNCgl3aWR0aDogMTAwJTsNCgloZWlnaHQ6IDA7DQoJbWFyZ2luLXRvcDogLTFweDsNCglib3JkZXItdG9wOiAxcHggc29saWQ7DQp9DQouZ3JpZC1saW5lLXk6YWZ0ZXIgew0KCWNvbnRlbnQ6ICcnOw0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgloZWlnaHQ6IC41cmVtOw0KCWxlZnQ6IDA7DQoJcmlnaHQ6IDA7DQoJdG9wOiAtLjI1cmVtOw0KfQ0KLmdyaWQtbGluZS15LmdyaWQtbGluZS1tYXggew0KCW1hcmdpbi10b3A6IDBweDsNCn0NCg0KLyogcmFkaWFsIGxpbmVzICovDQouZ3JpZC1saW5lLXIgew0KCWhlaWdodDogMTAwJTsNCgl3aWR0aDogMTAwJTsNCglsZWZ0OiA1MCU7DQoJdG9wOiA1MCU7DQoJYm9yZGVyLXJhZGl1czogNTB2dzsNCglib3gtc2hhZG93OiBpbnNldCAwIDAgMCAxcHg7DQp9DQouZ3JpZC1saW5lLXIuZ3JpZC1saW5lLW1pbiB7DQp9DQoNCi8qIGFuZ3VsYXIgbGluZXMgKi8NCi5ncmlkLWxpbmUtYSB7DQoJaGVpZ2h0OiAwOw0KCXRvcDogNTAlOw0KCWxlZnQ6IDUwJTsNCgl0cmFuc2Zvcm0tb3JpZ2luOiBsZWZ0IGNlbnRlcjsNCgl3aWR0aDogNTAlOw0KCWJvcmRlci10b3A6IDFweCBzb2xpZDsNCn0NCi5ncmlkLWxpbmUtYTphZnRlciB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCWhlaWdodDogLjVyZW07DQoJbGVmdDogMDsNCglyaWdodDogMDsNCgl0b3A6IC0uMjVyZW07DQp9DQouZ3JpZC1saW5lLWE6YmVmb3JlIHsNCgljb250ZW50OiAnJzsNCglwb3NpdGlvbjogYWJzb2x1dGU7DQoJd2lkdGg6IC40cmVtOw0KCXJpZ2h0OiAwOw0KCXRvcDogLTFweDsNCgloZWlnaHQ6IDA7DQoJYm9yZGVyLWJvdHRvbTogMnB4IHNvbGlkOw0KfQ0KDQoNCi5ncmlkLWF4aXMgew0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCn0NCi5ncmlkLWF4aXMteCB7DQoJdG9wOiBhdXRvOw0KCWJvdHRvbTogMDsNCglyaWdodDogMDsNCglsZWZ0OiAwOw0KCWJvcmRlci1ib3R0b206IDJweCBzb2xpZDsNCgltYXJnaW4tYm90dG9tOiAtLjVyZW07DQp9DQouZ3JpZC1heGlzLXkgew0KCWJvcmRlci1sZWZ0OiAycHggc29saWQ7DQoJcmlnaHQ6IGF1dG87DQoJdG9wOiAwOw0KCWJvdHRvbTogMDsNCglsZWZ0OiAtMXB4Ow0KCW1hcmdpbi1sZWZ0OiAtLjVyZW07DQp9DQouZ3JpZC1heGlzLWEgew0KCWhlaWdodDogMTAwJTsNCgl3aWR0aDogMTAwJTsNCglsZWZ0OiA1MCU7DQoJdG9wOiA1MCU7DQoJYm9yZGVyLXJhZGl1czogNTB2dzsNCglib3gtc2hhZG93OiAwIDAgMCAycHg7DQp9DQouZ3JpZC1heGlzLXIgew0KCWJvcmRlci1sZWZ0OiAycHggc29saWQ7DQoJcmlnaHQ6IGF1dG87DQoJdG9wOiA1MCU7DQoJaGVpZ2h0OiAxMDAlOw0KCWxlZnQ6IC0xcHg7DQoJbWFyZ2luLWxlZnQ6IC0uNXJlbTsNCn0NCg0KLmdyaWQtbGFiZWwgew0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl0b3A6IGF1dG87DQoJbGVmdDogYXV0bzsNCgltaW4taGVpZ2h0OiAxcmVtOw0KCW1hcmdpbi10b3A6IC0uNXJlbTsNCglmb250LXNpemU6IC44cmVtOw0KCXBvaW50ZXItZXZlbnRzOiBhbGw7DQoJd2hpdGUtc3BhY2U6IG5vd3JhcDsNCn0NCi5ncmlkLWxhYmVsLXggew0KCWJvdHRvbTogYXV0bzsNCgl0b3A6IDEwMCU7DQoJbWFyZ2luLXRvcDogMS41cmVtOw0KCXdpZHRoOiAycmVtOw0KCW1hcmdpbi1sZWZ0OiAtMXJlbTsNCgl0ZXh0LWFsaWduOiBjZW50ZXI7DQp9DQouZ3JpZC1sYWJlbC14OmJlZm9yZSB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCWhlaWdodDogLjVyZW07DQoJd2lkdGg6IDA7DQoJYm9yZGVyLWxlZnQ6IDJweCBzb2xpZDsNCgl0b3A6IC0xcmVtOw0KCW1hcmdpbi1sZWZ0OiAtMXB4Ow0KCW1hcmdpbi10b3A6IC0ycHg7DQoJbGVmdDogMXJlbTsNCn0NCg0KLmdyaWQtbGFiZWwteSB7DQoJcmlnaHQ6IDEwMCU7DQoJbWFyZ2luLXJpZ2h0OiAxLjVyZW07DQoJbWFyZ2luLXRvcDogLS41cmVtOw0KfQ0KLmdyaWQtbGFiZWwteTpiZWZvcmUgew0KCWNvbnRlbnQ6ICcnOw0KCXBvc2l0aW9uOiBhYnNvbHV0ZTsNCgl3aWR0aDogLjVyZW07DQoJaGVpZ2h0OiAwOw0KCWJvcmRlci10b3A6IDJweCBzb2xpZDsNCglyaWdodDogLTFyZW07DQoJdG9wOiAuNHJlbTsNCgltYXJnaW4tcmlnaHQ6IC0xcHg7DQp9DQoNCi5ncmlkLWxhYmVsLXIgew0KCXJpZ2h0OiAxMDAlOw0KCXRvcDogY2FsYyg1MCUgLSAuNXJlbSk7DQoJbWFyZ2luLXJpZ2h0OiAxLjVyZW07DQp9DQouZ3JpZC1sYWJlbC1yOmJlZm9yZSB7DQoJY29udGVudDogJyc7DQoJcG9zaXRpb246IGFic29sdXRlOw0KCXdpZHRoOiAuNXJlbTsNCgloZWlnaHQ6IDA7DQoJYm9yZGVyLXRvcDogMnB4IHNvbGlkOw0KCXJpZ2h0OiAtMXJlbTsNCgl0b3A6IC40cmVtOw0KCW1hcmdpbi1yaWdodDogLTFweDsNCn0NCg0KDQouZ3JpZC1sYWJlbC1hIHsNCglib3R0b206IGF1dG87DQoJd2lkdGg6IDJyZW07DQoJdGV4dC1hbGlnbjogY2VudGVyOw0KfQ==","base64"));
-
-
-module.exports = Grid;
-
-/**
- * @constructor
- */
-function Grid (options) {
-	if (!(this instanceof Grid)) return new Grid(options);
-
-	extend(this, options);
-
-	this.id = uid();
-
-	if (!isBrowser) return;
-
-	//obtian container
-	this.container = options.container || document.body;
-	if (typeof this.container === 'string') this.container = document.querySelector(this.container);
-	this.container.classList.add('grid-container');
-
-	this.element = document.createElement('div');
-	this.element.classList.add('grid');
-	this.container.appendChild(this.element);
-
-	if (this.className) this.element.className += ' ' + this.className;
-
-	//create lines container
-	this.linesContainer = document.createElement('div');
-	this.element.appendChild(this.linesContainer);
-	this.linesContainer.classList.add('grid-lines');
-
-	this.update(options);
-}
-
-inherits(Grid, Emitter);
-
-
-Grid.prototype.container = null;
-Grid.prototype.viewport = null;
-
-Grid.prototype.lines = null;
-Grid.prototype.axes = null;
-
-Grid.prototype.prefixes = {
-	8: 'Y', // yotta
-	7: 'Z', // zetta
-	6: 'E', // exa
-	5: 'P', // peta
-	4: 'T', // tera
-	3: 'G', // giga
-	2: 'M', // mega
-	1: 'k', // kilo
-	0: '',
-	'-1': 'm', // milli
-	'-2': 'µ', // micro
-	'-3': 'n', // nano
-	'-4': 'p', // pico
-	'-5': 'f', // femto
-	'-6': 'a', // atto
-	'-7': 'z', // zepto
-	'-8': 'y'  // ycoto
-};
-
-Grid.prototype.defaultLines = {
-	orientation: 'x',
-	logarithmic: false,
-	min: 0,
-	max: 100,
-	//detected from range
-	values: undefined,
-	//copied from values
-	titles: undefined,
-	format: true,
-	units: ''
-};
-
-Grid.prototype.defaultAxis = {
-	name: '',
-	//detected from range
-	values: undefined,
-	//copied from values
-	labels: undefined,
-	//copied from labels
-	titles: undefined,
-	format: true,
-	units: ''
-};
-
-Grid.prototype.update = function (options) {
-	var this$1 = this;
-
-	options = options || {};
-
-	var that = this;
-
-	var element = this.element;
-	var linesContainer = this.linesContainer;
-	var id = this.id;
-
-	//set viewport
-	if (options.viewport) this.viewport = options.viewport;
-	var viewport = this.viewport;
-
-	//hide element to avoid live calc
-	element.setAttribute('hidden', true);
-
-	var w = this.container.offsetWidth;
-	var h = this.container === document.body ? window.innerHeight : this.container.offsetHeight;
-
-	//calc viewport
-	if (viewport instanceof Function) {
-		viewport = viewport(w, h);
-	}
-
-	if (!viewport) viewport = [0,0,w,h];
-	if (viewport[2] < 0 || viewport[3] < 0) throw 'Viewport size is negative, probably because grid container size is 0 or something. Please, check the container size.';
-
-	element.style.left = viewport[0] + (typeof viewport[0] === 'number' ? 'px' : '');
-	element.style.top = viewport[1] + (typeof viewport[1] === 'number' ? 'px' : '');
-	element.style.width = viewport[2] + (typeof viewport[2] === 'number' ? 'px' : '');
-	element.style.height = viewport[3] + (typeof viewport[3] === 'number' ? 'px' : '');
-
-
-	//ensure lines values are not empty
-	this.lines = this.lines || [];
-	if (options.lines) {
-		this.lines = options.lines.map(function (lines, i) { return lines && extend({}, this$1.defaultLines, this$1.lines[i], lines); });
-	}
-	this.axes = this.axes || [];
-	if (options.axes) {
-		this.axes = options.axes.map(function (axis, i) { return axis && extend({}, this$1.defaultAxis, this$1.lines[i], axis); });
-	}
-
-	//exceptional case of overflow:hidden
-	// if (this.container === document.body) {
-	// 	if ((viewport[0] + viewport[2]) >= window.innerWidth || (viewport[1] + viewport[3]) >= window.innerHeight) {
-	// 		linesContainer.style.overflow = 'hidden';
-	// 	}
-	// 	else {
-	// 		linesContainer.style.overflow = 'visible';
-	// 	}
-	// }
-
-	//hide all lines, labels, axes first
-	var lines = element.querySelectorAll('.grid-line');
-	for (var i = 0; i < lines.length; i++) {
-		lines[i].setAttribute('hidden', true);
-	}
-	var axes = element.querySelectorAll('.grid-axis');
-	for (var i = 0; i < axes.length; i++) {
-		axes[i].setAttribute('hidden', true);
-	}
-	var labels = element.querySelectorAll('.grid-label');
-	for (var i = 0; i < labels.length; i++) {
-		labels[i].setAttribute('hidden', true);
-	}
-
-	//set lines
-	this.lines.forEach(function (lines, idx) {
-		if (!lines) return;
-
-		//temp object keeping state of current lines run
-		var stats = {
-			linesContainer: linesContainer,
-			idx: idx,
-			id: id
-		};
-
-		if (options.lines) {
-			if (options.lines[idx] && options.lines[idx].style) {
-				this.lines[idx].style = extend(this.lines[idx].style, options.lines[idx].style);
-				delete options.lines[idx].style;
-			}
-			this.lines[idx] = lines = extend(this.lines[idx], options.lines[idx]);
-		}
-		stats.lines = lines;
-		var linesMin = Math.min(lines.max, lines.min);
-		var linesMax = Math.max(lines.min, lines.max);
-		stats.min = linesMin;
-		stats.max = linesMax;
-
-		//detect steps, if not defined, as one per each 50px
-		var values = [];
-		var minW = Math.min(viewport[2], viewport[3]);
-		var intersteps = (lines.orientation === 'x' ? (typeof viewport[2] === 'number' ? viewport[2] : linesContainer.clientWidth) : lines.orientation === 'y' ? (typeof viewport[3] === 'number' ? viewport[3] : linesContainer.clientHeight) : /a/.test(lines.orientation) ? minW * 2 : minW ) / 50 ;
-		if (intersteps < 1) {
-			values = [linesMin, linesMax];
-		}
-		//for non-log scale do even distrib
-		else if (!lines.logarithmic) {
-			var stepSize = (linesMax - linesMin) / Math.floor(intersteps);
-			var order = mag(stepSize);
-
-			var scale = /a/.test(lines.orientation) ? [1.5, 3] : [1, 2, 2.5, 5, 10];
-
-			stepSize = closestNumber(stepSize, scale.map(function (v) { return v * order; }));
-
-			var start = stepSize * Math.round(linesMin / stepSize);
-
-			for (var step = start; step <= linesMax; step += stepSize) {
-				if (step < linesMin) continue;
-				values.push(step);
-			}
-		}
-		else {
-			//each logarithmic divisor
-			if (linesMin <= 0 && linesMax >= 0) throw Error('Cannot create logarithmic grid spanning over zero, including zero');
-
-			[1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(function (base) {
-				var order = mag(linesMin);
-				var start = base * order;
-				for (var step = Math.abs(start); step <= Math.abs(linesMax); step *=10) {
-					if (step < Math.abs(linesMin)) continue;
-					values.push(step);
-				}
-			});
-		}
-
-
-		values = lines.values instanceof Function ?
-			values.map(function (v, i) { return lines.values(v, i, stats); }, this).filter(function (v) { return v != null; }) :
-			lines.values || values;
-
-		//to avoid collisions
-		values = values.sort(function (a, b) { return a - b; });
-
-		stats.values = values;
-
-		//define titles
-		var titles = lines.titles instanceof Function ? values.map(function (v, i) { return lines.titles(v, i, stats); }, this) :
-			lines.titles === undefined ? values.map(function (value) {
-				var order = mag(value);
-				var power = Math.floor(Math.log(order) / Math.log(1000));
-				if (lines.format && that.prefixes[power]) {
-					if (power > 1) value /= (power*1000);
-					return value.toLocaleString() + that.prefixes[power] + lines.units;
-				}
-				else {
-					return value.toLocaleString() + lines.units;
-				}
-		}) : lines.titles;
-		stats.titles = titles;
-
-		//draw lines
-		var offsets = values.slice().reverse().map(function (value, i) {
-			var line = linesContainer.querySelector(("#grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
-			var ratio;
-			if (!line) {
-				line = document.createElement('span');
-				line.id = "grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id;
-				line.classList.add('grid-line');
-				line.classList.add(("grid-line-" + (lines.orientation)));
-				if (value === linesMin) line.classList.add('grid-line-min');
-				if (value === linesMax) line.classList.add('grid-line-max');
-				line.setAttribute('data-value', value);
-
-				linesContainer.appendChild(line);
-			}
-
-			titles && line.setAttribute('title', titles[values.length - 1 - i]);
-
-			if (!lines.logarithmic) {
-				ratio = (value - linesMin) / (linesMax - linesMin);
-			}
-			else {
-				ratio = (lg(value) - lg(linesMin)) / (lg(linesMax) - lg(linesMin));
-			}
-			if (lines.min > lines.max) ratio = 1 - ratio;
-
-			ratio *= 100;
-			if (lines.orientation === 'x') {
-				line.style.left = ratio + '%';
-			}
-			else if (lines.orientation === 'y' ) {
-				line.style.top = (100 - ratio) + '%';
-			}
-			else if (/r/.test(lines.orientation)) {
-				line.style.marginLeft = -minW*ratio*.005 + 'px';
-				line.style.marginTop = -minW*ratio*.005 + 'px';
-				line.style.width = minW*ratio*.01 + 'px';
-				line.style.height = minW*ratio*.01 + 'px';
-				line.style.borderRadius = minW + 'px';
-			}
-			else if (/a/.test(lines.orientation)) {
-				if (ratio && !mod(ratio/100 * 360, 360)) {
-					linesContainer.removeChild(line);
-				}
-				line.style.width = minW / 2 + 'px';
-				line.style.transform = "rotate(" + (-ratio * 360 / 100) + "deg)";
-			}
-
-			if (lines.style) {
-				for (var prop in lines.style) {
-					var val = lines.style[prop];
-					if (typeof val === 'number') val += 'px';
-					line.style[prop] = val;
-				}
-			}
-			line.removeAttribute('hidden');
-
-			return ratio;
-		}).reverse();
-		stats.offsets = offsets;
-
-		//draw axes
-		var axis = this.axes[idx];
-
-		//get axis element
-		var axisEl = element.querySelector(("#grid-axis-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + idx + "-" + id));
-
-		//do not paint inexisting axis
-		if (!axis) {
-			axisEl && axisEl.setAttribute('hidden', true);
-			return this;
-		}
-		else {
-			axisEl && axisEl.removeAttribute('hidden');
-		}
-
-		if (options.axes) axis = extend(this.axes[idx], options.axes[idx]);
-		stats.axis = axis;
-
-		//define values
-		var axisValues = axis.values || values;
-		stats.axisValues = axisValues;
-
-		//define titles
-		var axisTitles = axis.titles instanceof Function ? axisValues.map(function (v, i) { return axis.titles(v, i, stats); }, this) : axis.titles ? axis.titles : axisValues === values ? titles : axis.titles === undefined ? axisValues.slice().map(function (value) {
-			return value.toLocaleString();
-		}) : axis.titles;
-		stats.axisTitles = axisTitles;
-
-		//define labels
-		var labels = axis.labels instanceof Function ? axisValues.map(function (v, i) { return axis.labels(v, i, stats); }, this) : axis.labels || axisTitles;
-		stats.labels = labels;
-
-		if (!axisEl) {
-			axisEl = document.createElement('span');
-			axisEl.id = "grid-axis-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + idx + "-" + id;
-			axisEl.classList.add('grid-axis');
-			axisEl.classList.add(("grid-axis-" + (lines.orientation)));
-			axisEl.setAttribute('data-name', axis.name);
-			axisEl.setAttribute('title', axis.name);
-			element.appendChild(axisEl);
-
-		}
-		if (/a/.test(lines.orientation)) {
-			axisEl.style.marginLeft = -minW*100*.005 + 'px';
-			axisEl.style.marginTop = -minW*100*.005 + 'px';
-			axisEl.style.width = minW*100*.01 + 'px';
-			axisEl.style.height = minW*100*.01 + 'px';
-			axisEl.style.borderRadius = minW + 'px';
-		}
-		else if (/r/.test(lines.orientation)) {
-			axisEl.style.marginTop = -minW*100*.005 + 'px';
-			axisEl.style.height = minW*100*.01 + 'px';
-		}
-
-		axisEl.removeAttribute('hidden');
-
-		//draw labels
-		axisValues.forEach(function (value, i) {
-			if (value == null || labels[i] == null) return;
-
-			if (lines.orientation === 'x' || lines.orientation === 'y') {
-				var label = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
-
-				if (!label) {
-					label = document.createElement('label');
-					label.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id;
-					label.classList.add('grid-label');
-					label.classList.add(("grid-label-" + (lines.orientation)));
-					label.setAttribute('for', ("grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
-					element.appendChild(label);
-				}
-
-				label.innerHTML = labels[i];
-
-				axisTitles && label.setAttribute('title', axisTitles[i]);
-
-				label.setAttribute('data-value', value);
-
-				//hide label for special log case to avoid overlapping
-				if (lines.logarithmic) {
-					hideLogLabel(label, value, intersteps);
-				}
-
-				if (lines.orientation === 'x') {
-					label.style.left = offsets[i] + '%';
-				}
-				else if (lines.orientation === 'y') {
-					label.style.top = (100 - offsets[i]) + '%';
-				}
-
-				if (within(value, linesMin, linesMax)) {
-					label.removeAttribute('hidden');
-				} else {
-					label.setAttribute('hidden', true);
-				}
-			}
-			else if (/r/.test(lines.orientation)) {
-				var labelTop = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top"));
-				var labelBottom = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-bottom"));
-
-				if (!labelTop) {
-					labelTop = document.createElement('label');
-					labelTop.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top";
-					labelTop.classList.add('grid-label');
-					labelTop.classList.add(("grid-label-" + (lines.orientation)));
-					labelTop.setAttribute('for', ("grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
-					element.appendChild(labelTop);
-				}
-
-				labelTop.innerHTML = labels[i];
-
-				axisTitles && labelTop.setAttribute('title', axisTitles[i]);
-
-				labelTop.setAttribute('data-value', value);
-
-				if(!labelBottom) {
-					labelBottom = labelTop.cloneNode();
-					labelBottom.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-bottom";
-					if (offsets[i]) {
-						element.appendChild(labelBottom);
-					}
-				}
-
-				labelBottom.innerHTML = labels[i];
-
-				// labelTop.style.marginTop = -(minW*.5*offsets[i]/100) + 'px';
-				// labelBottom.style.marginTop = (minW*.5*offsets[i]/100) + 'px';
-				labelTop.style.top = viewport[3]/2 - (minW*.5*offsets[i]/100) + 'px';
-				labelBottom.style.top = viewport[3]/2 + (minW*.5*offsets[i]/100) + 'px';
-
-				if (within(value, linesMin, linesMax)) {
-					labelTop.removeAttribute('hidden');
-					labelBottom.removeAttribute('hidden');
-				} else {
-					labelTop.setAttribute('hidden', true);
-					labelBottom.setAttribute('hidden', true);
-				}
-
-				//hide label for special log case to avoid overlapping
-				if (lines.logarithmic) {
-					hideLogLabel(labelTop, value, intersteps * 1.7);
-					hideLogLabel(labelBottom, value, intersteps * 1.7);
-				}
-			}
-			else if (/a/.test(lines.orientation)) {
-				var label$1 = element.querySelector(("#grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top"));
-
-				if (!label$1) {
-					label$1 = document.createElement('label');
-					label$1.id = "grid-label-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id + "-top";
-					label$1.classList.add('grid-label');
-					label$1.classList.add(("grid-label-" + (lines.orientation)));
-					label$1.setAttribute('for', ("grid-line-" + (lines.orientation) + (lines.logarithmic?'-log':'') + "-" + (formatValue(value)) + "-" + idx + "-" + id));
-					element.appendChild(label$1);
-				}
-
-				label$1.innerHTML = labels[i];
-
-				axisTitles && label$1.setAttribute('title', axisTitles[i]);
-
-				label$1.setAttribute('data-value', value);
-
-				var angle = offsets[i] * Math.PI / 50;
-				var angleDeg = offsets[i] * 3.6;
-				// label.style.transform = `rotate(${angle}deg)`;
-				label$1.style.left = viewport[2]/2 + Math.cos(angle) * minW/2 + 'px';
-				label$1.style.top = viewport[3]/2 -Math.sin(angle) * minW/2 + 'px';
-				label$1.style.marginTop = (-Math.sin(angle) * .8 - .4) + 'rem';
-				label$1.style.marginLeft = -1 + (Math.cos(angle)) + 'rem';
-
-				if (within(value, linesMin, linesMax) && angleDeg < 360 ) {
-					label$1.removeAttribute('hidden');
-				} else {
-					label$1.setAttribute('hidden', true);
-				}
-			}
-		});
-
-
-		//bloody helpers
-
-		function hideLogLabel (label, value, intersteps) {
-			var start = parseInt(value.toExponential()[0]);
-
-			if (values.length > intersteps * 2.8) {
-				if (start == 2) label.innerHTML = '';
-			}
-			if (values.length > intersteps * 2.6) {
-				if (start == 5) label.innerHTML = '';
-			}
-			if (values.length > intersteps * 2.3) {
-				if (start == 3) label.innerHTML = '';
-			}
-			if (values.length > intersteps * 2) {
-				if (start == 7) label.innerHTML = '';
-			}
-			if (values.length > intersteps * 1.7) {
-				if (start == 4) label.innerHTML = '';
-			}
-			if (values.length > intersteps * 1.5) {
-				if (start == 6) label.innerHTML = '';
-			}
-			if (values.length > intersteps * 1.2) {
-				if (start == 8) label.innerHTML = '';
-			}
-			if (values.length > intersteps * .9) {
-				if (start == 9) label.innerHTML = '';
-			}
-		}
-
-	}, this);
-
-	element.removeAttribute('hidden');
-
-	this.emit('update');
-
-	return this;
-};
-
-function formatValue (v) {
-	return v.toExponential().replace('.', '-').replace('+', '-');
-}
-}).call(this,require("buffer").Buffer)
-},{"buffer":2,"events":3,"get-uid":138,"inherits":139,"insert-styles":140,"is-browser":141,"mumath/closest":142,"mumath/lg":143,"mumath/mod":144,"mumath/order":145,"mumath/within":146,"xtend/mutable":148}],138:[function(require,module,exports){
-/** generate unique id for selector */
-var counter = Date.now() % 1e9;
-
-module.exports = function getUid(){
-	return (Math.random() * 1e9 >>> 0) + (counter++);
-};
-},{}],139:[function(require,module,exports){
-if (typeof Object.create === 'function') {
-  // implementation from standard node.js 'util' module
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    ctor.prototype = Object.create(superCtor.prototype, {
-      constructor: {
-        value: ctor,
-        enumerable: false,
-        writable: true,
-        configurable: true
-      }
-    });
-  };
-} else {
-  // old school shim for old browsers
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    var TempCtor = function () {}
-    TempCtor.prototype = superCtor.prototype
-    ctor.prototype = new TempCtor()
-    ctor.prototype.constructor = ctor
-  }
-}
-
-},{}],140:[function(require,module,exports){
-(function (global){
-'use strict'
-
-var cache = {}
-
-function noop () {}
-
-module.exports = !global.document ? noop : insertStyles
-
-function insertStyles (styles, options) {
-  var id = options && options.id || styles
-
-  var element = cache[id] = (cache[id] || createStyle(id))
-
-  if ('textContent' in element) {
-    element.textContent = styles
-  } else {
-    element.styleSheet.cssText = styles
-  }
-}
-
-function createStyle (id) {
-  var element = document.getElementById(id)
-
-  if (element) return element
-
-  element = document.createElement('style')
-  element.setAttribute('type', 'text/css')
-
-  document.head.appendChild(element)
-
-  return element
-}
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],141:[function(require,module,exports){
-module.exports = true;
-},{}],142:[function(require,module,exports){
-/**
- * @module  mumath/closest
- */
-
-module.exports = function closest (num, arr) {
-	var curr = arr[0];
-	var diff = Math.abs (num - curr);
-	for (var val = 0; val < arr.length; val++) {
-		var newdiff = Math.abs (num - arr[val]);
-		if (newdiff < diff) {
-			diff = newdiff;
-			curr = arr[val];
-		}
-	}
-	return curr;
-}
-},{}],143:[function(require,module,exports){
-/**
- * Base 10 logarithm
- *
- * @module mumath/lg
- */
-module.exports = require('./wrap')(function (a) {
-	return Math.log(a) / Math.log(10);
-});
-},{"./wrap":147}],144:[function(require,module,exports){
-/**
- * Looping function for any framesize.
- * Like fmod.
- *
- * @module  mumath/loop
- *
- */
-
-module.exports = require('./wrap')(function (value, left, right) {
-	//detect single-arg case, like mod-loop or fmod
-	if (right === undefined) {
-		right = left;
-		left = 0;
-	}
-
-	//swap frame order
-	if (left > right) {
-		var tmp = right;
-		right = left;
-		left = tmp;
-	}
-
-	var frame = right - left;
-
-	value = ((value + left) % frame) - left;
-	if (value < left) value += frame;
-	if (value > right) value -= frame;
-
-	return value;
-});
-},{"./wrap":147}],145:[function(require,module,exports){
-/**
- * @module mumath/order
- */
-module.exports = require('./wrap')(function (n) {
-	n = Math.abs(n);
-	var order = Math.floor(Math.log(n) / Math.LN10 + 0.000000001);
-	return Math.pow(10,order);
-});
-},{"./wrap":147}],146:[function(require,module,exports){
-/**
- * Whether element is between left & right including
- *
- * @param {number} a
- * @param {number} left
- * @param {number} right
- *
- * @return {Boolean}
- */
-module.exports = require('./wrap')(function(a, left, right){
-	if (left > right) {
-		var tmp = left;
-		left = right;
-		right = tmp;
-	}
-	if (a <= right && a >= left) return true;
-	return false;
-});
-},{"./wrap":147}],147:[function(require,module,exports){
-/**
- * Get fn wrapped with array/object attrs recognition
- *
- * @return {Function} Target function
- */
-module.exports = function(fn){
-	return function (a) {
-		var this$1 = this;
-
-		var args = arguments;
-		if (a instanceof Array) {
-			var result = new Array(a.length), slice;
-			for (var i = 0; i < a.length; i++){
-				slice = [];
-				for (var j = 0, l = args.length, val; j < l; j++){
-					val = args[j] instanceof Array ? args[j][i] : args[j];
-					val = val;
-					slice.push(val);
-				}
-				result[i] = fn.apply(this$1, slice);
-			}
-			return result;
-		}
-		else if (typeof a === 'object') {
-			var result = {}, slice;
-			for (var i in a){
-				slice = [];
-				for (var j = 0, l = args.length, val; j < l; j++){
-					val = typeof args[j] === 'object' ? args[j][i] : args[j];
-					val = val;
-					slice.push(val);
-				}
-				result[i] = fn.apply(this$1, slice);
-			}
-			return result;
-		}
-		else {
-			return fn.apply(this, args);
-		}
-	};
-};
-},{}],148:[function(require,module,exports){
-module.exports = extend
-
-var hasOwnProperty = Object.prototype.hasOwnProperty;
-
-function extend(target) {
-    var arguments$1 = arguments;
-
-    for (var i = 1; i < arguments.length; i++) {
-        var source = arguments$1[i]
-
-        for (var key in source) {
-            if (hasOwnProperty.call(source, key)) {
-                target[key] = source[key]
-            }
-        }
-    }
-
-    return target
-}
-
-},{}]},{},[136]);
+},{"../app-audio":7,"./src/core":139,"colormap":56,"colormap/colorScales":55,"fps-indicator":65,"insert-styles":72,"nice-color-palettes/500":102,"settings-panel":116,"settings-panel/theme/flat":128,"tinycolor2":132}]},{},[142]);

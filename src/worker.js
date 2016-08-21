@@ -16,14 +16,12 @@ module.exports = (self) => {
 	let options;
 	let amplitudes = [];
 	let lastLen = 0;
-	let samplesPerPixel
 
 	self.addEventListener('message', (e) => {
 		let {action, data} = e.data;
 
 		if (action === 'update') {
 			options = e.data.data;
-			samplesPerPixel = options.number / options.width;
 			amplitudes = render(samples, options);
 		}
 		else if (action === 'push') {
@@ -39,7 +37,7 @@ module.exports = (self) => {
 	setInterval(() => {
 		if (options.outline) {
 			let skipped = samples.length - lastLen;
-			if (skipped > samplesPerPixel) {
+			if (skipped > options.samplesPerPixel) {
 				let data = render(samples.slice(-skipped), options);
 				for (let i = 0; i < data[0].length; i++) {
 					amplitudes[0].push(data[0][i]);
@@ -52,8 +50,9 @@ module.exports = (self) => {
 			}
 		}
 		else {
+			lastLen = samples.length;
 			amplitudes = render(samples, options);
 			postMessage(amplitudes);
 		}
-	}, 25);
+	}, 20);
 };

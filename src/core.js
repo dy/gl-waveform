@@ -102,23 +102,8 @@ Waveform.prototype.init = function init () {
 	}
 	else {
 		this.samples = [];
+		this.amplitudes = [];
 	}
-
-
-	//create grids
-	// this.timeGrid = new Grid({
-	// 	container: this.container,
-	// 	lines: [
-	// 		{
-	// 			orientation: 'x',
-	// 			min: 0,
-	// 			max: this.width / this.sampleRate,
-	// 			units: 's'
-	// 		}
-	// 	],
-	// 	axes: [true],
-	// 	viewport: () => this.viewport
-	// });
 
 	function getTitle (v) {
 		if (that.log) {
@@ -186,7 +171,20 @@ Waveform.prototype.push = function (data) {
 			this.samples.push(data[i]);
 		}
 
-		this.render();
+		let skipped = this.samples.length - this.lastLen;
+		let opts = this.getRenderOptions();
+		if (skipped > opts.samplesPerPixel) {
+			let data = getData(this.samples.slice(-skipped), opts);
+			for (let i = 0; i < data[0].length; i++) {
+				this.amplitudes[0].push(data[0][i]);
+				this.amplitudes[1].push(data[1][i]);
+			}
+			this.amplitudes[0] = this.amplitudes[0].slice(-opts.width);
+			this.amplitudes[1] = this.amplitudes[1].slice(-opts.width);
+			this.lastLen = this.samples.length;
+		}
+
+		this.render(this.amplitudes);
 	}
 
 	return this;
@@ -205,7 +203,13 @@ Waveform.prototype.set = function (data) {
 	else {
 		this.samples = Array.prototype.slice.call(data);
 
-		this.render();
+		//get the data, if not explicitly passed
+		this.amplitudes = getData(this.samples, this.getRenderOptions());
+
+		this.render(this.amplitudes);
+
+		//reset some things for push
+		this.lastLen = this.samples.length;
 	}
 
 	return this;
@@ -280,11 +284,12 @@ Waveform.prototype.update = function update (opts) {
 		this.bottomGrid.element.setAttribute('hidden', true);
 	}
 
-	//TODO: acquire sampled data (for datasets more that viewport we should store sampled items)
+	this.samplesPerPixel = this.width / this.viewport[2];
 
 	//render the new properties
 	if (!this.worker) {
 		this.render();
+		this.amplitudes = getData(this.samples, this.getRenderOptions());
 	} else {
 		this.worker.postMessage({
 			action: 'update',
@@ -303,13 +308,7 @@ Waveform.prototype.draw = function draw (data) {
 	//if data length is more than viewport width - we render an outline shape
 	let opts = this.getRenderOptions();
 
-	if (!data) {
-		//ignore empty worker data
-		if (this.worker) return this;
-
-		//get the data, if not explicitly passed
-		data = getData(this.samples, opts);
-	}
+	if (!data) return this;
 
 	let ctx = this.context;
 
@@ -392,6 +391,7 @@ Waveform.prototype.getRenderOptions = function () {
 		offset: this.offset,
 		number: this.width,
 		width: this.viewport[2],
+		samplesPerPixel: this.samplesPerPixel,
 		outline: this.outline != null ? this.outline : this.width > this.viewport[2]
 	};
 }

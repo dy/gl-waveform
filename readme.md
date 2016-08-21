@@ -74,6 +74,9 @@ palette: ['white', 'black'],
 // Draw each frame or only on data/options changes
 autostart: false,
 
+// Disable worker mode, a bit heavy for main thread to sample huge waveforms
+worker: true,
+
 // Webgl-context options, or existing context instance
 context: {
 	antialias: false,

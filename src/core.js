@@ -6,7 +6,7 @@
 const extend = require('just-extend');
 const inherits = require('inherits');
 const Component = require('gl-component');
-const Grid = require('../../plot-grid');
+const Grid = require('plot-grid');
 const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
@@ -342,7 +342,7 @@ Waveform.prototype.draw = function draw (data) {
 
 
 		//too dense guys cause audio glitch, therefore simplify render
-		if (this.width/25 > width) {
+		if (this.width/30 > width) {
 			let items = [];
 			for (let x = 0; x < tops.length; x++) {
 				curr = Math.max(tops[x], -bottoms[x]);

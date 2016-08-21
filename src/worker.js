@@ -46,13 +46,12 @@ module.exports = (self) => {
 				amplitudes[0] = amplitudes[0].slice(-options.width);
 				amplitudes[1] = amplitudes[1].slice(-options.width);
 				lastLen = samples.length;
-				postMessage(amplitudes);
 			}
 		}
 		else {
 			lastLen = samples.length;
 			amplitudes = render(samples, options);
-			postMessage(amplitudes);
 		}
+		postMessage(amplitudes);
 	}, 20);
 };

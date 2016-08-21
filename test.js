@@ -66,6 +66,7 @@ let settings = createSettings([
 		waveform.update({log: v});
 	}},
 	{id: 'grid', label: 'Grid', title: 'Grid', type: 'checkbox', value: true, change: v => {
+		waveform.context.clearRect(0,0,waveform.canvas.width, waveform.canvas.height);
 		waveform.update({grid: v});
 	}},
 	// {id: 'natural', label: 'Natural', title: 'Dye waveform into a natural color depending on frequency contents', type: 'checkbox', value: true, change: v => {
@@ -199,7 +200,7 @@ let waveform = createWaveform({
 	}),
 	active: settings.theme.active,
 	padding: 50,
-	viewport: function (w, h) { return [60, 60, w - 60, h - 120] }
+	viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
 waveform.topGrid.element.style.fontFamily = settings.theme.fontFamily;
 waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;

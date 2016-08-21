@@ -228,6 +228,8 @@ Waveform.prototype.update = function update (opts) {
 	this.bottomGrid.element.style.color = this.getColor(0);
 	// this.timeGrid.update();
 
+	this.updateViewport();
+
 	//update grid
 	if (this.grid) {
 		this.topGrid.element.removeAttribute('hidden');
@@ -288,13 +290,13 @@ Waveform.prototype.update = function update (opts) {
 
 	//render the new properties
 	if (!this.worker) {
-		this.render();
 		this.amplitudes = getData(this.samples, this.getRenderOptions());
+		this.render(this.amplitudes);
 	} else {
 		this.worker.postMessage({
 			action: 'update',
 			data: this.getRenderOptions()
-		})
+		});
 	}
 
 	return this;

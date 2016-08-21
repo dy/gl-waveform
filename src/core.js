@@ -47,7 +47,7 @@ function Waveform (options) {
 
 
 //fill or stroke waveform
-Waveform.prototype.fill = true;
+Waveform.prototype.type = 'fill';
 
 //render in log fashion
 Waveform.prototype.log = true;
@@ -347,12 +347,12 @@ Waveform.prototype.draw = function draw (data) {
 			ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
 		}
 
-		if (!this.fill) {
+		if (this.type !== 'fill') {
 			ctx.strokeStyle = this.getColor(.5);
 			ctx.stroke();
 			ctx.closePath();
 		}
-		else if (this.fill) {
+		else if (this.type === 'fill') {
 			ctx.closePath();
 			ctx.fillStyle = this.getColor(.5);
 			ctx.fill();
@@ -366,12 +366,12 @@ Waveform.prototype.draw = function draw (data) {
 			ctx.lineTo(x + left, top + mid - amp*mid);
 		}
 
-		if (!this.fill) {
+		if (this.type !== 'fill') {
 			ctx.strokeStyle = this.getColor(.5);
 			ctx.stroke();
 			ctx.closePath();
 		}
-		else if (this.fill) {
+		else if (this.type === 'fill') {
 			ctx.lineTo(data.length + left, top + mid);
 			ctx.lineTo(left, top + mid);
 			ctx.closePath();

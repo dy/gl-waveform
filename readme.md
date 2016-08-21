@@ -1,6 +1,6 @@
 # gl-waveform [![unstable](http://badges.github.io/stability-badges/dist/unstable.svg)](http://github.com/badges/stability-badges)
 
-Visualise waveform data in webgl or canvas2d.
+High-performant waveform rendering component in webgl or canvas2d.
 
 [![Waveform](https://raw.githubusercontent.com/audio-lab/gl-waveform/gh-pages/preview.png "Waveform")](http://audio-lab.github.io/gl-waveform/)
 
@@ -38,40 +38,43 @@ Get waveform component class. `require('gl-waveform/2d')` for canvas-2d version.
 Create waveform instance based off options:
 
 ```js
-//container to place waveform element
+// Container to place waveform element
 container: document.body,
 
-//waveform data, floats from -1..1 range
+// Waveform data, floats from -1..1 range
 samples: timeDomainData,
 
-//audio viewport settings
+// Audio viewport settings
 maxDecibels: -0,
 minDecibels: -100,
 sampleRate: 44100,
 
-//how many samples fit to the full canvas width, i. e. 44100 for 1s of data
+// How many samples fit to the full canvas width, i. e. 44100 for 1s of data
 width: 1024,
 
-//how many samples to skip from the left side of the buffer.
+// How many samples to skip from the left side of the buffer.
 //undefined offset will move window to the tail of data, negative - from the tail.
 offset: null,
 
-//render line or fill
+// Render line, fill or spectrum
 type: 'line',
 
-//draw amplitude grid
+// Draw amplitudes grid
 grid: true,
 
-//place lines in logarithmic fashion, which makes contrast of peaks
+// Place lines in logarithmic fashion, which makes contrast of peaks
 log: true,
 
-//use db units or 0..1 range
+// Use db units or 0..1 range for axis
 db: true,
 
-// List of colors to dye the data in, i. e. colormap
+// List of colors to paint the data in, i. e. colormap
 palette: ['white', 'black'],
 
-//webgl-context options, or existing context instance
+// Draw each frame or only on data/options changes
+autostart: false,
+
+// Webgl-context options, or existing context instance
 context: {
 	antialias: false,
 	width: 400,
@@ -81,19 +84,22 @@ context: {
 ```
 
 </details>
-<details><summary>**`waveform.push(data)`**</summary>
+<details><summary>**`waveform.set(timeDomainData)`**</summary>
 
-Add new data for the waveform. Data is whether single sample or array/float array with float values from `0..1` range. The visible slice will be automatically rerendered in next frame. So safely call push as many times as you need.
+Place new data as the source waveform. The view will be automatically repainted in the next frame.
 
 </details>
-<details><summary>**`waveform.set(data)`**</summary>
+<details><summary>**`waveform.push(data)`**</summary>
 
-Similar to push, but discards old data.
+Append new data to the waveform. Data is whether single sample or array/float array with values from `0..1` range.
+The visible waveform will be automatically rerendered in the next frame.
+Using push is preferrable for dynamic waveform, when not all the samples are known, because it is highly optimized for large scale repaints.
 
 </details>
 <details><summary>**`waveform.update(options?)`**</summary>
 
 Update options, if required. Like, palette, grid type etc.
+It will automatically call render. Do not call this method often, because it recalculates everything possible.
 
 </details>
 

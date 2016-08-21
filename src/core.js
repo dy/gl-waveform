@@ -342,7 +342,7 @@ Waveform.prototype.draw = function draw (data) {
 
 
 		//too dense guys cause audio glitch, therefore simplify render
-		if (this.width/20 > width) {
+		if (this.width/25 > width) {
 			let items = [];
 			for (let x = 0; x < tops.length; x++) {
 				curr = Math.max(tops[x], -bottoms[x]);

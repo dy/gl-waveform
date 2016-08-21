@@ -36,11 +36,15 @@ module.exports = (self) => {
 
 	//60fps we want
 	function processData () {
-		if (!amplitudes.length || !options.outline) {
+		if (!options.outline) {
 			amplitudes = render(samples, options);
 		}
 
 		else if (options.outline) {
+			if (!amplitudes.length || !amplitudes[0].length) {
+				amplitudes = render(samples, options);
+			}
+
 			let skipped = samples.length - lastLen;
 			if (skipped > options.samplesPerPixel) {
 				let data = render(samples.slice(-skipped), options);

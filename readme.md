@@ -71,7 +71,7 @@ db: true,
 // List of colors to paint the data in, i. e. colormap
 palette: ['white', 'black'],
 
-// Draw each frame or only on data/options changes
+// Draw each frame or only data/options changes
 autostart: false,
 
 // Disable worker mode, a bit heavy for main thread to sample huge waveforms

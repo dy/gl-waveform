@@ -56,9 +56,6 @@ insertCss(`
 
 
 let settings = createSettings([
-	{id: 'fill', label: 'Fill', type: 'checkbox', value: true, change: v => {
-		waveform.update({fill: v});
-	}},
 	{id: 'db', label: 'Db', title: 'Display units in decibels', type: 'checkbox', value: true, change: v => {
 		waveform.update({db: v});
 	}},
@@ -141,8 +138,11 @@ let settings = createSettings([
 		waveform.maxDecibels = v[1];
 		waveform.update();
 	}, style: `width: 20em;`},
-	{id: 'width', label: 'Width', type: 'range', min: 2, max: 1e7, precision: 0, log: true, value: 44100*4, change: v => {
-		waveform.update({width: v});
+	// {id: 'width', label: 'Width', type: 'range', min: 2, max: 1e7, precision: 0, log: true, value: 44100*4, change: v => {
+	// 	waveform.update({width: v});
+	// }, style: `width: 12em;`},
+	{id: 'scale', label: 'Scale', type: 'range', min: .1, max: 1e7, precision: 0.01, log: true, value: 1, change: v => {
+		waveform.update({scale: v});
 	}, style: `width: 12em;`},
 ], {
 	// title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
@@ -192,7 +192,7 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 let waveform = createWaveform({
-	// worker: false,
+	worker: false,
 	offset: null,
 	palette: settings.theme.palette.map(v => {
 		let rgb = Color(v).toRgb();
@@ -200,15 +200,21 @@ let waveform = createWaveform({
 	}),
 	active: settings.theme.active,
 	padding: 50,
+	scale: 3,
 	viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
 waveform.topGrid.element.style.fontFamily = settings.theme.fontFamily;
 waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;
 
 
-// let start = Date.now();
-// let f = 440;
-// let t = 0;
+let start = Date.now();
+let f = 440;
+let t = 0;
+let data = [];
+for (let i = 0; i < 1000; i++) {
+	data.push(Math.sin(i/10))
+}
+waveform.push(data);
 // setInterval(function pushData () {
 // 	waveform.push([Math.sin(t)]);
 // 	t += 1/10;
@@ -217,7 +223,7 @@ waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;
 
 
 //create audio source
-
+/*
 let audio = createAudio({
 	color: settings.theme.palette[0],
 	source: 'https://soundcloud.com/8day-montreal/premiere-morningglasses-snifit-echonomist-remix-motek'
@@ -231,20 +237,20 @@ let audio = createAudio({
 		// 	input[i] = input[i]/2 + .45;
 		// }
 
-		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
-		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
+		// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
+		// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
 
 		if (!input[0]) return;
 
-		waveform.push(e.outputBuffer.getChannelData(0));
+		waveform.push(e.inputBuffer.getChannelData(0));
 	});
 
 	node.disconnect();
 	node.connect(scriptNode);
 	scriptNode.connect(audio.context.destination);
-
 });
 
 audio.element.style.fontFamily = settings.theme.fontFamily;
 audio.element.style.fontSize = settings.theme.fontSize;
 audio.update();
+*/

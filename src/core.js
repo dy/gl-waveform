@@ -5,24 +5,19 @@
 
 const extend = require('just-extend');
 const inherits = require('inherits');
-const Component = require('gl-component');
+const GlComponent = require('gl-component');
 const Grid = require('plot-grid');
 const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
-const getData = require('./render');
+const createStorage = require('./create-storage');
 
-let isWorkerAvailable = window.Worker;
-let workify, worker;
-if (isWorkerAvailable) {
-	workify = require('webworkify');
-	worker = require('./worker');
-}
 
 module.exports = Waveform;
 
 
-inherits(Waveform, Component);
+inherits(Waveform, GlComponent);
+
 
 /**
  * @constructor
@@ -30,7 +25,7 @@ inherits(Waveform, Component);
 function Waveform (options) {
 	if (!(this instanceof Waveform)) return new Waveform(options);
 
-	Component.call(this, options);
+	GlComponent.call(this, options);
 
 	this.init();
 
@@ -46,17 +41,11 @@ function Waveform (options) {
 }
 
 
-//fill or stroke waveform
-Waveform.prototype.type = 'fill';
-
 //render in log fashion
 Waveform.prototype.log = true;
 
 //display db units instead of amplitude, for grid axis
 Waveform.prototype.db = true;
-
-//force painting/disabling outline mode - undefined, to detect automatically
-Waveform.prototype.outline;
 
 //display grid
 Waveform.prototype.grid = true;
@@ -74,8 +63,8 @@ Waveform.prototype.sampleRate = 44100;
 //offset within samples, null means to the end
 Waveform.prototype.offset = null;
 
-//visible window width
-Waveform.prototype.width = 1024;
+//scale is how many samples per pixel
+Waveform.prototype.scale = 1;
 
 
 //FIXME: make more generic
@@ -86,24 +75,14 @@ Waveform.prototype.float = false;
 Waveform.prototype.autostart = false;
 
 //process data in worker
-Waveform.prototype.worker = true;
+Waveform.prototype.worker = !!window.Worker;
 
 
 //init routine
 Waveform.prototype.init = function init () {
 	let that = this;
 
-	//init worker - on messages from worker we plan rerender
-	if (this.worker) {
-		this.worker = workify(worker);
-		this.worker.addEventListener('message', (e) => {
-			this.render(e.data);
-		});
-	}
-	else {
-		this.samples = [];
-		this.amplitudes = [];
-	}
+	this.storage = createStorage({worker: this.worker});
 
 	function getTitle (v) {
 		if (that.log) {
@@ -114,7 +93,7 @@ Waveform.prototype.init = function init () {
 		}
 	}
 
-	//paint grid
+	//create grid
 	this.topGrid = new Grid({
 		container: this.container,
 		lines: [
@@ -154,38 +133,16 @@ Waveform.prototype.init = function init () {
 	});
 };
 
-//push a new data to the cache
+//push new data to cache
 Waveform.prototype.push = function (data) {
 	if (!data) return this;
+	console.log(1)
 
-	if (typeof data === 'number') data = [data];
+	this.storage.push(data, (err) => {
+		if (err) throw err;
+		this.redraw();
+	});
 
-	if (this.worker) {
-		this.worker.postMessage({
-			action: 'push',
-			data: data
-		});
-	}
-	else {
-		for (let i = 0; i < data.length; i++) {
-			this.samples.push(data[i]);
-		}
-
-		let skipped = this.samples.length - this.lastLen;
-		let opts = this.getRenderOptions();
-		if (skipped > opts.samplesPerPixel) {
-			let data = getData(this.samples.slice(-skipped), opts);
-			for (let i = 0; i < data[0].length; i++) {
-				this.amplitudes[0].push(data[0][i]);
-				this.amplitudes[1].push(data[1][i]);
-			}
-			this.amplitudes[0] = this.amplitudes[0].slice(-opts.width);
-			this.amplitudes[1] = this.amplitudes[1].slice(-opts.width);
-			this.lastLen = this.samples.length;
-		}
-
-		this.render(this.amplitudes);
-	}
 
 	return this;
 };
@@ -194,33 +151,36 @@ Waveform.prototype.push = function (data) {
 Waveform.prototype.set = function (data) {
 	if (!data) return this;
 
-	if (this.worker) {
-		this.worker.postMessage({
-			action: 'set',
-			data: data
-		});
-	}
-	else {
-		this.samples = Array.prototype.slice.call(data);
-
-		//get the data, if not explicitly passed
-		this.amplitudes = getData(this.samples, this.getRenderOptions());
-
-		this.render(this.amplitudes);
-
-		//reset some things for push
-		this.lastLen = this.samples.length;
-	}
+	this.storage.set(data, (err) => {
+		this.redraw();
+	});
 
 	return this;
 };
 
+//plan draw
+Waveform.prototype.redraw = function () {
+	if (this._dirty) return this;
+	this._dirty = true;
+
+	let offset = this.offset;
+
+	if (offset == null) {
+		offset = -this.viewport[2];
+	}
+
+	this.storage.get(this.scale, offset, offset + this.viewport[2], (err, data) => {
+		this.render(data)
+	});
+}
+
 
 //update view with new options
+//FIXME: move to 2d
 Waveform.prototype.update = function update (opts) {
 	extend(this, opts);
 
-	//generate palette functino
+	//generate palette function
 	this.getColor = Interpolate(this.palette);
 
 	this.canvas.style.backgroundColor = this.getColor(1);
@@ -288,32 +248,22 @@ Waveform.prototype.update = function update (opts) {
 
 	this.samplesPerPixel = this.width / this.viewport[2];
 
-	//render the new properties
-	if (!this.worker) {
-		this.amplitudes = getData(this.samples, this.getRenderOptions());
-		this.render(this.amplitudes);
-	} else {
-		this.worker.postMessage({
-			action: 'update',
-			data: this.getRenderOptions()
-		});
-	}
+	this.redraw();
 
 	return this;
 };
 
 
-//draw routine
 //data is amplitudes for curve
 //FIXME: move to 2d
 Waveform.prototype.draw = function draw (data) {
-	//if data length is more than viewport width - we render an outline shape
-	let opts = this.getRenderOptions();
+	//clean flag
+	if (this._dirty) this._dirty = false;
 
 	if (!data) return this;
 
+	let tops = data[0], bottoms = data[1];
 	let ctx = this.context;
-
 	let width = this.viewport[2];
 	let height = this.viewport[3];
 	let left = this.viewport[0];
@@ -323,11 +273,12 @@ Waveform.prototype.draw = function draw (data) {
 
 	ctx.clearRect(this.viewport[0] - 1, this.viewport[1] - 1, width + 2, height + 2);
 
+
 	//draw central line with active color
 	ctx.fillStyle = this.active || this.getColor(0);
 	ctx.fillRect(left, top + mid, width, .5);
 
-	if (!data[0]) return;
+	if (!tops || !bottoms || !tops.length || !bottoms.length) return this;
 
 	//create line path
 	ctx.beginPath();
@@ -335,92 +286,30 @@ Waveform.prototype.draw = function draw (data) {
 	let amp = data[0];
 	ctx.moveTo(left + .5, top + mid - amp*mid);
 
-	//paint outline, usually for the large dataset
-	if (opts.outline) {
-		let tops = data[0], bottoms = data[1];
-		let prev, next, curr;
-
-
-		//too dense guys cause audio glitch, therefore simplify render
-		if (this.width/30 > width) {
-			let items = [];
-			for (let x = 0; x < tops.length; x++) {
-				curr = Math.max(tops[x], -bottoms[x]);
-				amp = curr;
-				items.push(amp);
-				ctx.lineTo(x + left, top + mid - amp*mid);
-			}
-			for (let x = 0; x < items.length; x++) {
-				amp = items[items.length - 1 - x];
-				ctx.lineTo(items.length - 1 - x + left, top + mid + amp*mid);
-			}
-
-			//dirty hack to avoid
-			// ctx.lineTo(left + tops.length, top + mid);
-			ctx.lineTo(left, top + mid);
-		}
-		//if allowable - show more details
-		else {
-			for (let x = 0; x < tops.length; x++) {
-				curr = tops[x];
-				amp = curr;
-				ctx.lineTo(x + left, top + mid - amp*mid);
-			}
-			for (let x = 0; x < bottoms.length; x++) {
-				curr = bottoms[bottoms.length - 1 - x];
-				amp = curr;
-				ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
-			}
-		}
-
-
-		if (this.type !== 'fill') {
-			ctx.strokeStyle = this.getColor(.5);
-			ctx.stroke();
-			ctx.closePath();
-		}
-		else if (this.type === 'fill') {
-			ctx.closePath();
-			ctx.fillStyle = this.getColor(.5);
-			ctx.fill();
-		}
-	}
-
-	//otherwise we render straight line
-	else {
-		for (let x = 0; x < data.length; x++) {
-			amp = data[x];
+	//low scale has 1:1 data
+	if (this.scale < 2) {
+		for (let x = 0; x < tops.length; x++) {
+			amp = tops[x];
 			ctx.lineTo(x + left, top + mid - amp*mid);
 		}
-
-		if (this.type !== 'fill') {
-			ctx.strokeStyle = this.getColor(.5);
-			ctx.stroke();
-			ctx.closePath();
-		}
-		else if (this.type === 'fill') {
-			ctx.lineTo(data.length + left, top + mid);
-			ctx.lineTo(left, top + mid);
-			ctx.closePath();
-			ctx.fillStyle = this.getColor(.5);
-			ctx.fill();
-		}
+		ctx.strokeStyle = this.getColor(.5);
+		ctx.stroke();
 	}
+	else {
+		for (let x = 0; x < tops.length; x++) {
+			amp = tops[x];
+			ctx.lineTo(x + left, top + mid - amp*mid);
+		}
+		for (let x = 0; x < bottoms.length; x++) {
+			amp = bottoms[bottoms.length - 1 - x];
+			ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
+		}
+		ctx.fillStyle = this.getColor(.5);
+		ctx.fill();
+	}
+
+	ctx.closePath();
 
 	return this;
 };
 
-
-//just a helper
-Waveform.prototype.getRenderOptions = function () {
-	return {
-		min: this.minDecibels,
-		max: this.maxDecibels,
-		log: this.log,
-		offset: this.offset,
-		number: this.width,
-		width: this.viewport[2],
-		samplesPerPixel: this.samplesPerPixel,
-		outline: this.outline != null ? this.outline : this.width > this.viewport[2]
-	};
-}

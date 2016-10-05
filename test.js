@@ -219,7 +219,7 @@ let settings = createSettings([
 		waveform.update({scale: v});
 	}, style: `width: 12em;`},
 ], {
-	// title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
+	title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
 	theme: theme,
 	fontSize: 12,
 	css: `
@@ -238,7 +238,8 @@ let settings = createSettings([
 			display: inline-block;
 			line-height: 1;
 			margin-right: 3em;
-			vertical-align: top;
+			padding: .5rem 0;
+			vertical-align: baseline;
 		}
 		.settings-panel-field {
 			width: auto;

@@ -136,7 +136,6 @@ Waveform.prototype.init = function init () {
 //push new data to cache
 Waveform.prototype.push = function (data) {
 	if (!data) return this;
-	console.log(1)
 
 	this.storage.push(data, (err) => {
 		if (err) throw err;
@@ -160,8 +159,10 @@ Waveform.prototype.set = function (data) {
 
 //plan draw
 Waveform.prototype.redraw = function () {
-	if (this._dirty) return this;
-	this._dirty = true;
+	if (this.isDirty) {
+		return this;
+	}
+	this.isDirty = true;
 
 	let offset = this.offset;
 
@@ -169,8 +170,10 @@ Waveform.prototype.redraw = function () {
 		offset = -this.viewport[2];
 	}
 
-	this.storage.get(this.scale, offset, offset + this.viewport[2], (err, data) => {
-		this.render(data)
+	this.storage.get(this.scale, offset * this.scale, (offset + this.viewport[2])*this.scale, (err, data) => {
+		this.render(data);
+		this.isDirty = false;
+		this.emit('redraw');
 	});
 }
 
@@ -248,7 +251,15 @@ Waveform.prototype.update = function update (opts) {
 
 	this.samplesPerPixel = this.width / this.viewport[2];
 
-	this.redraw();
+	//plan redraw
+	if (this.isDirty) {
+		this.once('redraw', () => {
+			this.redraw();
+		});
+	}
+	else {
+		this.redraw();
+	}
 
 	return this;
 };
@@ -258,7 +269,7 @@ Waveform.prototype.update = function update (opts) {
 //FIXME: move to 2d
 Waveform.prototype.draw = function draw (data) {
 	//clean flag
-	if (this._dirty) this._dirty = false;
+	if (this.isDirty) this.isDirty = false;
 
 	if (!data) return this;
 

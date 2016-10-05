@@ -33,6 +33,7 @@
     "get-uid": "^1.0.1",
     "gl-component": "^1.4.20",
     "inherits": "^2.0.1",
+    "is-integer": "^1.0.6",
     "just-extend": "^1.1.19",
     "multiscale-array": "^1.0.3",
     "negative-index": "^1.0.0",

@@ -15,6 +15,7 @@ const Scales = require('multiscale-array');
 const Emitter = require('events').EventEmitter;
 const bits = require('bit-twiddle');
 const nidx = require('negative-index');
+const isInt = require('is-integer');
 
 
 module.exports = createStorage;
@@ -94,99 +95,47 @@ function createStorage (opts) {
 		from = nidx(from, mins[0].length);
 		to = nidx(to, mins[0].length);
 
-		let scaleFrom = Math.floor(from / scale);
-		let scaleTo = Math.ceil(to / scale);
-		let scaleIdx = bits.log2(scale);
+		let potScale = Math.min(bits.nextPow2(Math.ceil(scale)), maxScale);
 
-		//pow2 case
-		if (bits.isPow2(scale) && mins[scaleIdx]) {
-			let data = [
-				maxes[scaleIdx].slice(scaleFrom, scaleTo),
-				mins[scaleIdx].slice(scaleFrom, scaleTo)
-			];
-			cb && cb(null, data);
-			return;
+		let scaleFrom = Math.floor(from / potScale);
+		let scaleTo = Math.ceil(to / potScale);
+		let scaleIdx = bits.log2(potScale);
+
+		let rangeMins = mins[scaleIdx].slice(scaleFrom, scaleTo),
+			rangeMaxes = maxes[scaleIdx].slice(scaleFrom, scaleTo);
+
+		let data;
+
+		//po2 case
+		if (potScale === scale) {
+			data = [rangeMaxes, rangeMins];
 		}
 
+		//for nonpot case - interpolate data
+		else {
+			let len = Math.ceil(rangeMins.length * potScale / scale);
+			data = [Array(len), Array(len)];
+			for (let i = 0; i < len; i++) {
+				let t = i / (len - 1);
+				let idx = ( rangeMins.length - 1 ) * t,
+					lIdx = Math.floor( idx ),
+					rIdx = Math.ceil( idx );
 
-		//for nonpow2 case - interpolate data
-		// let srcScale = Math.min(bits.prevPow2(scale), maxScale);
-		// let srcIdx = bits.log2(srcScale);
-		// let resMins = [], resMaxes = [];
+				t = idx - lIdx;
 
-		// for (let i = 0; i < mins[srcIdx].length; i++) {
+				data[0][i] = rangeMaxes[lIdx] * (1 - t) + rangeMaxes[rIdx] * t;
+				data[1][i] = rangeMins[lIdx] * (1 - t) + rangeMins[rIdx] * t;
+			}
+		}
 
-		// }
-		// let idx = ( mins.length - 1 ) * t,
-		// 	lIdx = Math.floor( idx ),
-		// 	rIdx = Math.ceil( idx );
+		cb && setTimeout(() => cb(null, data));
 
-		// t = idx - lIdx;
+		return data;
 	}
 
 	return emitter;
 }
 
-
-/**
- *
- * @param {Array} samples Amplitudes data
- * @param {Object} opts How to render data: should contain width, number, offset, log, min, max
- *
- * @return {Array(width|width*2)} Amplitudes for straight curve or tops/bottoms curves joined into single array
- */
-function render (samples, opts) {
-	let {width, number, offset, log, min, max, outline} = opts;
-
-	number = Math.floor(number);
-
-	let start = offset == null ? -number : offset;
-	if (start < 0) {
-		start = samples.length + start;
-	}
-	start = Math.max(start, 0);
-
-	let data, amp, x;
-
-	//collect tops/bottoms first
-	let tops = Array(width), bottoms = Array(width);
-	let maxTop, maxBottom, sum, count;
-	for (let x = .5, idx = 0; x < width; x++, idx++) {
-		let i = number * x / width;
-
-		let lx = Math.floor(x);
-		let rx = Math.ceil(x);
-		let li = number * lx / width;
-		let ri = number * rx / width;
-
-		// ignore out of range data
-		if (Math.ceil(ri) + start >= samples.length) {
-			break;
-		}
-
-		maxTop = -1;
-		maxBottom = 1;
-		count = 0;
-
-		for (let i = Math.max(Math.floor(li), 0); i < ri; i++) {
-			amp = f(samples[i + start], log, min, max);
-
-			sum += amp;
-			count++;
-
-			maxTop = Math.max(maxTop, amp);
-			maxBottom = Math.min(maxBottom, amp);
-		}
-
-		if (maxTop === maxBottom) maxBottom -= .002;
-		tops[idx] = maxTop;
-		bottoms[idx] = maxBottom;
-	}
-
-	data = [tops, bottoms];
-
-	return data;
-}
 
 function inter (data, idx) {
 	let lIdx = Math.floor( idx ),

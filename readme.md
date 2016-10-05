@@ -56,9 +56,6 @@ width: 1024,
 //undefined offset will move window to the tail of data, negative - from the tail.
 offset: null,
 
-// Render line, fill or spectrum
-type: 'line',
-
 // Draw amplitudes grid
 grid: true,
 

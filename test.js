@@ -1,3 +1,5 @@
+
+require('enable-mobile');
 const createSettings = require('settings-panel');
 const createWaveform = require('./2d');
 const createAudio = require('../app-audio');
@@ -38,10 +40,6 @@ palettes = palettes
 
 
 insertCss(`
-	body {
-		padding: 0;
-		margin: 0;
-	}
 	.grid .grid-label {
 		top: 0;
 	}
@@ -169,27 +167,27 @@ let settings = createSettings([
 
 		el.onclick = () => {
 			// settings.set('colors', 'custom');
-
 			let palette = palettes[Math.floor((palettes.length - 1) * Math.random())];
+
+			setColors(el, palette);
+		}
+
+		//create colors in the element
+		function setColors(el, palette, active) {
 			let bg = palette[palette.length -1];
 
 			settings.update({
 				palette: palette,
 				style: `background-image: linear-gradient(to top, ${Color(bg).setAlpha(.9).toString()} 0%, ${Color(bg).setAlpha(0).toString()} 100%);`
 			});
-
-			//FIXME: avoid rgb array palette
-			setColors(el, palette);
 			waveform.update({
 				palette: palette.slice().reverse()
 			});
 
 			audio.update({color: palette[0]});
-			fps.element.style.color = waveform.getColor(0);
-		}
+			fps.element.style.color = waveform.getColor(1);
+			audio.element.style.background = `linear-gradient(to bottom, ${Color(bg).setAlpha(.9).toString()} 0%, ${Color(bg).setAlpha(0).toString()} 100%)`;
 
-		//create colors in the element
-		function setColors(el, palette, active) {
 			el.innerHTML = '';
 			if (active) {
 				palette = palette.slice();

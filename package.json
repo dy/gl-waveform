@@ -5,9 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "budo test.js",
-    "test:browser": "budo test.js",
+    "test:browser": "budo test.js -- -g bubleify",
     "lint": "eslint *.js --ignore-pattern test*",
-    "build": "browserify test.js -g bubleify -o demo/index.js"
+    "build": "browserify test.js -g bubleify | indexhtmlify --title gl-waveform > demo/index.html"
   },
   "repository": {
     "type": "git",
@@ -44,10 +44,12 @@
     "webworkify": "^1.3.0"
   },
   "devDependencies": {
-    "fps-indicator": "^1.0.1",
     "app-audio": "^1.1.4",
     "audio-context": "^0.1.0",
     "bubleify": "^0.5.1",
+    "enable-mobile": "^1.0.5",
+    "fps-indicator": "^1.0.1",
+    "indexhtmlify": "^1.3.0",
     "insert-styles": "^1.2.1",
     "nice-color-palettes": "^1.0.1",
     "settings-panel": "^1.8.3",

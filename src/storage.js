@@ -151,11 +151,11 @@ function createStorage () {
 		}
 
 		//generate spectrum colors
-		let rangeSpectrums = spectrums.slice(Math.floor(from/fftSize), Math.floor(to/fftSize));
-		let rangeColors = rangeSpectrums.map(spectrum => {
-			return colorSpectrum(spectrum)
-		});
-		data.push(rangeColors);
+		// let rangeSpectrums = spectrums.slice(Math.floor(from/fftSize), Math.floor(to/fftSize));
+		// let rangeColors = rangeSpectrums.map(spectrum => {
+		// 	return colorSpectrum(spectrum)
+		// });
+		// data.push(rangeColors);
 
 		cb && setTimeout(() => cb(null, data));
 

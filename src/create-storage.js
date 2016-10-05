@@ -25,30 +25,33 @@ function createStorage (opts) {
 	//worker storage
 	let worker = workify(require('./worker'));
 
+	//list of planned callbacks
+	let cbs = {
+		push: [],
+		get: [],
+		set: []
+	};
+
+	worker.addEventListener('message', function (e) {
+		let action = e.data.action;
+		let data = e.data.data;
+		if (!cbs[action]) throw Error('Unknown action ' + action);
+		let cb = cbs[action].shift();
+		cb && cb(null, data);
+	});
+
 	return {
 		push: (data, cb) => {
+			cbs.push.push(cb);
 			worker.postMessage({action: 'push', args: [data] });
-			worker.addEventListener('message', function pushCb (e) {
-				if (e.data.action != 'push') return;
-				worker.removeEventListener('message', pushCb);
-				cb && cb();
-			})
 		},
 		set: (data, offset, cb) => {
+			cbs.set.push(cb);
 			worker.postMessage({action: 'set', args: [offset, data] });
-			worker.addEventListener('message', function setCb () {
-				if (e.data.action != 'set') return;
-				worker.removeEventListener('message', setCb);
-				cb && cb();
-			})
 		},
 		get: (scale, from, to, cb) => {
+			cbs.get.push(cb);
 			worker.postMessage({action: 'get', args: [scale, from, to] });
-			worker.addEventListener('message', function getCb (e) {
-				if (e.data.action != 'get') return;
-				worker.removeEventListener('message', getCb);
-				cb && cb(null, e.data.data);
-			});
 		}
 	};
 }

@@ -1,5 +1,5 @@
 const createSettings = require('settings-panel');
-const createWaveform = require('./src/core');
+const createWaveform = require('./2d');
 const createAudio = require('../app-audio');
 const createFps = require('fps-indicator');
 const insertCss =  require('insert-styles');

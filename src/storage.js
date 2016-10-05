@@ -115,6 +115,7 @@ function createStorage (opts) {
 		else {
 			let len = Math.ceil(rangeMins.length * potScale / scale);
 			data = [Array(len), Array(len)];
+
 			for (let i = 0; i < len; i++) {
 				let t = i / (len - 1);
 				let idx = ( rangeMins.length - 1 ) * t,
@@ -123,8 +124,11 @@ function createStorage (opts) {
 
 				t = idx - lIdx;
 
-				data[0][i] = rangeMaxes[lIdx] * (1 - t) + rangeMaxes[rIdx] * t;
-				data[1][i] = rangeMins[lIdx] * (1 - t) + rangeMins[rIdx] * t;
+				let min = rangeMaxes[lIdx] * (1 - t) + rangeMaxes[rIdx] * (t);
+				let max = rangeMins[lIdx] * (1 - t) + rangeMins[rIdx] * (t);
+
+				data[0][i] = min;
+				data[1][i] = max;
 			}
 		}
 

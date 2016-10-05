@@ -8,6 +8,7 @@ const inherits = require('inherits');
 const GlComponent = require('gl-component');
 const Grid = require('plot-grid');
 const Interpolate = require('color-interpolate');
+const alpha = require('color-alpha');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
 const createStorage = require('./create-storage');
@@ -186,9 +187,9 @@ Waveform.prototype.update = function update (opts) {
 	//generate palette function
 	this.getColor = Interpolate(this.palette);
 
-	this.canvas.style.backgroundColor = this.getColor(1);
-	this.topGrid.element.style.color = this.getColor(0);
-	this.bottomGrid.element.style.color = this.getColor(0);
+	this.canvas.style.backgroundColor = this.getColor(0);
+	this.topGrid.element.style.color = this.getColor(1);
+	this.bottomGrid.element.style.color = this.getColor(1);
 	// this.timeGrid.update();
 
 	this.updateViewport();
@@ -286,7 +287,7 @@ Waveform.prototype.draw = function draw (data) {
 
 
 	//draw central line with active color
-	ctx.fillStyle = this.active || this.getColor(0);
+	ctx.fillStyle = alpha(this.active || this.getColor(.5), .4);
 	ctx.fillRect(left, top + mid, width, .5);
 
 	if (!tops || !bottoms || !tops.length || !bottoms.length) return this;
@@ -303,7 +304,7 @@ Waveform.prototype.draw = function draw (data) {
 			amp = tops[x];
 			ctx.lineTo(x + left, top + mid - amp*mid);
 		}
-		ctx.strokeStyle = this.getColor(.5);
+		ctx.strokeStyle = this.getColor(1);
 		ctx.stroke();
 	}
 	else {
@@ -315,7 +316,7 @@ Waveform.prototype.draw = function draw (data) {
 			amp = bottoms[bottoms.length - 1 - x];
 			ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
 		}
-		ctx.fillStyle = this.getColor(.5);
+		ctx.fillStyle = this.getColor(1);
 		ctx.fill();
 	}
 

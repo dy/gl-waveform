@@ -13,12 +13,9 @@ module.exports = function (self) {
 
 	self.addEventListener('message', (e) => {
 		let {action, args} = e.data;
-		args.push(change);
+		args.push((err, data) => {
+			postMessage({action, data});
+		});
 		storage[action].apply(storage, args);
 	});
-
-	function change (err, data) {
-		if (err) return;
-		postMessage(data);
-	}
 }

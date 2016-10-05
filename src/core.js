@@ -171,8 +171,8 @@ Waveform.prototype.redraw = function () {
 	}
 
 	this.storage.get(this.scale, offset * this.scale, (offset + this.viewport[2])*this.scale, (err, data) => {
-		this.render(data);
 		this.isDirty = false;
+		this.render(data);
 		this.emit('redraw');
 	});
 }

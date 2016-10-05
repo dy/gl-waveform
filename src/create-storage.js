@@ -28,23 +28,26 @@ function createStorage (opts) {
 	return {
 		push: (data, cb) => {
 			worker.postMessage({action: 'push', args: [data] });
-			cb && worker.addEventListener('message', function pushCb () {
-				cb();
+			worker.addEventListener('message', function pushCb (e) {
+				if (e.data.action != 'push') return;
 				worker.removeEventListener('message', pushCb);
+				cb && cb();
 			})
 		},
 		set: (data, offset, cb) => {
 			worker.postMessage({action: 'set', args: [offset, data] });
-			cb && worker.addEventListener('message', function setCb () {
-				cb();
+			worker.addEventListener('message', function setCb () {
+				if (e.data.action != 'set') return;
 				worker.removeEventListener('message', setCb);
+				cb && cb();
 			})
 		},
 		get: (scale, from, to, cb) => {
 			worker.postMessage({action: 'get', args: [scale, from, to] });
-			cb && worker.addEventListener('message', function getCb (data) {
-				cb(null, data);
+			worker.addEventListener('message', function getCb (e) {
+				if (e.data.action != 'get') return;
 				worker.removeEventListener('message', getCb);
+				cb && cb(null, e.data.data);
 			});
 		}
 	};

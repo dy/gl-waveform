@@ -192,7 +192,7 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 let waveform = createWaveform({
-	worker: false,
+	// worker: false,
 	offset: null,
 	palette: settings.theme.palette.map(v => {
 		let rgb = Color(v).toRgb();
@@ -210,7 +210,7 @@ waveform.bottomGrid.element.style.fontFamily = settings.theme.fontFamily;
 // let start = Date.now();
 // let f = 440;
 // let t = 0;
-// setInterval(function pushData () {
+// setInterval(() => {
 // 	let data = [];
 // 	for (let i = t; i < t + 200; i++) {
 // 		data.push(Math.sin(i/10))

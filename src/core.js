@@ -54,6 +54,9 @@ Waveform.prototype.grid = true;
 //default palette to draw lines in
 Waveform.prototype.palette = ['black', 'white'];
 
+//make color reflect spectrum
+Waveform.prototype.spectrumColor = false;
+
 //amplitude subrange
 Waveform.prototype.maxDecibels = -0;
 Waveform.prototype.minDecibels = -100;
@@ -268,13 +271,10 @@ Waveform.prototype.update = function update (opts) {
 
 //data is amplitudes for curve
 //FIXME: move to 2d
-Waveform.prototype.draw = function draw (data) {
+Waveform.prototype.draw = function draw ([tops, bottoms, colors]) {
 	//clean flag
 	if (this.isDirty) this.isDirty = false;
 
-	if (!data) return this;
-
-	let tops = data[0], bottoms = data[1];
 	let ctx = this.context;
 	let width = this.viewport[2];
 	let height = this.viewport[3];
@@ -295,8 +295,19 @@ Waveform.prototype.draw = function draw (data) {
 	//create line path
 	ctx.beginPath();
 
-	let amp = data[0];
+	let amp = tops[0];
 	ctx.moveTo(left + .5, top + mid - amp*mid);
+
+	//generate gradient
+	let style = this.getColor(1);
+
+	if (this.spectrumColor) {
+		style = ctx.createLinearGradient(this.viewport[0], 0, this.viewport[0] + tops.length, 0);
+		for (let i = 0; i < colors.length; i++) {
+			let r = i / colors.length;
+			style.addColorStop(r, colors[i]);
+		}
+	}
 
 	//low scale has 1:1 data
 	if (this.scale < 2) {
@@ -304,7 +315,7 @@ Waveform.prototype.draw = function draw (data) {
 			amp = tops[x];
 			ctx.lineTo(x + left, top + mid - amp*mid);
 		}
-		ctx.strokeStyle = this.getColor(1);
+		ctx.strokeStyle = style;
 		ctx.stroke();
 	}
 	else {
@@ -316,7 +327,7 @@ Waveform.prototype.draw = function draw (data) {
 			amp = bottoms[bottoms.length - 1 - x];
 			ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
 		}
-		ctx.fillStyle = this.getColor(1);
+		ctx.fillStyle = style;
 		ctx.fill();
 	}
 

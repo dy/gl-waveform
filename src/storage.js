@@ -16,11 +16,13 @@ const Emitter = require('events').EventEmitter;
 const bits = require('bit-twiddle');
 const nidx = require('negative-index');
 const isInt = require('is-integer');
+const colorSpectrum = require('color-spectrum');
+const ft = require('fourier-transform');
 
 
 module.exports = createStorage;
 
-function createStorage (opts) {
+function createStorage () {
 	let buffer = [];
 	let last = 0;
 	let allocBlockSize = Math.pow(2, 16);
@@ -33,6 +35,10 @@ function createStorage (opts) {
 		reduce: Math.max,
 		maxScale: maxScale
 	});
+
+	//spectrum colors for each 512-samples step
+	let spectrums = [];
+	let fftSize = 1024;
 
 	return {
 		push: push,
@@ -56,6 +62,17 @@ function createStorage (opts) {
 
 		mins.update(last - chunk.length, last);
 		maxes.update(last - chunk.length, last);
+
+		//calc spectrums if any
+		let spectrumsLen = Math.floor(last / fftSize);
+		if (spectrums.length < spectrumsLen) {
+			let start = spectrums.length;
+			spectrums.length = spectrumsLen;
+			for (let i = start; i < spectrumsLen; i++) {
+				let spectrum = ft(mins[0].slice(i * fftSize, (i + 1) * fftSize));
+				spectrums[i] = spectrum;
+			}
+		}
 
 		cb && setTimeout(cb);
 
@@ -130,7 +147,15 @@ function createStorage (opts) {
 				data[0][i] = min;
 				data[1][i] = max;
 			}
+
 		}
+
+		//generate spectrum colors
+		let rangeSpectrums = spectrums.slice(Math.floor(from/fftSize), Math.floor(to/fftSize));
+		let rangeColors = rangeSpectrums.map(spectrum => {
+			return colorSpectrum(spectrum)
+		});
+		data.push(rangeColors);
 
 		cb && setTimeout(() => cb(null, data));
 

@@ -112,4 +112,5 @@ It will automatically call render. Do not call this method often, because it rec
 > [gl-spectrogram](https://github.com/audio-lab/gl-spectrogram) — spectrogram painter for any signal.<br/>
 > [gl-spectrum](https://github.com/audio-lab/gl-spectrum) — nice-looking signal spectrum visualiser for.<br/>
 > [colormap](https://github.com/bpostlethwaite/colormap) — list of js color maps.<br/>
-> [waveform-data](https://www.npmjs.com/package/waveform-data) - similar waveform drawing component.<br/>
+> [waveform-data](https://www.npmjs.com/package/waveform-data) — similar waveform drawing component.<br/>
+> [waveform-playlist](https://github.com/naomiaro/waveform-playlist) — waveform editor

@@ -49,9 +49,9 @@ function createStorage (opts) {
 			cbs.set.push(cb);
 			worker.postMessage({action: 'set', args: [offset, data] });
 		},
-		get: (scale, from, to, cb) => {
+		get: (opts, cb) => {
 			cbs.get.push(cb);
-			worker.postMessage({action: 'get', args: [scale, from, to] });
+			worker.postMessage({action: 'get', args: [opts] });
 		}
 	};
 }

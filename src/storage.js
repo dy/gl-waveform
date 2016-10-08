@@ -26,7 +26,7 @@ function createStorage () {
 	let buffer = [];
 	let last = 0;
 	let allocBlockSize = Math.pow(2, 16);
-	let maxScale = Math.pow(2, 16);
+	let maxScale = Math.pow(2, 13);
 	let mins = Scales(buffer, {
 		reduce: Math.min,
 		maxScale: maxScale
@@ -95,7 +95,7 @@ function createStorage () {
 		return this;
 	}
 
-	function get (scale, from, to, cb) {
+	function get ({scale, from, to, log}, cb) {
 		//sort out args
 		if (to instanceof Function) {
 			cb = to;

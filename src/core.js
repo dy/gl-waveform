@@ -32,9 +32,6 @@ function Waveform (options) {
 	//init style props
 	this.update();
 
-	//preset initial freqs
-	this.set(this.samples);
-
 	this.on('resize', () => {
 		this.update();
 	});
@@ -68,9 +65,6 @@ Waveform.prototype.offset = null;
 
 //scale is how many samples per pixel
 Waveform.prototype.scale = 1;
-
-//FIXME: move to gl
-Waveform.prototype.float = false;
 
 //disable overrendering
 Waveform.prototype.autostart = false;
@@ -140,7 +134,7 @@ Waveform.prototype.push = function (data) {
 
 	this.storage.push(data, (err) => {
 		if (err) throw err;
-		this.redraw();
+		this.emit('push', data);
 	});
 
 	return this;
@@ -151,35 +145,15 @@ Waveform.prototype.set = function (data) {
 	if (!data) return this;
 
 	this.storage.set(data, (err) => {
-		this.redraw();
+		if (err) throw err;
+		this.emit('set', data);
 	});
 
 	return this;
 };
 
-//plan draw
-Waveform.prototype.redraw = function () {
-	if (this.isDirty) {
-		return this;
-	}
-	this.isDirty = true;
-
-	let offset = this.offset;
-
-	if (offset == null) {
-		offset = -this.viewport[2];
-	}
-
-	this.storage.get(this.scale, offset * this.scale, (offset + this.viewport[2])*this.scale, (err, data) => {
-		this.isDirty = false;
-		this.render(data);
-		this.emit('redraw');
-	});
-}
-
 
 //update view with new options
-//FIXME: move to 2d
 Waveform.prototype.update = function update (opts) {
 	extend(this, opts);
 
@@ -249,17 +223,8 @@ Waveform.prototype.update = function update (opts) {
 		this.bottomGrid.element.setAttribute('hidden', true);
 	}
 
-	this.samplesPerPixel = this.width / this.viewport[2];
-
 	//plan redraw
-	if (this.isDirty) {
-		this.once('redraw', () => {
-			this.redraw();
-		});
-	}
-	else {
-		this.redraw();
-	}
+	this.emit('update', opts);
 
 	return this;
 };

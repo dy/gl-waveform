@@ -2,7 +2,7 @@
   "name": "gl-waveform",
   "version": "2.0.0",
   "description": "Draw waveform in webgl or canvas2d",
-  "main": "index.js",
+  "main": "gl.js",
   "scripts": {
     "test": "budo test.js",
     "test:browser": "budo test.js -- -g bubleify",
@@ -34,7 +34,7 @@
     "decibels": "^1.0.1",
     "fourier-transform": "^1.0.2",
     "get-uid": "^1.0.1",
-    "gl-component": "^1.4.20",
+    "gl-component": "^1.7.0",
     "inherits": "^2.0.1",
     "is-integer": "^1.0.6",
     "just-extend": "^1.1.19",

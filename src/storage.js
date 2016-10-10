@@ -130,15 +130,27 @@ function createStorage (opts) {
 			return data;
 		}
 
-		//if offset is far from the ready data
-		let data = [Array(maxNumber), Array(maxNumber)];
 		let srcScale = Math.min(bits.nextPow2(Math.ceil(scale)), maxScale);
 		let srcIdx = bits.log2(srcScale);
 		let srcMins = mins[srcIdx], srcMaxes = maxes[srcIdx];
 
+		//round to the closest scale block
+		offset = Math.floor(offset/srcScale)*srcScale;
+
+		//if offset is far from the ready data
+		let data = [Array(maxNumber), Array(maxNumber)];
+
+		//hack to avoid wiggling
+		let shift = 0;
+		if (number*scale < count) {
+			let srcNum = Math.round(count/srcScale)*srcScale;
+			let resNum = Math.round(count/scale)*scale;
+			shift = srcNum - resNum;
+		}
+
 		for (let i = 0; i < maxNumber; i++) {
 			let ratio = (i + .5) / (number);
-			let dataIdx = (offset + number*scale*ratio) % bufferSize;
+			let dataIdx = (-shift + offset + number*scale*ratio) % bufferSize;
 
 			//interpolate value
 			let idx = dataIdx / srcScale,

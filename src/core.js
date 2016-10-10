@@ -72,8 +72,8 @@ Waveform.prototype.autostart = false;
 //process data in worker
 Waveform.prototype.worker = !!window.Worker;
 
-//size of the buffer to allocate for the data (4min by default)
-Waveform.prototype.bufferSize = 44100 * 60 * 4;
+//size of the buffer to allocate for the data (1min by default)
+Waveform.prototype.bufferSize = 44100 * 60;
 
 //init routine
 Waveform.prototype.init = function init () {

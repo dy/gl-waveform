@@ -46,8 +46,6 @@ function redraw () {
 		offset = -this.viewport[2] * this.scale;
 	}
 
-	let overlap = Math.max(this.scale, 1)*10;
-
 	this.storage.get({
 		scale: this.scale,
 		offset: offset,

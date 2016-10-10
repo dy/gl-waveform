@@ -73,7 +73,7 @@ let waveform = createWaveform({
 	palette: theme.palette.slice().reverse(),
 	active: theme.active,
 	padding: 50,
-	scale: 1,
+	scale: 4,
 	grid: false,
 	// viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
@@ -99,7 +99,7 @@ waveform.bottomGrid.element.style.fontFamily = theme.fontFamily;
 //create audio source
 let audio = createAudio({
 	color: theme.palette[0],
-	autoplay: false,
+	// autoplay: false,
 	source: 'https://soundcloud.com/8day-montreal/premiere-morningglasses-snifit-echonomist-remix-motek'
 }).on('ready', (node) => {
 	let scriptNode = audio.context.createScriptProcessor(512, 2, 2);

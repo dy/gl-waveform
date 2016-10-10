@@ -45,12 +45,13 @@ function redraw () {
 	if (offset == null) {
 		offset = -this.viewport[2] * this.scale;
 	}
-
 	this.storage.get({
 		scale: this.scale,
 		offset: offset,
 		number: this.viewport[2],
-		log: this.log
+		log: this.log,
+		minDb: this.minDb,
+		maxDb: this.maxDb
 	}, (err, data) => {
 		this.emit('redraw', data);
 		this.render({tops: data[0], bottoms: data[1] });

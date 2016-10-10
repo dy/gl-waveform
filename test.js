@@ -133,7 +133,7 @@ let settings = createSettings([
 	{id: 'db', label: 'Db', title: 'Display units in decibels', type: 'checkbox', value: true, change: v => {
 		waveform.update({db: v});
 	}},
-	{id: 'log', label: 'Log', type: 'checkbox', value: true, change: v => {
+	{id: 'log', label: 'Log', type: 'checkbox', value: waveform.log, change: v => {
 		waveform.update({log: v});
 	}},
 	// {id: 'grid', label: 'Grid', title: 'Grid', type: 'checkbox', value: true, change: v => {
@@ -208,17 +208,17 @@ let settings = createSettings([
 		}
 		return el;
 	}},
-	{id: 'decibels', label: 'Range', type: 'interval', min: -100, max: 0, value: [-60, -0], change: v => {
-		waveform.minDecibels = v[0];
-		waveform.maxDecibels = v[1];
+	{id: 'decibels', label: 'Range', type: 'interval', min: -100, max: 0, value: [waveform.minDb, waveform.maxDb], change: v => {
+		waveform.minDb = v[0];
+		waveform.maxDb = v[1];
 		waveform.update();
-	}, style: `width: 20em;`},
+	}, style: `width: 17em;`},
 	// {id: 'width', label: 'Width', type: 'range', min: 2, max: 1e7, precision: 0, log: true, value: 44100*4, change: v => {
 	// 	waveform.update({width: v});
 	// }, style: `width: 12em;`},
 	{id: 'scale', label: 'Scale', type: 'range', min: .1, max: 1e5, precision: 0.01, log: true, value: waveform.scale, change: v => {
 		waveform.update({scale: v});
-	}, style: `width: 12em;`},
+	}, style: `width: 17em;`},
 ], {
 	title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
 	theme: theme,

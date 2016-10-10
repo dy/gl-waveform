@@ -16,8 +16,8 @@ const Emitter = require('events').EventEmitter;
 const bits = require('bit-twiddle');
 const nidx = require('negative-index');
 const isInt = require('is-integer');
-const colorSpectrum = require('color-spectrum');
-const ft = require('fourier-transform');
+// const colorSpectrum = require('color-spectrum');
+// const ft = require('fourier-transform');
 
 
 module.exports = createStorage;
@@ -110,7 +110,7 @@ function createStorage (opts) {
 		return this;
 	}
 
-	function get ({scale, offset, number, log}, cb) {
+	function get ({scale, offset, number, log, minDb, maxDb}, cb) {
 		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
 
 		//do not render not existing data
@@ -160,8 +160,8 @@ function createStorage (opts) {
 			let min = srcMins[lIdx] * (1 - t) + srcMins[rIdx] * (t);
 			let max = srcMaxes[lIdx] * (1 - t) + srcMaxes[rIdx] * (t);
 
-			data[0][i] = max;
-			data[1][i] = min;
+			data[0][i] = f(max, log, minDb, maxDb);
+			data[1][i] = f(min, log, minDb, maxDb);
 		}
 
 		cb && cb(null, data);
@@ -169,18 +169,6 @@ function createStorage (opts) {
 	}
 
 	return emitter;
-}
-
-
-function inter (data, idx) {
-	let lIdx = Math.floor( idx ),
-		rIdx = Math.ceil( idx );
-
-	let t = idx - lIdx;
-
-	let left = data[lIdx], right = data[rIdx];
-
-	return left * (1 - t) + right * t;
 }
 
 

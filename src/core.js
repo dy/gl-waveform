@@ -39,7 +39,7 @@ function Waveform (options) {
 
 
 //render in log fashion
-Waveform.prototype.log = true;
+Waveform.prototype.log = false;
 
 //display db units instead of amplitude, for grid axis
 Waveform.prototype.db = true;
@@ -54,8 +54,8 @@ Waveform.prototype.palette = ['black', 'white'];
 Waveform.prototype.spectrumColor = false;
 
 //amplitude subrange
-Waveform.prototype.maxDecibels = -0;
-Waveform.prototype.minDecibels = -100;
+Waveform.prototype.maxDb = -0;
+Waveform.prototype.minDb = -100;
 
 //for time calculation
 Waveform.prototype.sampleRate = 44100;
@@ -102,8 +102,8 @@ Waveform.prototype.init = function init () {
 		className: 'grid-top',
 		axes: [{
 			labels: (value, idx, stats) => {
-				if (!this.db && value <= fromDb(this.minDecibels)) return '0';
-				if (parseFloat(stats.titles[idx]) <= this.minDecibels) return '-∞';
+				if (!this.db && value <= fromDb(this.minDb)) return '0';
+				if (parseFloat(stats.titles[idx]) <= this.minDb) return '-∞';
 				else return stats.titles[idx];
 			}
 		}],
@@ -121,8 +121,8 @@ Waveform.prototype.init = function init () {
 		axes: [{
 			// hide label
 			labels: (value, idx, stats) => {
-				if (!this.db && value <= fromDb(this.minDecibels)) return '';
-				if (parseFloat(stats.titles[idx]) <= this.minDecibels) return '';
+				if (!this.db && value <= fromDb(this.minDb)) return '';
+				if (parseFloat(stats.titles[idx]) <= this.minDb) return '';
 				else return stats.titles[idx];
 			}
 		}],
@@ -173,21 +173,21 @@ Waveform.prototype.update = function update (opts) {
 	if (this.grid) {
 		this.topGrid.element.removeAttribute('hidden');
 		this.bottomGrid.element.removeAttribute('hidden');
-		let dbMin = fromDb(this.minDecibels);
-		let dbMax = fromDb(this.maxDecibels);
+		let dbMin = fromDb(this.minDb);
+		let dbMax = fromDb(this.maxDb);
 		if (this.log) {
-			let values = [this.minDecibels,
-				this.maxDecibels - 10,
-				// this.maxDecibels - 9,
-				// this.maxDecibels - 8,
-				this.maxDecibels - 7,
-				this.maxDecibels - 6,
-				this.maxDecibels - 5,
-				this.maxDecibels - 4,
-				this.maxDecibels - 3,
-				this.maxDecibels - 2,
-				this.maxDecibels - 1,
-				this.maxDecibels
+			let values = [this.minDb,
+				this.maxDb - 10,
+				// this.maxDb - 9,
+				// this.maxDb - 8,
+				this.maxDb - 7,
+				this.maxDb - 6,
+				this.maxDb - 5,
+				this.maxDb - 4,
+				this.maxDb - 3,
+				this.maxDb - 2,
+				this.maxDb - 1,
+				this.maxDb
 			].map(fromDb);
 			this.topGrid.update({
 				lines: [{
@@ -206,15 +206,15 @@ Waveform.prototype.update = function update (opts) {
 		} else {
 			this.topGrid.update({
 				lines: [{
-					min: this.db ? this.minDecibels : dbMin,
-					max: this.db ? this.maxDecibels : dbMax,
+					min: this.db ? this.minDb : dbMin,
+					max: this.db ? this.maxDb : dbMax,
 					values: null
 				}]
 			});
 			this.bottomGrid.update({
 				lines: [{
-					max: this.db ? this.minDecibels : dbMin,
-					min: this.db ? this.maxDecibels : dbMax,
+					max: this.db ? this.minDb : dbMin,
+					min: this.db ? this.maxDb : dbMax,
 					values: null
 				}]
 			});

@@ -143,8 +143,8 @@ function createStorage (opts) {
 		//hack to avoid wiggling
 		let shift = 0;
 		if (number*scale < count) {
-			let srcNum = Math.round(count/srcScale)*srcScale;
-			let resNum = Math.round(count/scale)*scale;
+			let srcNum = Math.floor(count/srcScale)*srcScale;
+			let resNum = Math.floor(count/scale)*scale;
 			shift = srcNum - resNum;
 		}
 

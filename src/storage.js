@@ -114,12 +114,12 @@ function createStorage (opts) {
 		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
 
 		//do not render not existing data
-		let maxNumber = number;
+		let maxNumber = Math.floor(number);
 		maxNumber = Math.min(maxNumber, Math.floor(count/scale));
 		maxNumber = Math.min(maxNumber, Math.floor(bufferSize/scale));
 
 		if (offset < 0) {
-			offset = Math.max(offset, -maxNumber*scale);
+			offset = Math.max(offset, -Math.floor(maxNumber*scale));
 		}
 		offset = nidx(offset, count);
 

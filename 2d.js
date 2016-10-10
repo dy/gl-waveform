@@ -14,23 +14,11 @@ module.exports = function (opts) {
 	opts.context = '2d';
 	opts.draw = draw;
 	opts.redraw = redraw;
-	opts.shift = shift;
 
 	let wf = new Waveform(opts);
 
-	let lastLen = 0;
-
-	//shift canvas instead of redrawing the whole set
 	wf.on('push', (data, length) => {
-		// let shift = (length - lastLen) / wf.scale;
-		// if ((wf.offset && wf.offset >= 0) || shift > wf.viewport[2] || (length/wf.scale) < wf.viewport[2]) {
-			wf.redraw();
-			lastLen = length;
-		// }
-		// else if (shift > 1) {
-		// 	wf.redraw(shift);
-		// 	lastLen = length;
-		// }
+		wf.redraw();
 	});
 
 	wf.on('update', opts => {
@@ -38,7 +26,6 @@ module.exports = function (opts) {
 	});
 
 	wf.on('set', (data, length) => {
-		len =
 		wf.redraw();
 	});
 
@@ -46,7 +33,7 @@ module.exports = function (opts) {
 }
 
 
-function redraw (fromTail) {
+function redraw () {
 	if (this.isDirty) {
 		return this;
 	}
@@ -58,6 +45,9 @@ function redraw (fromTail) {
 	if (offset == null) {
 		offset = -this.viewport[2] * this.scale;
 	}
+
+	let overlap = Math.max(this.scale, 1)*10;
+
 	this.storage.get({
 		scale: this.scale,
 		offset: offset,
@@ -70,20 +60,10 @@ function redraw (fromTail) {
 }
 
 
-//shift image in canvas
-function shift (offset) {
-	let ctx = this.context;
-	let [left, top, width, height] = this.viewport;
-
-	let imgData = ctx.getImageData(left, top, width, height);
-	ctx.putImageData(imgData, left+offset, top);
-
-	return this;
-}
 
 
 //draw whole part
-function draw ({tops, bottoms, tail}) {
+function draw ({tops, bottoms}) {
 	//clean flag
 	if (this.isDirty) this.isDirty = false;
 
@@ -91,10 +71,6 @@ function draw ({tops, bottoms, tail}) {
 	let [left, top, width, height] = this.viewport;
 	let mid = height*.5;
 
-	if (tail != null) {
-		this.shift(-Math.floor(tail));
-		left = left + width - tops.length;
-	}
 	ctx.clearRect(left, top - 1, width + 2, height + 2);
 
 	//draw central line with active color

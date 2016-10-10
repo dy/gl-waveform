@@ -88,13 +88,13 @@ function draw ({tops, bottoms}) {
 	let style = this.getColor(1);
 
 	//calc spectrumColor(experimental)
-	if (this.spectrumColor) {
-		style = ctx.createLinearGradient(left, 0, left + tops.length, 0);
-		for (let i = 0; i < colors.length; i++) {
-			let r = i / colors.length;
-			style.addColorStop(r, colors[i]);
-		}
-	}
+	// if (this.spectrumColor) {
+	// 	style = ctx.createLinearGradient(left, 0, left + tops.length, 0);
+	// 	for (let i = 0; i < colors.length; i++) {
+	// 		let r = i / colors.length;
+	// 		style.addColorStop(r, colors[i]);
+	// 	}
+	// }
 
 	//low scale has 1:1 data
 	if (this.scale < 2) {
@@ -121,4 +121,4 @@ function draw ({tops, bottoms}) {
 	ctx.closePath();
 
 	return this;
-};
+}

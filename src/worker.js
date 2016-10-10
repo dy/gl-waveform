@@ -9,13 +9,22 @@
 const createStorage = require('./storage');
 
 module.exports = function (self) {
-	let storage = createStorage();
+	let storage;
 
 	self.addEventListener('message', (e) => {
 		let {action, args} = e.data;
-		args.push((err, data) => {
-			postMessage({action, data});
-		});
-		storage[action].apply(storage, args);
+
+		//create storage
+		if (action === 'init') {
+			storage = createStorage(args[0]);
+		}
+
+		//forward method call
+		else {
+			args.push((err, data) => {
+				postMessage({action, data});
+			});
+			storage[action].apply(storage, args);
+		}
 	});
 }

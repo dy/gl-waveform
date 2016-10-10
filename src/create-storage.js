@@ -40,6 +40,10 @@ function createStorage (opts) {
 		cb && cb(null, data);
 	});
 
+	//init storage
+	worker.postMessage({action: 'init', args: [opts]});
+
+	//webworker wrapper for storage
 	return {
 		push: (data, cb) => {
 			cbs.push.push(cb);

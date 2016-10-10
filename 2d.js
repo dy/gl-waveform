@@ -14,18 +14,31 @@ module.exports = function (opts) {
 	opts.context = '2d';
 	opts.draw = draw;
 	opts.redraw = redraw;
+	opts.shift = shift;
+
 	let wf = new Waveform(opts);
 
+	let lastLen = 0;
+
 	//shift canvas instead of redrawing the whole set
-	wf.on('push', chunk => {
-		wf.redraw();
+	wf.on('push', (data, length) => {
+		// let shift = (length - lastLen) / wf.scale;
+		// if ((wf.offset && wf.offset >= 0) || shift > wf.viewport[2] || (length/wf.scale) < wf.viewport[2]) {
+			wf.redraw();
+			lastLen = length;
+		// }
+		// else if (shift > 1) {
+		// 	wf.redraw(shift);
+		// 	lastLen = length;
+		// }
 	});
 
 	wf.on('update', opts => {
 		wf.redraw();
 	});
 
-	wf.on('set', data => {
+	wf.on('set', (data, length) => {
+		len =
 		wf.redraw();
 	});
 
@@ -33,7 +46,7 @@ module.exports = function (opts) {
 }
 
 
-function redraw (from, to) {
+function redraw (fromTail) {
 	if (this.isDirty) {
 		return this;
 	}
@@ -43,42 +56,46 @@ function redraw (from, to) {
 	let offset = this.offset;
 
 	if (offset == null) {
-		offset = -this.viewport[2];
+		offset = -this.viewport[2] * this.scale;
 	}
-
-	if (from == null) {
-		from = offset * this.scale;
-	}
-	if (to == null) {
-		to = (offset + this.viewport[2]) * this.scale;
-	}
-
 	this.storage.get({
 		scale: this.scale,
-		from: from,
-		to: to,
+		offset: offset,
+		number: this.viewport[2],
 		log: this.log
 	}, (err, data) => {
-		this.render(data);
 		this.emit('redraw', data);
+		this.render({tops: data[0], bottoms: data[1] });
 	});
 }
 
 
-function draw ([tops, bottoms]) {
+//shift image in canvas
+function shift (offset) {
+	let ctx = this.context;
+	let [left, top, width, height] = this.viewport;
+
+	let imgData = ctx.getImageData(left, top, width, height);
+	ctx.putImageData(imgData, left+offset, top);
+
+	return this;
+}
+
+
+//draw whole part
+function draw ({tops, bottoms, tail}) {
 	//clean flag
 	if (this.isDirty) this.isDirty = false;
 
 	let ctx = this.context;
-	let width = this.viewport[2];
-	let height = this.viewport[3];
-	let left = this.viewport[0];
-	let top = this.viewport[1];
-
+	let [left, top, width, height] = this.viewport;
 	let mid = height*.5;
 
-	ctx.clearRect(this.viewport[0] - 1, this.viewport[1] - 1, width + 2, height + 2);
-
+	if (tail != null) {
+		this.shift(-Math.floor(tail));
+		left = left + width - tops.length;
+	}
+	ctx.clearRect(left, top - 1, width + 2, height + 2);
 
 	//draw central line with active color
 	ctx.fillStyle = alpha(this.active || this.getColor(.5), .4);
@@ -90,14 +107,14 @@ function draw ([tops, bottoms]) {
 	ctx.beginPath();
 
 	let amp = tops[0];
-	ctx.moveTo(left + .5, top + mid - amp*mid);
+	ctx.moveTo(left, top + mid - amp*mid);
 
 	//generate gradient
 	let style = this.getColor(1);
 
 	//calc spectrumColor(experimental)
 	if (this.spectrumColor) {
-		style = ctx.createLinearGradient(this.viewport[0], 0, this.viewport[0] + tops.length, 0);
+		style = ctx.createLinearGradient(left, 0, left + tops.length, 0);
 		for (let i = 0; i < colors.length; i++) {
 			let r = i / colors.length;
 			style.addColorStop(r, colors[i]);

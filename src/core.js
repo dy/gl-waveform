@@ -72,12 +72,14 @@ Waveform.prototype.autostart = false;
 //process data in worker
 Waveform.prototype.worker = !!window.Worker;
 
+//size of the buffer to allocate for the data (4min by default)
+Waveform.prototype.bufferSize = 44100 * 60 * 4;
 
 //init routine
 Waveform.prototype.init = function init () {
 	let that = this;
 
-	this.storage = createStorage({worker: this.worker});
+	this.storage = createStorage({worker: this.worker, bufferSize: this.bufferSize});
 
 	function getTitle (v) {
 		if (that.log) {
@@ -132,9 +134,9 @@ Waveform.prototype.init = function init () {
 Waveform.prototype.push = function (data) {
 	if (!data) return this;
 
-	this.storage.push(data, (err) => {
+	this.storage.push(data, (err, length) => {
 		if (err) throw err;
-		this.emit('push', data);
+		this.emit('push', data, length);
 	});
 
 	return this;
@@ -144,9 +146,9 @@ Waveform.prototype.push = function (data) {
 Waveform.prototype.set = function (data) {
 	if (!data) return this;
 
-	this.storage.set(data, (err) => {
+	this.storage.set(data, (err, length) => {
 		if (err) throw err;
-		this.emit('set', data);
+		this.emit('set', data, length);
 	});
 
 	return this;

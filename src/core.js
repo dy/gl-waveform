@@ -11,6 +11,7 @@ const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
 const createStorage = require('./create-storage');
+const alpha = require('color-alpha');
 
 
 module.exports = Waveform;
@@ -165,6 +166,11 @@ Waveform.prototype.update = function update (opts) {
 	this.canvas.style.backgroundColor = this.getColor(0);
 	this.topGrid.element.style.color = this.getColor(1);
 	this.bottomGrid.element.style.color = this.getColor(1);
+
+	//grid/lines color
+	this.color = this.getColor(1);
+	this.infoColor = alpha(this.getColor(.5), .4);
+
 	// this.timeGrid.update();
 
 	this.updateViewport();

@@ -74,7 +74,7 @@ let waveform = createWaveform({
 	active: theme.active,
 	padding: 50,
 	scale: 4,
-	grid: false,
+	// grid: false,
 	// viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
 waveform.topGrid.element.style.fontFamily = theme.fontFamily;

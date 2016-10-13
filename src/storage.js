@@ -44,6 +44,10 @@ function createStorage (opts) {
 		reduce: Math.max,
 		maxScale: maxScale
 	});
+	let averages = Scales(buffer, {
+		reduce: (a, b) => a*.5 + b*.5,
+		maxScale: maxScale
+	});
 
 	//spectrum colors for each 512-samples step
 	// let spectrums = [];
@@ -66,6 +70,7 @@ function createStorage (opts) {
 		}
 		mins.update(last, last + chunk.length);
 		maxes.update(last, last + chunk.length);
+		averages.update(last, last + chunk.length);
 
 		//rotate last pointer
 		count += chunk.length;
@@ -75,6 +80,7 @@ function createStorage (opts) {
 		if (last - chunk.length < 0) {
 			mins.update(0, last);
 			maxes.update(0, last);
+			averages.update(0, last);
 		}
 
 
@@ -132,13 +138,13 @@ function createStorage (opts) {
 
 		let srcScale = Math.min(bits.nextPow2(Math.ceil(scale)), maxScale);
 		let srcIdx = bits.log2(srcScale);
-		let srcMins = mins[srcIdx], srcMaxes = maxes[srcIdx];
+		let srcMins = mins[srcIdx], srcMaxes = maxes[srcIdx], srcAvgs = averages[srcIdx];
 
 		//round to the closest scale block
 		offset = Math.floor(offset/srcScale)*srcScale;
 
 		//if offset is far from the ready data
-		let data = [Array(maxNumber), Array(maxNumber)];
+		let data = [Array(maxNumber), Array(maxNumber), Array(maxNumber)];
 
 		//hack to avoid wiggling
 		let shift = 0;
@@ -159,11 +165,12 @@ function createStorage (opts) {
 			let t = idx - lIdx;
 			let min = srcMins[lIdx] * (1 - t) + srcMins[rIdx] * (t);
 			let max = srcMaxes[lIdx] * (1 - t) + srcMaxes[rIdx] * (t);
+			let avg = srcAvgs[lIdx] * (1 - t) + srcAvgs[rIdx] * (t);
 
 			data[0][i] = f(max, log, minDb, maxDb);
 			data[1][i] = f(min, log, minDb, maxDb);
+			data[2][i] = f(avg, log, minDb, maxDb);
 		}
-
 		cb && cb(null, data);
 		return data;
 	}

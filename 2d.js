@@ -6,7 +6,6 @@
 'use strict';
 
 const Waveform = require('./src/core');
-const alpha = require('color-alpha');
 
 
 module.exports = function (opts) {
@@ -54,7 +53,7 @@ function redraw () {
 		maxDb: this.maxDb
 	}, (err, data) => {
 		this.emit('redraw', data);
-		this.render({tops: data[0], bottoms: data[1] });
+		this.render(data);
 	});
 }
 
@@ -62,30 +61,26 @@ function redraw () {
 
 
 //draw whole part
-function draw ({tops, bottoms}) {
+function draw (ctx, vp, data) {
+	let [left, top, width, height] = vp;
+	let [tops, bottoms, middles] = data;
+
 	//clean flag
 	if (this.isDirty) this.isDirty = false;
 
-	let ctx = this.context;
-	let [left, top, width, height] = this.viewport;
 	let mid = height*.5;
 
-	ctx.clearRect(left, top - 1, width + 2, height + 2);
+	ctx.clearRect(left, top, width, height);
 
 	//draw central line with active color
-	ctx.fillStyle = alpha(this.active || this.getColor(.5), .4);
+	ctx.fillStyle = this.infoColor;
 	ctx.fillRect(left, top + mid, width, .5);
 
-	if (!tops || !bottoms || !tops.length || !bottoms.length) return this;
+	if (!tops || !bottoms || !middles || !tops.length || !bottoms.length || !middles.length) return this;
 
-	//create line path
-	ctx.beginPath();
-
-	let amp = tops[0];
-	ctx.moveTo(left, top + mid - amp*mid);
 
 	//generate gradient
-	let style = this.getColor(1);
+	let style = this.color;
 
 	//calc spectrumColor(experimental)
 	// if (this.spectrumColor) {
@@ -96,28 +91,36 @@ function draw ({tops, bottoms}) {
 	// 	}
 	// }
 
-	//low scale has 1:1 data
-	if (this.scale < 2) {
-		for (let x = 0; x < tops.length; x++) {
-			amp = tops[x];
-			ctx.lineTo(x + left, top + mid - amp*mid);
-		}
-		ctx.strokeStyle = style;
-		ctx.stroke();
-	}
-	else {
-		for (let x = 0; x < tops.length; x++) {
-			amp = tops[x];
-			ctx.lineTo(x + left, top + mid - amp*mid);
-		}
-		for (let x = 0; x < bottoms.length; x++) {
-			amp = bottoms[bottoms.length - 1 - x];
-			ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
-		}
-		ctx.fillStyle = style;
-		ctx.fill();
-	}
 
+	//stroke avg line
+	let amp = middles[0];
+	ctx.beginPath();
+	ctx.moveTo(left, top + mid - amp*mid);
+	for (let x = 0; x < middles.length; x++) {
+		amp = middles[x];
+		ctx.lineTo(x + left, top + mid - amp*mid);
+	}
+	ctx.lineWidth = this.scale <= 1 ? 1 : .5;
+	ctx.strokeStyle = style;
+	ctx.stroke();
+	ctx.closePath();
+
+	if (this.scale <= 1) return this;
+
+	//fill min/max line
+	ctx.beginPath();
+	amp = tops[0];
+	ctx.moveTo(left, top + mid - amp*mid);
+	for (let x = 0; x < tops.length; x++) {
+		amp = tops[x];
+		ctx.lineTo(x + left, top + mid - amp*mid);
+	}
+	for (let x = 0; x < bottoms.length; x++) {
+		amp = bottoms[bottoms.length - 1 - x];
+		ctx.lineTo(left + bottoms.length - 1 - x, top + mid - amp*mid);
+	}
+	ctx.fillStyle = style;
+	ctx.fill();
 	ctx.closePath();
 
 	return this;

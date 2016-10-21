@@ -33,37 +33,6 @@ function Waveform (options) {
 
 	//init style props
 	this.update();
-
-	this.on('resize', () => {
-		this.update();
-	});
-
-	if (this.pan || this.zoom) {
-		panzoom(this.canvas, (dx, dy, x, y) => {
-			let w = this.viewport[2];
-			let t = dx/w;
-		}, (dx, dy, x, y) => {
-			let [left, top, width, height] = this.viewport;
-
-			if (x==null) x = left + width/2;
-
-			//shift start
-			let cx = x - left;
-			let t = cx/width;
-
-			let prevScale = this.scale;
-
-			// this.width *= (1 - dy / height);
-			// this.width = Math.max(this.width, 1);
-
-			this.scale *= (1 - dy / height);
-			this.scale = Math.max(this.scale, .1);
-
-			this.render();
-			//TODO
-			// this.offset -= (this.width - prevScale) * tx;
-		});
-	}
 }
 
 //enable pan/zoom
@@ -113,6 +82,10 @@ Waveform.prototype.init = function init () {
 
 	this.storage = createStorage({worker: this.worker, bufferSize: this.bufferSize});
 
+	//samples count
+	this.count = 0;
+
+
 	function getTitle (v) {
 		if (that.log) {
 			return that.db ? toDb(v).toFixed(0) : v.toPrecision(2);
@@ -160,7 +133,76 @@ Waveform.prototype.init = function init () {
 		}],
 		viewport: () => [this.viewport[0], this.viewport[1] + this.viewport[3]/2, this.viewport[2], this.viewport[3]/2]
 	});
+
+
+	//update on resize
+	this.on('resize', () => {
+		this.update();
+	});
+
+
+	//init pan/zoom
+	if (this.pan || this.zoom) {
+		//FIXME: make soure that this.count works with count > bufferSize
+		panzoom(this.canvas, (dx, dy, x, y) => {
+			if (!this.pan) return;
+
+			let width = this.viewport[2];
+
+			//if drag left from the end - fix offset
+			if (dx > 0 && this.offset == null) {
+				this.offset = this.count - width*this.scale;
+			}
+
+			if (this.offset != null) {
+				this.offset -= this.scale*dx;
+				this.offset = Math.max(this.offset, 0);
+			}
+
+			//if panned to the end - reset offset to null
+			if (this.offset + width*this.scale > this.count) {
+				this.offset = null;
+			}
+
+		}, (dx, dy, x, y) => {
+			if (!this.zoom) return;
+
+			let [left, top, width, height] = this.viewport;
+
+			// if (x==null) x = left + width/2;
+
+			//shift start
+			let cx = x - left;
+			let tx = cx/width;
+
+			let prevScale = this.scale;
+			let minScale = 2/44100;
+
+			this.scale *= (1 - dy / height);
+			this.scale = Math.max(this.scale, minScale);
+
+			if (this.offset == null) {
+				//if zoomed in - set specific offset
+				if (this.scale < prevScale && tx < .8) {
+					this.offset = Math.max(this.count - width*this.scale, 0);
+				}
+			}
+			else {
+				//adjust offset to correspond to the current mouse coord
+				this.offset -= width*(this.scale - prevScale)*tx;
+				this.offset = Math.max(this.offset, 0);
+
+				//if tail became visible - set offset to null
+				if (this.offset + width*this.scale > this.count) {
+					this.offset = null;
+				}
+			}
+
+			this.render();
+		});
+	}
 };
+
 
 //push new data to cache
 Waveform.prototype.push = function (data) {
@@ -168,6 +210,7 @@ Waveform.prototype.push = function (data) {
 
 	this.storage.push(data, (err, length) => {
 		if (err) throw err;
+		this.count = length;
 		this.emit('push', data, length);
 	});
 
@@ -180,6 +223,7 @@ Waveform.prototype.set = function (data) {
 
 	this.storage.set(data, (err, length) => {
 		if (err) throw err;
+		this.count = length;
 		this.emit('set', data, length);
 	});
 

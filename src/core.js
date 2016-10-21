@@ -36,8 +36,8 @@ function Waveform (options) {
 }
 
 //enable pan/zoom
-Waveform.prototype.pan = true;
-Waveform.prototype.zoom = true;
+Waveform.prototype.pan = 'scroll';
+Waveform.prototype.zoom = 'drag';
 
 //render in log fashion
 Waveform.prototype.log = false;
@@ -145,6 +145,24 @@ Waveform.prototype.init = function init () {
 	if (this.pan || this.zoom) {
 		//FIXME: make soure that this.count works with count > bufferSize
 		panzoom(this.canvas, (dx, dy, x, y) => {
+			if (this.pan === 'scroll') {
+				let intensity = 6;
+				zoom.call(this, -dy*intensity, -dy*intensity, x, y);
+			}
+			else {
+				pan.call(this, dx, dy, x, y);
+			}
+		}, (dx, dy, x, y) => {
+			if (this.zoom === 'drag') {
+				// let dist = Math.sqrt(dx*dx + dy*dy);
+				pan.call(this, dy, dy, x, y);
+			}
+			else {
+				zoom.call(this, dx, dy, x, y);
+			}
+		});
+
+		function pan (dx, dy, x, y) {
 			if (!this.pan) return;
 
 			let width = this.viewport[2];
@@ -164,12 +182,16 @@ Waveform.prototype.init = function init () {
 				this.offset = null;
 			}
 
-		}, (dx, dy, x, y) => {
+		}
+
+		function zoom (dx, dy, x, y) {
 			if (!this.zoom) return;
 
 			let [left, top, width, height] = this.viewport;
 
 			// if (x==null) x = left + width/2;
+
+			let count = Math.min(this.bufferSize, this.count);
 
 			//shift start
 			let cx = x - left;
@@ -184,7 +206,7 @@ Waveform.prototype.init = function init () {
 			if (this.offset == null) {
 				//if zoomed in - set specific offset
 				if (this.scale < prevScale && tx < .8) {
-					this.offset = Math.max(this.count - width*this.scale, 0);
+					this.offset = Math.max(count - width*this.scale, 0);
 				}
 			}
 			else {
@@ -193,13 +215,19 @@ Waveform.prototype.init = function init () {
 				this.offset = Math.max(this.offset, 0);
 
 				//if tail became visible - set offset to null
-				if (this.offset + width*this.scale > this.count) {
+				if (this.scale > prevScale) {
+					if (tx*width*this.scale > count) {
+						this.offset = null;
+					}
+				}
+
+				if (this.offset + width*this.scale > count) {
 					this.offset = null;
 				}
 			}
 
 			this.render();
-		});
+		}
 	}
 };
 

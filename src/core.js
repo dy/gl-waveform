@@ -36,8 +36,8 @@ function Waveform (options) {
 }
 
 //enable pan/zoom
-Waveform.prototype.pan = 'scroll';
-Waveform.prototype.zoom = 'drag';
+Waveform.prototype.pan = 'drag';
+Waveform.prototype.zoom = 'scroll';
 
 //render in log fashion
 Waveform.prototype.log = false;

@@ -76,7 +76,7 @@ function createStorage (opts) {
 		count += chunk.length;
 		last = count % bufferSize;
 
-		//last started rotating to the beginning
+		//last starts rotating to the beginning
 		if (last - chunk.length < 0) {
 			mins.update(0, last);
 			maxes.update(0, last);
@@ -124,7 +124,9 @@ function createStorage (opts) {
 		maxNumber = Math.min(maxNumber, Math.floor(count/scale));
 		maxNumber = Math.min(maxNumber, Math.floor(bufferSize/scale));
 
-		if (offset < 0) {
+		let isNegativeOffset = offset < 0;
+
+		if (isNegativeOffset) {
 			offset = Math.max(offset, -Math.floor(maxNumber*scale));
 		}
 		offset = nidx(offset, count);
@@ -141,22 +143,24 @@ function createStorage (opts) {
 		let srcMins = mins[srcIdx], srcMaxes = maxes[srcIdx], srcAvgs = averages[srcIdx];
 
 		//round to the closest scale block
-		offset = Math.floor(offset/srcScale)*srcScale;
+		if (isNegativeOffset) {
+			//hack to avoid wiggling
+			let shift = 0;
+			if (number*scale < count) {
+				let srcNum = Math.floor(count/srcScale)*srcScale;
+				let resNum = Math.floor(count/scale)*scale;
+				shift = srcNum - resNum;
+			}
+			offset = Math.floor(offset/srcScale)*srcScale - shift;
+		}
 
 		//if offset is far from the ready data
 		let data = [Array(maxNumber), Array(maxNumber), Array(maxNumber)];
 
-		//hack to avoid wiggling
-		let shift = 0;
-		if (number*scale < count) {
-			let srcNum = Math.floor(count/srcScale)*srcScale;
-			let resNum = Math.floor(count/scale)*scale;
-			shift = srcNum - resNum;
-		}
 
 		for (let i = 0; i < maxNumber; i++) {
 			let ratio = (i + .5) / (number);
-			let dataIdx = (-shift + offset + number*scale*ratio) % bufferSize;
+			let dataIdx = (offset + number*scale*ratio) % bufferSize;
 
 			//interpolate value
 			let idx = dataIdx / srcScale,

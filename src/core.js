@@ -12,6 +12,7 @@ const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
 const createStorage = require('./create-storage');
 const alpha = require('color-alpha');
+const panzoom = require('pan-zoom');
 
 
 module.exports = Waveform;
@@ -36,8 +37,38 @@ function Waveform (options) {
 	this.on('resize', () => {
 		this.update();
 	});
+
+	if (this.pan || this.zoom) {
+		panzoom(this.canvas, (dx, dy, x, y) => {
+			let w = this.viewport[2];
+			let t = dx/w;
+		}, (dx, dy, x, y) => {
+			let [left, top, width, height] = this.viewport;
+
+			if (x==null) x = left + width/2;
+
+			//shift start
+			let cx = x - left;
+			let t = cx/width;
+
+			let prevScale = this.scale;
+
+			// this.width *= (1 - dy / height);
+			// this.width = Math.max(this.width, 1);
+
+			this.scale *= (1 - dy / height);
+			this.scale = Math.max(this.scale, .1);
+
+			this.render();
+			//TODO
+			// this.offset -= (this.width - prevScale) * tx;
+		});
+	}
 }
 
+//enable pan/zoom
+Waveform.prototype.pan = true;
+Waveform.prototype.zoom = true;
 
 //render in log fashion
 Waveform.prototype.log = false;

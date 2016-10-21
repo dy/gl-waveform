@@ -28,12 +28,11 @@ setTimeout(() => {
 
 ## API
 
-<details><summary>**`const Waveform = require('gl-waveform');`**</summary>
+### const Waveform = require('gl-waveform')
 
 Get waveform component class. `require('gl-waveform/2d')` for canvas-2d version.
 
-</details>
-<details><summary>**`let waveform = new Waveform(options);`**</summary>
+### let waveform = new Waveform(options)
 
 Create waveform instance based off options:
 
@@ -41,12 +40,9 @@ Create waveform instance based off options:
 // Container to place waveform element
 container: document.body,
 
-// Waveform data, floats from -1..1 range
-samples: timeDomainData,
-
 // Audio viewport settings
-maxDecibels: -0,
-minDecibels: -100,
+maxDb: -0,
+minDb: -100,
 sampleRate: 44100,
 
 // How many samples fit to the full canvas width, i. e. 44100 for 1s of data
@@ -56,7 +52,7 @@ width: 1024,
 //undefined offset will move window to the tail of data, negative - from the tail.
 offset: null,
 
-// Draw amplitudes grid
+// Draw time/db grid
 grid: true,
 
 // Place lines in logarithmic fashion, which makes contrast of peaks
@@ -65,7 +61,7 @@ log: true,
 // Use db units or 0..1 range for axis
 db: true,
 
-// List of colors to paint the data in, i. e. colormap
+// Colormap for the data
 palette: ['white', 'black'],
 
 // Draw each frame or only data/options changes
@@ -80,28 +76,27 @@ context: {
 	width: 400,
 	height: 200,
 	canvas: canvas
-}
+},
+
+// Enable panning/zooming by dragging/scrolling
+pan: 'drag',
+zoom: 'scroll'
 ```
 
-</details>
-<details><summary>**`waveform.set(timeDomainData)`**</summary>
+### waveform.set(timeDomainData)
 
 Place new data as the source waveform. The view will be automatically repainted in the next frame.
 
-</details>
-<details><summary>**`waveform.push(data)`**</summary>
+### waveform.push(data)
 
 Append new data to the waveform. Data is whether single sample or array/float array with values from `0..1` range.
 The visible waveform will be automatically rerendered in the next frame.
 Using push is preferrable for dynamic waveform, when not all the samples are known, because it is highly optimized for large scale repaints.
 
-</details>
-<details><summary>**`waveform.update(options?)`**</summary>
+### waveform.update(options?)
 
-Update options, if required. Like, palette, grid type etc.
+Update options, if required. Like, palette, grid, offset, width etc.
 It will automatically call render. Do not call this method often, because it recalculates everything possible.
-
-</details>
 
 ## Credits
 

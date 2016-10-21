@@ -74,7 +74,7 @@ let waveform = createWaveform({
 	active: theme.active,
 	padding: 50,
 	scale: 4,
-	// grid: false,
+	grid: false,
 	// viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
 waveform.topGrid.element.style.fontFamily = theme.fontFamily;
@@ -216,9 +216,9 @@ let settings = createSettings([
 	// {id: 'width', label: 'Width', type: 'range', min: 2, max: 1e7, precision: 0, log: true, value: 44100*4, change: v => {
 	// 	waveform.update({width: v});
 	// }, style: `width: 12em;`},
-	{id: 'scale', label: 'Scale', type: 'range', min: .1, max: 1e5, precision: 0.01, log: true, value: waveform.scale, change: v => {
-		waveform.update({scale: v});
-	}, style: `width: 17em;`},
+	// {id: 'scale', label: 'Scale', type: 'range', min: .1, max: 1e5, precision: 0.01, log: true, value: waveform.scale, change: v => {
+	// 	waveform.update({scale: v});
+	// }, style: `width: 17em;`},
 ], {
 	title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
 	theme: theme,

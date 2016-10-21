@@ -70,13 +70,15 @@ function draw (ctx, vp, data) {
 
 	let mid = height*.5;
 
+	if (!tops || !bottoms || !middles || !tops.length || !bottoms.length || !middles.length) {
+		return this;
+	}
+
 	ctx.clearRect(left, top, width, height);
 
 	//draw central line with active color
 	ctx.fillStyle = this.infoColor;
 	ctx.fillRect(left, top + mid, width, .5);
-
-	if (!tops || !bottoms || !middles || !tops.length || !bottoms.length || !middles.length) return this;
 
 
 	//generate gradient

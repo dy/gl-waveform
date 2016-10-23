@@ -15792,8 +15792,8 @@ function Waveform (options) {
 }
 
 //enable pan/zoom
-Waveform.prototype.pan = 'scroll';
-Waveform.prototype.zoom = 'drag';
+Waveform.prototype.pan = 'drag';
+Waveform.prototype.zoom = 'scroll';
 
 //render in log fashion
 Waveform.prototype.log = false;
@@ -16255,7 +16255,7 @@ function createStorage (opts) {
 		count += chunk.length;
 		last = count % bufferSize;
 
-		//last started rotating to the beginning
+		//last starts rotating to the beginning
 		if (last - chunk.length < 0) {
 			mins.update(0, last);
 			maxes.update(0, last);
@@ -16310,7 +16310,9 @@ function createStorage (opts) {
 		maxNumber = Math.min(maxNumber, Math.floor(count/scale));
 		maxNumber = Math.min(maxNumber, Math.floor(bufferSize/scale));
 
-		if (offset < 0) {
+		var isNegativeOffset = offset < 0;
+
+		if (isNegativeOffset) {
 			offset = Math.max(offset, -Math.floor(maxNumber*scale));
 		}
 		offset = nidx(offset, count);
@@ -16327,22 +16329,24 @@ function createStorage (opts) {
 		var srcMins = mins[srcIdx], srcMaxes = maxes[srcIdx], srcAvgs = averages[srcIdx];
 
 		//round to the closest scale block
-		offset = Math.floor(offset/srcScale)*srcScale;
+		if (isNegativeOffset) {
+			//hack to avoid wiggling
+			var shift = 0;
+			if (number*scale < count) {
+				var srcNum = Math.floor(count/srcScale)*srcScale;
+				var resNum = Math.floor(count/scale)*scale;
+				shift = srcNum - resNum;
+			}
+			offset = Math.floor(offset/srcScale)*srcScale - shift;
+		}
 
 		//if offset is far from the ready data
 		var data = [Array(maxNumber), Array(maxNumber), Array(maxNumber)];
 
-		//hack to avoid wiggling
-		var shift = 0;
-		if (number*scale < count) {
-			var srcNum = Math.floor(count/srcScale)*srcScale;
-			var resNum = Math.floor(count/scale)*scale;
-			shift = srcNum - resNum;
-		}
 
 		for (var i = 0; i < maxNumber; i++) {
 			var ratio = (i + .5) / (number);
-			var dataIdx = (-shift + offset + number*scale*ratio) % bufferSize;
+			var dataIdx = (offset + number*scale*ratio) % bufferSize;
 
 			//interpolate value
 			var idx = dataIdx / srcScale,

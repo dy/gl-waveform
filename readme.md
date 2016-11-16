@@ -45,8 +45,8 @@ maxDb: -0,
 minDb: -100,
 sampleRate: 44100,
 
-// How many samples fit to the full canvas width, i. e. 44100 for 1s of data
-width: 1024,
+// Zoom level, or how many data samples per pixel
+scale: 1,
 
 // How many samples to skip from the left side of the buffer.
 //undefined offset will move window to the tail of data, negative - from the tail.

@@ -46,7 +46,7 @@ Waveform.prototype.log = false;
 Waveform.prototype.db = true;
 
 //display grid
-Waveform.prototype.grid = true;
+Waveform.prototype.grid = false;
 
 //default palette to draw lines in
 Waveform.prototype.palette = ['black', 'white'];
@@ -144,22 +144,9 @@ Waveform.prototype.init = function init () {
 	//init pan/zoom
 	if (this.pan || this.zoom) {
 		//FIXME: make soure that this.count works with count > bufferSize
-		panzoom(this.canvas, (dx, dy, x, y) => {
-			if (this.pan === 'scroll') {
-				let intensity = 6;
-				zoom.call(this, -dy*intensity, -dy*intensity, x, y);
-			}
-			else {
-				pan.call(this, dx, dy, x, y);
-			}
-		}, (dx, dy, x, y) => {
-			if (this.zoom === 'drag') {
-				// let dist = Math.sqrt(dx*dx + dy*dy);
-				pan.call(this, dy, dy, x, y);
-			}
-			else {
-				zoom.call(this, dx, dy, x, y);
-			}
+		panzoom(this.canvas, (e) => {
+			this.pan && (e.dx || e.dy) && pan.call(this, e.dx, e.dy, e.x, e.y);
+			this.zoom && e.dz && zoom.call(this, e.dz, e.dz, e.x, e.y);
 		});
 
 		function pan (dx, dy, x, y) {
@@ -200,7 +187,7 @@ Waveform.prototype.init = function init () {
 			let prevScale = this.scale;
 			let minScale = 2/44100;
 
-			this.scale *= (1 - dy / height);
+			this.scale *= (1 + dy / height);
 			this.scale = Math.max(this.scale, minScale);
 
 			if (this.offset == null) {
@@ -225,8 +212,6 @@ Waveform.prototype.init = function init () {
 					this.offset = null;
 				}
 			}
-
-			this.render();
 		}
 	}
 };

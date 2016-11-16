@@ -12,9 +12,9 @@ const extend = require('just-extend');
 
 module.exports = function (opts) {
 	opts = opts || {};
+
 	extend(opts, {
 		context: 'webgl',
-		float: true,
 		vert: vert,
 		frag: frag,
 		init: (opts) => {
@@ -23,9 +23,9 @@ module.exports = function (opts) {
 			let gl = this.gl;
 
 			//setup alpha
-			gl.enable( gl.BLEND );
-			gl.blendEquation( gl.FUNC_ADD );
-			gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+			// gl.enable( gl.BLEND );
+			// gl.blendEquation( gl.FUNC_ADD );
+			// gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 		},
 
 		attributes: {

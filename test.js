@@ -1,7 +1,7 @@
 
 require('enable-mobile');
 const createSettings = require('settings-panel');
-const createWaveform = require('./2d');
+const createWaveform = require('./gl');
 const createAudio = require('../app-audio');
 const createFps = require('fps-indicator');
 const insertCss =  require('insert-styles');
@@ -100,8 +100,8 @@ waveform.bottomGrid.element.style.fontFamily = theme.fontFamily;
 let audio = createAudio({
 	color: theme.palette[0],
 	// autoplay: false,
-	// source: 'https://soundcloud.com/8day-montreal/premiere-morningglasses-snifit-echonomist-remix-motek'
-}).on('ready', (node) => {
+	source: 'https://soundcloud.com/8day-montreal/premiere-morningglasses-snifit-echonomist-remix-motek'
+}).on('load', (node) => {
 	let scriptNode = audio.context.createScriptProcessor(512, 2, 2);
 
 	scriptNode.addEventListener('audioprocess', e => {
@@ -111,11 +111,10 @@ let audio = createAudio({
 		// 	input[i] = input[i]/2 + .45;
 		// }
 
-		// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
-		// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
+		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
+		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
 
 		if (!input[0]) return;
-
 		waveform.push(e.inputBuffer.getChannelData(0));
 	});
 

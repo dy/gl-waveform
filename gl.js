@@ -44,18 +44,6 @@ function WaveformGl (opts) {
 WaveformGl.prototype.update = function (opts) {
 	Waveform.prototype.update.call(this, opts);
 
-	//create vertices .::: → :::. corresponding to width of viewport
-	let w = this.viewport[2];
-
-	let pos = [];
-	for (let i = 0; i < w; i++) {
-		pos.push(i/w)
-		pos.push(0)
-		pos.push(i/w)
-		pos.push(1)
-	}
-	this.setAttribute('position', pos)
-
 	this.colorArr = rgba(this.color)
 	this.infoColorArr = rgba(this.infoColor)
 }
@@ -71,27 +59,38 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 	if (!tops.length) return;
 
 
+	//draw info line
+	this.setAttribute('position', [0,0,1,0]);
+	this.setUniform('color', this.infoColorArr);
+	gl.drawArrays(gl.LINES, 0, 2);
+
+
+	//draw waveform
 	this.setUniform('color', this.colorArr);
 
-	let samples = Array(tops.length*2);
 
 	//draw average line
 	if (this.scale < 1) {
-		for (let i = 0; i < middles.length; i++) {
-			samples[i*2] = middles[i];
-			samples[i*2+1] = middles[i];
+		let position = Array(width*2);
+		for (let i = 0, j=0; i < width; i++, j+=2) {
+			position[j] = i/width;
+			position[j+1] = middles[i];
 		}
-		this.setAttribute('samples', samples);
-		gl.drawArrays(gl.LINES, 1, samples.length-1);
+		this.setAttribute('position', position);
+		gl.drawArrays(gl.LINE_STRIP, 0, width);
 	}
 	//fill min/max shape
 	else {
-		for (let i = 0; i < tops.length; i++) {
-			samples[i*2] = tops[i];
-			samples[i*2+1] = bottoms[i];
+		let position = Array(width*4);
+		for (let i = 0, j=0; i < width; i++, j+=4) {
+			let x = i/width;
+			position[j] = x;
+			position[j+1] = tops[i];
+			position[j+2] = x;
+			position[j+3] = bottoms[i];
 		}
-		this.setAttribute('samples', samples);
-		gl.drawArrays(gl.TRIANGLE_STRIP, 0, samples.length);
+		this.setAttribute('position', position);
+		gl.drawArrays(gl.TRIANGLE_STRIP, 0, position.length/2);
 	}
 
 }
@@ -102,11 +101,10 @@ Waveform.prototype.vert = `
 precision mediump float;
 
 attribute vec2 position;
-attribute float samples;
 
 void main () {
 	vec2 coord;
-	gl_Position = vec4(position.x*2.-1., samples, 0, 1);
+	gl_Position = vec4(position.x*2.-1., position.y, 0, 1);
 }
 `;
 

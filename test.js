@@ -77,8 +77,8 @@ let waveform = createWaveform({
 	grid: false,
 	// viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
-waveform.topGrid.element.style.fontFamily = theme.fontFamily;
-waveform.bottomGrid.element.style.fontFamily = theme.fontFamily;
+// waveform.topGrid.element.style.fontFamily = theme.fontFamily;
+// waveform.bottomGrid.element.style.fontFamily = theme.fontFamily;
 
 
 
@@ -111,8 +111,8 @@ let audio = createAudio({
 		// 	input[i] = input[i]/2 + .45;
 		// }
 
-		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
-		e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
+		// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(0), 0);
+		// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
 
 		if (!input[0]) return;
 		waveform.push(e.inputBuffer.getChannelData(0));

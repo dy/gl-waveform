@@ -8,60 +8,25 @@
 const Waveform = require('./src/core');
 
 
-module.exports = function (opts) {
+module.exports = function waveform2d (opts) {
 	opts = opts || {};
 	opts.context = '2d';
 	opts.draw = draw;
-	opts.redraw = redraw;
 
 	let wf = new Waveform(opts);
-
-	wf.on('push', (data, length) => {
-		wf.redraw();
-	});
-
-	wf.on('update', opts => {
-		wf.redraw();
-	});
-
-	wf.on('set', (data, length) => {
-		wf.redraw();
-	});
 
 	return wf;
 }
 
-
-function redraw () {
-	if (this.isDirty) {
-		return this;
-	}
-
-	this.isDirty = true;
-
-	let offset = this.offset;
-
-	if (offset == null) {
-		offset = -this.viewport[2] * this.scale;
-	}
-	this.storage.get({
-		scale: this.scale,
-		offset: offset,
-		number: this.viewport[2],
-		log: this.log,
-		minDb: this.minDb,
-		maxDb: this.maxDb
-	}, (err, data) => {
-		this.emit('redraw', data);
-		this.render(data);
-	});
-}
 
 
 
 
 //draw whole part
 function draw (ctx, vp, data) {
+	if (!data) data = this.lastData;
+	if (!data) return;
+
 	let [left, top, width, height] = vp;
 	let [tops, bottoms, middles] = data;
 

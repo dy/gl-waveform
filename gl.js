@@ -8,99 +8,114 @@
 
 const Waveform = require('./src/core');
 const extend = require('just-extend');
+const inherit = require('inherits');
+const rgba = require('color-rgba');
 
+inherit(WaveformGl, Waveform)
 
-module.exports = function (opts) {
+module.exports = WaveformGl;
+
+function WaveformGl (opts) {
+	if (!(this instanceof Waveform)) return new WaveformGl(opts);
+
 	opts = opts || {};
 
 	extend(opts, {
-		context: 'webgl',
-		vert: vert,
-		frag: frag,
-		init: (opts) => {
-			Waveform.init.call(this, opts);
-
-			let gl = this.gl;
-
-			//setup alpha
-			// gl.enable( gl.BLEND );
-			// gl.blendEquation( gl.FUNC_ADD );
-			// gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-		},
-
-		attributes: {
-			tops: {
-				size: 1,
-				usage: gl.STREAM_DRAW
-			},
-			bottoms: {
-				size: 1,
-				usage: gl.STREAM_DRAW
-			}
-		},
-
-		update: (opts) => {
-			Waveform.update.call(this, opts);
-
-			//re-create stripes
-			for (var i = 0; i < l; i++) {
-				var curr = i/l;
-				var next = (i+1)/l;
-				data.push(curr);
-				data.push(1);
-				data.push(next);
-				data.push(1);
-				data.push(curr);
-				data.push(0);
-				data.push(next);
-				data.push(0);
-			}
-		},
-
-		draw: ([tops, bottoms]) => {
-			this.setAttribute('tops', tops);
-			this.setAttribute('bottoms', bottoms);
-
-			Waveform.draw.call(this, opts);
+		context: {
+			antialias: true,
+			alpha: true,
+			premultipliedAlpha: true,
+			preserveDrawingBuffer: false,
+			depth: false
 		}
 	});
 
+	Waveform.call(this, opts);
 
-
-	let waveform = new Waveform(opts);
+	this.setAttribute({
+		samples: {
+			size: 1,
+			usage: this.gl.STREAM_DRAW
+		}
+	});
 }
 
-const vert = `
-precision highp float;
+
+WaveformGl.prototype.update = function (opts) {
+	Waveform.prototype.update.call(this, opts);
+
+	//create vertices .::: → :::. corresponding to width of viewport
+	let w = this.viewport[2];
+
+	let pos = [];
+	for (let i = 0; i < w; i++) {
+		pos.push(i/w)
+		pos.push(0)
+		pos.push(i/w)
+		pos.push(1)
+	}
+	this.setAttribute('position', pos)
+
+	this.colorArr = rgba(this.color)
+	this.infoColorArr = rgba(this.infoColor)
+}
+
+
+WaveformGl.prototype.draw = function (gl, vp, data) {
+	if (!data) data = this.lastData;
+	if (!data) return;
+
+	let [left, top, width, height] = vp;
+	let [tops, bottoms, middles] = data;
+
+	if (!tops.length) return;
+
+
+	this.setUniform('color', this.colorArr);
+
+	let samples = Array(tops.length*2);
+
+	//draw average line
+	if (this.scale < 1) {
+		for (let i = 0; i < middles.length; i++) {
+			samples[i*2] = middles[i];
+			samples[i*2+1] = middles[i];
+		}
+		this.setAttribute('samples', samples);
+		gl.drawArrays(gl.LINES, 1, samples.length-1);
+	}
+	//fill min/max shape
+	else {
+		for (let i = 0; i < tops.length; i++) {
+			samples[i*2] = tops[i];
+			samples[i*2+1] = bottoms[i];
+		}
+		this.setAttribute('samples', samples);
+		gl.drawArrays(gl.TRIANGLE_STRIP, 0, samples.length);
+	}
+
+}
+
+
+
+Waveform.prototype.vert = `
+precision mediump float;
 
 attribute vec2 position;
-
-uniform sampler2D data;
-uniform float minDecibels;
-uniform float maxDecibels;
-uniform float logarithmic;
-uniform float sampleRate;
-uniform vec4 viewport;
-
-
-float lg (float x) {
-	return log(x) / log10;
-}
-
-float decide (float a, float b, float w) {
-	return step(0.5, w) * b + step(w, 0.5) * a;
-}
+attribute float samples;
 
 void main () {
 	vec2 coord;
-	gl_Position = vec4(coord, 0, 1);
+	gl_Position = vec4(position.x*2.-1., samples, 0, 1);
 }
 `;
 
-const frag = `
-precision highp float;
+Waveform.prototype.frag = `
+precision mediump float;
+
+uniform vec4 color;
 
 void main () {
-	gl_FragColor = vec4(1,0,0,1);
+	gl_FragColor = color;
 }
 `;

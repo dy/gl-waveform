@@ -5,7 +5,7 @@
 
 const extend = require('just-extend');
 const inherits = require('inherits');
-const GlComponent = require('gl-component');
+const GlComponent = require('../../gl-component');
 const Grid = require('plot-grid');
 const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
@@ -96,43 +96,43 @@ Waveform.prototype.init = function init () {
 	}
 
 	//create grid
-	this.topGrid = new Grid({
-		container: this.container,
-		lines: [
-			{
-				orientation: 'y',
-				titles: getTitle
-			}
-		],
-		className: 'grid-top',
-		axes: [{
-			labels: (value, idx, stats) => {
-				if (!this.db && value <= fromDb(this.minDb)) return '0';
-				if (parseFloat(stats.titles[idx]) <= this.minDb) return '-∞';
-				else return stats.titles[idx];
-			}
-		}],
-		viewport: () => [this.viewport[0], this.viewport[1], this.viewport[2], this.viewport[3]/2]
-	});
-	this.bottomGrid = new Grid({
-		container: this.container,
-		className: 'grid-bottom',
-		lines: [
-			{
-				orientation: 'y',
-				titles: getTitle
-			}
-		],
-		axes: [{
-			// hide label
-			labels: (value, idx, stats) => {
-				if (!this.db && value <= fromDb(this.minDb)) return '';
-				if (parseFloat(stats.titles[idx]) <= this.minDb) return '';
-				else return stats.titles[idx];
-			}
-		}],
-		viewport: () => [this.viewport[0], this.viewport[1] + this.viewport[3]/2, this.viewport[2], this.viewport[3]/2]
-	});
+	// this.topGrid = new Grid({
+	// 	container: this.container,
+	// 	lines: [
+	// 		{
+	// 			orientation: 'y',
+	// 			titles: getTitle
+	// 		}
+	// 	],
+	// 	className: 'grid-top',
+	// 	axes: [{
+	// 		labels: (value, idx, stats) => {
+	// 			if (!this.db && value <= fromDb(this.minDb)) return '0';
+	// 			if (parseFloat(stats.titles[idx]) <= this.minDb) return '-∞';
+	// 			else return stats.titles[idx];
+	// 		}
+	// 	}],
+	// 	viewport: () => [this.viewport[0], this.viewport[1], this.viewport[2], this.viewport[3]/2]
+	// });
+	// this.bottomGrid = new Grid({
+	// 	container: this.container,
+	// 	className: 'grid-bottom',
+	// 	lines: [
+	// 		{
+	// 			orientation: 'y',
+	// 			titles: getTitle
+	// 		}
+	// 	],
+	// 	axes: [{
+	// 		// hide label
+	// 		labels: (value, idx, stats) => {
+	// 			if (!this.db && value <= fromDb(this.minDb)) return '';
+	// 			if (parseFloat(stats.titles[idx]) <= this.minDb) return '';
+	// 			else return stats.titles[idx];
+	// 		}
+	// 	}],
+	// 	viewport: () => [this.viewport[0], this.viewport[1] + this.viewport[3]/2, this.viewport[2], this.viewport[3]/2]
+	// });
 
 
 	//update on resize
@@ -145,8 +145,9 @@ Waveform.prototype.init = function init () {
 	if (this.pan || this.zoom) {
 		//FIXME: make soure that this.count works with count > bufferSize
 		panzoom(this.canvas, (e) => {
-			this.pan && (e.dx || e.dy) && pan.call(this, e.dx, e.dy, e.x, e.y);
+			this.pan && (e.dx || e.dy) && pan.call(this, Math.floor(e.dx), e.dy, e.x, e.y);
 			this.zoom && e.dz && zoom.call(this, e.dz, e.dz, e.x, e.y);
+			this.redraw();
 		});
 
 		function pan (dx, dy, x, y) {
@@ -214,6 +215,28 @@ Waveform.prototype.init = function init () {
 			}
 		}
 	}
+
+
+	//update on new data
+	this.on('push', (data, length) => {
+		this.redraw();
+	});
+
+	this.on('update', opts => {
+		this.redraw();
+	});
+
+	this.on('set', (data, length) => {
+		this.redraw();
+	});
+
+	this.on('draw', () => {
+		this.isDirty = false;
+	});
+
+	this.on('render', () => {
+		this.autostart && this.redraw();
+	});
 };
 
 
@@ -252,8 +275,8 @@ Waveform.prototype.update = function update (opts) {
 	this.getColor = Interpolate(this.palette);
 
 	this.canvas.style.backgroundColor = this.getColor(0);
-	this.topGrid.element.style.color = this.getColor(1);
-	this.bottomGrid.element.style.color = this.getColor(1);
+	// this.topGrid.element.style.color = this.getColor(1);
+	// this.bottomGrid.element.style.color = this.getColor(1);
 
 	//grid/lines color
 	this.color = this.getColor(1);
@@ -265,8 +288,8 @@ Waveform.prototype.update = function update (opts) {
 
 	//update grid
 	if (this.grid) {
-		this.topGrid.element.removeAttribute('hidden');
-		this.bottomGrid.element.removeAttribute('hidden');
+		// this.topGrid.element.removeAttribute('hidden');
+		// this.bottomGrid.element.removeAttribute('hidden');
 		let dbMin = fromDb(this.minDb);
 		let dbMax = fromDb(this.maxDb);
 		if (this.log) {
@@ -283,40 +306,40 @@ Waveform.prototype.update = function update (opts) {
 				this.maxDb - 1,
 				this.maxDb
 			].map(fromDb);
-			this.topGrid.update({
-				lines: [{
-					min: dbMin,
-					max: dbMax,
-					values: values
-				}]
-			});
-			this.bottomGrid.update({
-				lines: [{
-					max: dbMin,
-					min: dbMax,
-					values: values
-				}]
-			});
+			// this.topGrid.update({
+			// 	lines: [{
+			// 		min: dbMin,
+			// 		max: dbMax,
+			// 		values: values
+			// 	}]
+			// });
+			// this.bottomGrid.update({
+			// 	lines: [{
+			// 		max: dbMin,
+			// 		min: dbMax,
+			// 		values: values
+			// 	}]
+			// });
 		} else {
-			this.topGrid.update({
-				lines: [{
-					min: this.db ? this.minDb : dbMin,
-					max: this.db ? this.maxDb : dbMax,
-					values: null
-				}]
-			});
-			this.bottomGrid.update({
-				lines: [{
-					max: this.db ? this.minDb : dbMin,
-					min: this.db ? this.maxDb : dbMax,
-					values: null
-				}]
-			});
+			// this.topGrid.update({
+			// 	lines: [{
+			// 		min: this.db ? this.minDb : dbMin,
+			// 		max: this.db ? this.maxDb : dbMax,
+			// 		values: null
+			// 	}]
+			// });
+			// this.bottomGrid.update({
+			// 	lines: [{
+			// 		max: this.db ? this.minDb : dbMin,
+			// 		min: this.db ? this.maxDb : dbMax,
+			// 		values: null
+			// 	}]
+			// });
 		}
 	}
 	else {
-		this.topGrid.element.setAttribute('hidden', true);
-		this.bottomGrid.element.setAttribute('hidden', true);
+		// this.topGrid.element.setAttribute('hidden', true);
+		// this.bottomGrid.element.setAttribute('hidden', true);
 	}
 
 	//plan redraw
@@ -324,6 +347,38 @@ Waveform.prototype.update = function update (opts) {
 
 	return this;
 };
+
+
+//wrapper for draw method to avoid flooding while webworker returns data from storage
+Waveform.prototype.redraw = function () {
+	if (this.isDirty) {
+		return this;
+	}
+
+	this.isDirty = true;
+
+	let offset = this.offset;
+
+	if (offset == null) {
+		offset = -this.viewport[2] * this.scale;
+	}
+	this.storage.get({
+		scale: this.scale,
+		offset: offset,
+		number: this.viewport[2],
+		log: this.log,
+		minDb: this.minDb,
+		maxDb: this.maxDb
+	}, (err, data) => {
+		this.emit('redraw', data);
+		this.lastData = data;
+		if (!this.autostart) {
+			this.clear()
+			this.render(data);
+		}
+	});
+}
+
 
 
 //data is amplitudes for curve

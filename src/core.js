@@ -86,14 +86,14 @@ Waveform.prototype.init = function init () {
 	this.count = 0;
 
 
-	function getTitle (v) {
-		if (that.log) {
-			return that.db ? toDb(v).toFixed(0) : v.toPrecision(2);
-		}
-		else {
-			return that.db ? v : v.toPrecision(1);
-		}
-	}
+	// function getTitle (v) {
+	// 	if (that.log) {
+	// 		return that.db ? toDb(v).toFixed(0) : v.toPrecision(2);
+	// 	}
+	// 	else {
+	// 		return that.db ? v : v.toPrecision(1);
+	// 	}
+	// }
 
 	//create grid
 	// this.topGrid = new Grid({
@@ -241,26 +241,28 @@ Waveform.prototype.init = function init () {
 
 
 //push new data to cache
-Waveform.prototype.push = function (data) {
+Waveform.prototype.push = function (data, cb) {
 	if (!data) return this;
 
 	this.storage.push(data, (err, length) => {
 		if (err) throw err;
 		this.count = length;
 		this.emit('push', data, length);
+		cb && cb(length);
 	});
 
 	return this;
 };
 
 //rewrite samples with a new data
-Waveform.prototype.set = function (data) {
+Waveform.prototype.set = function (data, cb) {
 	if (!data) return this;
 
 	this.storage.set(data, (err, length) => {
 		if (err) throw err;
 		this.count = length;
 		this.emit('set', data, length);
+		cb && cb(length)
 	});
 
 	return this;

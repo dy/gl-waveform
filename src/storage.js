@@ -49,6 +49,9 @@ function createStorage (opts) {
 		maxScale: maxScale
 	});
 
+	//tasks to do inter-API
+	let tasks = [];
+
 	//spectrum colors for each 512-samples step
 	// let spectrums = [];
 	// let fftSize = opts.fftSize || 1024;
@@ -59,6 +62,14 @@ function createStorage (opts) {
 		get: get
 	};
 
+
+	function doTasks () {
+		for (let i = 0; i < tasks.length; i++) {
+			let task = tasks.shift()
+			task();
+		}
+	}
+
 	function push (chunk, cb) {
 		if (!chunk) return;
 
@@ -68,20 +79,29 @@ function createStorage (opts) {
 		for (let i = 0; i < chunk.length; i++) {
 			buffer[(last + i) % bufferSize] = chunk[i];
 		}
-		mins.update(last, last + chunk.length);
-		maxes.update(last, last + chunk.length);
-		averages.update(last, last + chunk.length);
+
+		let prev = last;
 
 		//rotate last pointer
 		count += chunk.length;
 		last = count % bufferSize;
 
-		//last starts rotating to the beginning
-		if (last - chunk.length < 0) {
-			mins.update(0, last);
-			maxes.update(0, last);
-			averages.update(0, last);
-		}
+		//defer recalc, saves ~0.2ms
+		tasks.push(() => {
+			mins.update(prev, prev + chunk.length);
+			maxes.update(prev, prev + chunk.length);
+			averages.update(prev, prev + chunk.length);
+			//last starts rotating to the beginning
+			if (last - chunk.length < 0) {
+				mins.update(0, last);
+				maxes.update(0, last);
+				averages.update(0, last);
+			}
+		})
+
+		cb && cb(null, count);
+
+		doTasks();
 
 
 		//calc spectrums if any
@@ -95,7 +115,6 @@ function createStorage (opts) {
 		// 	}
 		// }
 
-		cb && cb(null, count);
 
 		return this;
 	}
@@ -118,6 +137,8 @@ function createStorage (opts) {
 
 	function get ({scale, offset, number, log, minDb, maxDb}, cb) {
 		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
+
+		doTasks();
 
 		//do not render not existing data
 		let maxNumber = Math.floor(number);

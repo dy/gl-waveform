@@ -83,11 +83,11 @@ pan: 'drag',
 zoom: 'scroll'
 ```
 
-### waveform.set(timeDomainData)
+### waveform.set(data, cb?)
 
 Place new data as the source waveform. The view will be automatically repainted in the next frame.
 
-### waveform.push(data)
+### waveform.push(data, cb?)
 
 Append new data to the waveform. Data is whether single sample or array/float array with values from `0..1` range.
 The visible waveform will be automatically rerendered in the next frame.
@@ -95,7 +95,7 @@ Using push is preferrable for dynamic waveform, when not all the samples are kno
 
 ### waveform.update(options?)
 
-Update options, if required. Like, palette, grid, offset, width etc.
+Update options.
 It will automatically call render. Do not call this method often, because it recalculates everything possible.
 
 ## Credits

@@ -70,28 +70,24 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 
 
 	//draw average line
-	if (this.scale < 1) {
-		let position = Array(width*2);
-		for (let i = 0, j=0; i < width; i++, j+=2) {
-			position[j] = i/width;
-			position[j+1] = middles[i];
-		}
-		this.setAttribute('position', position);
-		gl.drawArrays(gl.LINE_STRIP, 0, width);
+	let position = Array(width*4);
+	for (let i = 0, j=0; i < width; i++, j+=2) {
+		position[j] = i/width;
+		position[j+1] = middles[i];
 	}
+	this.setAttribute('position', position);
+	gl.drawArrays(gl.LINE_STRIP, 0, width);
+
 	//fill min/max shape
-	else {
-		let position = Array(width*4);
-		for (let i = 0, j=0; i < width; i++, j+=4) {
-			let x = i/width;
-			position[j] = x;
-			position[j+1] = tops[i];
-			position[j+2] = x;
-			position[j+3] = bottoms[i];
-		}
-		this.setAttribute('position', position);
-		gl.drawArrays(gl.TRIANGLE_STRIP, 0, position.length/2);
+	for (let i = 0, j=0; i < width; i++, j+=4) {
+		let x = i/width;
+		position[j] = x;
+		position[j+1] = tops[i];
+		position[j+2] = x;
+		position[j+3] = bottoms[i];
 	}
+	this.setAttribute('position', position);
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, position.length/2);
 
 }
 

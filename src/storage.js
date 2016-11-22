@@ -64,7 +64,7 @@ function createStorage (opts) {
 
 
 	function doTasks () {
-		for (let i = 0; i < tasks.length; i++) {
+		while (tasks.length) {
 			let task = tasks.shift()
 			task();
 		}

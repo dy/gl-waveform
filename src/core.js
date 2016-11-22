@@ -5,7 +5,7 @@
 
 const extend = require('just-extend');
 const inherits = require('inherits');
-const GlComponent = require('../../gl-component');
+const GlComponent = require('gl-component');
 const Grid = require('plot-grid');
 const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');

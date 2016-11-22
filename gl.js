@@ -33,8 +33,8 @@ function WaveformGl (opts) {
 	Waveform.call(this, opts);
 
 	this.setAttribute({
-		samples: {
-			size: 1,
+		position: {
+			size: 2,
 			usage: this.gl.STREAM_DRAW
 		}
 	});
@@ -87,8 +87,7 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 		position[j+3] = bottoms[i];
 	}
 	this.setAttribute('position', position);
-	gl.drawArrays(gl.TRIANGLE_STRIP, 0, position.length/2);
-
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
 }
 
 

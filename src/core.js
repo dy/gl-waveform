@@ -5,8 +5,8 @@
 
 const extend = require('just-extend');
 const inherits = require('inherits');
-const GlComponent = require('gl-component');
-const Grid = require('plot-grid');
+const GlComponent = require('../../gl-component');
+const Grid = require('../../plot-grid');
 const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
@@ -96,43 +96,19 @@ Waveform.prototype.init = function init () {
 	// }
 
 	//create grid
-	// this.topGrid = new Grid({
-	// 	container: this.container,
-	// 	lines: [
-	// 		{
-	// 			orientation: 'y',
-	// 			titles: getTitle
-	// 		}
-	// 	],
-	// 	className: 'grid-top',
-	// 	axes: [{
-	// 		labels: (value, idx, stats) => {
-	// 			if (!this.db && value <= fromDb(this.minDb)) return '0';
-	// 			if (parseFloat(stats.titles[idx]) <= this.minDb) return '-∞';
-	// 			else return stats.titles[idx];
-	// 		}
-	// 	}],
-	// 	viewport: () => [this.viewport[0], this.viewport[1], this.viewport[2], this.viewport[3]/2]
-	// });
-	// this.bottomGrid = new Grid({
-	// 	container: this.container,
-	// 	className: 'grid-bottom',
-	// 	lines: [
-	// 		{
-	// 			orientation: 'y',
-	// 			titles: getTitle
-	// 		}
-	// 	],
-	// 	axes: [{
-	// 		// hide label
-	// 		labels: (value, idx, stats) => {
-	// 			if (!this.db && value <= fromDb(this.minDb)) return '';
-	// 			if (parseFloat(stats.titles[idx]) <= this.minDb) return '';
-	// 			else return stats.titles[idx];
-	// 		}
-	// 	}],
-	// 	viewport: () => [this.viewport[0], this.viewport[1] + this.viewport[3]/2, this.viewport[2], this.viewport[3]/2]
-	// });
+	this.grid = new Grid({
+		canvas: this.canvas,
+		autostart: false,
+		x: {
+			min: 0,
+			type: 'time',
+			axisOrigin: 0,
+			origin: 0,
+			pan: false,
+			zoom: false
+		},
+		viewport: () => this.viewport
+	});
 
 
 	//update on resize
@@ -223,11 +199,11 @@ Waveform.prototype.init = function init () {
 	});
 
 	this.on('update', opts => {
-		this.redraw();
+		// this.redraw();
 	});
 
 	this.on('set', (data, length) => {
-		this.redraw();
+		// this.redraw();
 	});
 
 	this.on('draw', () => {
@@ -235,7 +211,9 @@ Waveform.prototype.init = function init () {
 	});
 
 	this.on('render', () => {
-		this.autostart && this.redraw();
+		if (this.autostart) {
+			this.redraw();
+		}
 	});
 };
 
@@ -338,6 +316,13 @@ Waveform.prototype.update = function update (opts) {
 			// 	}]
 			// });
 		}
+
+		this.grid.update({
+			x: {
+				color: this.infoColor,
+				labelColor: this.color
+			}
+		})
 	}
 	else {
 		// this.topGrid.element.setAttribute('hidden', true);
@@ -364,6 +349,12 @@ Waveform.prototype.redraw = function () {
 	if (offset == null) {
 		offset = -this.viewport[2] * this.scale;
 	}
+
+	this.grid.update({x: {
+		scale: this.scale * 1000 / this.sampleRate,
+		offset: (offset >= 0 ? offset : Math.max(0, (this.count - this.viewport[2]*this.scale))) * 1000 / this.sampleRate
+	}})
+
 	this.storage.get({
 		scale: this.scale,
 		offset: offset,
@@ -374,8 +365,8 @@ Waveform.prototype.redraw = function () {
 	}, (err, data) => {
 		this.emit('redraw', data);
 		this.lastData = data;
-		if (!this.autostart) {
-			this.clear()
+
+		if (!this.autostart){
 			this.render(data);
 		}
 	});

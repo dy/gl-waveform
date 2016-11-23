@@ -20,7 +20,7 @@ function WaveformGl (opts) {
 
 	opts = opts || {};
 
-	extend(opts, {
+	opts = extend({
 		context: {
 			antialias: true,
 			alpha: true,
@@ -28,7 +28,7 @@ function WaveformGl (opts) {
 			preserveDrawingBuffer: false,
 			depth: false
 		}
-	});
+	}, opts);
 
 	Waveform.call(this, opts);
 
@@ -88,6 +88,11 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 	}
 	this.setAttribute('position', position);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
+
+
+
+	//draw grid afterwards
+	if (this.grid) this.grid.draw(gl, vp);
 }
 
 

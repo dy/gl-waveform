@@ -40,10 +40,6 @@ palettes = palettes
 
 
 insertCss(`
-	.grid .grid-label {
-		top: 0;
-	}
-
 	select option {
 		-webkit-appearance: none;
 		appearance: none;
@@ -69,6 +65,7 @@ fps.element.style.marginRight = '1rem';
 //hook up waveform
 let waveform = createWaveform({
 	// worker: false,
+	autostart: true,
 	offset: null,
 	palette: theme.palette.slice().reverse(),
 	active: theme.active,

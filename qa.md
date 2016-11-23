@@ -1,3 +1,7 @@
+## Q: Should we include grid?
+- no, grid can be shareable with other component
+- it is not difficult to attach grid from outside, just mind to call grid.draw after waveform.draw
+
 ## Q: should we get rid of push and leave only set?
 + simplifies API
 +
@@ -40,3 +44,5 @@
 + numbers are dataunit-dependless, i.e. we can use to draw any type of waveform, not only audio
 	- considering that we draw dbs and s at the grid axes, it does not make a big sense
 		+ passing custom grid options would solve this issue
+
+Answer to coord pointer: use offset + scale, that is absolute + relative binding to absolute values

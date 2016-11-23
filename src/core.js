@@ -6,7 +6,6 @@
 const extend = require('just-extend');
 const inherits = require('inherits');
 const GlComponent = require('../../gl-component');
-const Grid = require('../../plot-grid');
 const Interpolate = require('color-interpolate');
 const fromDb = require('decibels/to-gain');
 const toDb = require('decibels/from-gain');
@@ -41,12 +40,6 @@ Waveform.prototype.zoom = 'scroll';
 
 //render in log fashion
 Waveform.prototype.log = false;
-
-//display db units instead of amplitude, for grid axis
-Waveform.prototype.db = true;
-
-//display grid
-Waveform.prototype.grid = false;
 
 //default palette to draw lines in
 Waveform.prototype.palette = ['black', 'white'];
@@ -84,31 +77,6 @@ Waveform.prototype.init = function init () {
 
 	//samples count
 	this.count = 0;
-
-
-	// function getTitle (v) {
-	// 	if (that.log) {
-	// 		return that.db ? toDb(v).toFixed(0) : v.toPrecision(2);
-	// 	}
-	// 	else {
-	// 		return that.db ? v : v.toPrecision(1);
-	// 	}
-	// }
-
-	//create grid
-	this.grid = new Grid({
-		canvas: this.canvas,
-		autostart: false,
-		x: {
-			min: 0,
-			type: 'time',
-			axisOrigin: 0,
-			origin: 0,
-			pan: false,
-			zoom: false
-		},
-		viewport: () => this.viewport
-	});
 
 
 	//update on resize
@@ -258,76 +226,13 @@ Waveform.prototype.update = function update (opts) {
 	// this.topGrid.element.style.color = this.getColor(1);
 	// this.bottomGrid.element.style.color = this.getColor(1);
 
-	//grid/lines color
+	//lines color
 	this.color = this.getColor(1);
 	this.infoColor = alpha(this.getColor(.5), .4);
 
 	// this.timeGrid.update();
 
 	this.updateViewport();
-
-	//update grid
-	if (this.grid) {
-		// this.topGrid.element.removeAttribute('hidden');
-		// this.bottomGrid.element.removeAttribute('hidden');
-		let dbMin = fromDb(this.minDb);
-		let dbMax = fromDb(this.maxDb);
-		if (this.log) {
-			let values = [this.minDb,
-				this.maxDb - 10,
-				// this.maxDb - 9,
-				// this.maxDb - 8,
-				this.maxDb - 7,
-				this.maxDb - 6,
-				this.maxDb - 5,
-				this.maxDb - 4,
-				this.maxDb - 3,
-				this.maxDb - 2,
-				this.maxDb - 1,
-				this.maxDb
-			].map(fromDb);
-			// this.topGrid.update({
-			// 	lines: [{
-			// 		min: dbMin,
-			// 		max: dbMax,
-			// 		values: values
-			// 	}]
-			// });
-			// this.bottomGrid.update({
-			// 	lines: [{
-			// 		max: dbMin,
-			// 		min: dbMax,
-			// 		values: values
-			// 	}]
-			// });
-		} else {
-			// this.topGrid.update({
-			// 	lines: [{
-			// 		min: this.db ? this.minDb : dbMin,
-			// 		max: this.db ? this.maxDb : dbMax,
-			// 		values: null
-			// 	}]
-			// });
-			// this.bottomGrid.update({
-			// 	lines: [{
-			// 		max: this.db ? this.minDb : dbMin,
-			// 		min: this.db ? this.maxDb : dbMax,
-			// 		values: null
-			// 	}]
-			// });
-		}
-
-		this.grid.update({
-			x: {
-				color: this.infoColor,
-				labelColor: this.color
-			}
-		})
-	}
-	else {
-		// this.topGrid.element.setAttribute('hidden', true);
-		// this.bottomGrid.element.setAttribute('hidden', true);
-	}
 
 	//plan redraw
 	this.emit('update', opts);
@@ -349,11 +254,6 @@ Waveform.prototype.redraw = function () {
 	if (offset == null) {
 		offset = -this.viewport[2] * this.scale;
 	}
-
-	this.grid.update({x: {
-		scale: this.scale * 1000 / this.sampleRate,
-		offset: (offset >= 0 ? offset : Math.max(0, (this.count - this.viewport[2]*this.scale))) * 1000 / this.sampleRate
-	}})
 
 	this.storage.get({
 		scale: this.scale,

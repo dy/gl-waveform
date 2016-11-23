@@ -64,10 +64,8 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 	this.setUniform('color', this.infoColorArr);
 	gl.drawArrays(gl.LINES, 0, 2);
 
-
 	//draw waveform
 	this.setUniform('color', this.colorArr);
-
 
 	//draw average line
 	let position = Array(width*4);
@@ -88,17 +86,12 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 	}
 	this.setAttribute('position', position);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
-
-
-
-	//draw grid afterwards
-	if (this.grid) this.grid.draw(gl, vp);
 }
 
 
 
 Waveform.prototype.vert = `
-precision mediump float;
+precision highp float;
 
 attribute vec2 position;
 
@@ -109,7 +102,7 @@ void main () {
 `;
 
 Waveform.prototype.frag = `
-precision mediump float;
+precision highp float;
 
 uniform vec4 color;
 

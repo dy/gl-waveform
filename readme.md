@@ -52,14 +52,8 @@ scale: 1,
 //undefined offset will move window to the tail of data, negative - from the tail.
 offset: null,
 
-// Draw time/db grid
-grid: true,
-
 // Place lines in logarithmic fashion, which makes contrast of peaks
 log: true,
-
-// Use db units or 0..1 range for axis
-db: true,
 
 // Colormap for the data
 palette: ['white', 'black'],
@@ -67,7 +61,7 @@ palette: ['white', 'black'],
 // Draw each frame or only data/options changes
 autostart: false,
 
-// Disable worker mode, a bit heavy for main thread to sample huge waveforms
+// Worker mode, a bit heavy for main thread to sample huge waveforms
 worker: true,
 
 // Webgl-context options, or existing context instance
@@ -79,8 +73,8 @@ context: {
 },
 
 // Enable panning/zooming by dragging/scrolling
-pan: 'drag',
-zoom: 'scroll'
+pan: true,
+zoom: true
 ```
 
 ### waveform.set(data, cb?)
@@ -104,6 +98,7 @@ It will automatically call render. Do not call this method often, because it rec
 
 ## Related
 
+> [plot-grid](https://github.com/audio-lab/gl-spectrogram) — useful to add time/db info
 > [gl-spectrogram](https://github.com/audio-lab/gl-spectrogram) — spectrogram painter for any signal.<br/>
 > [gl-spectrum](https://github.com/audio-lab/gl-spectrum) — nice-looking signal spectrum visualiser for.<br/>
 > [colormap](https://github.com/bpostlethwaite/colormap) — list of js color maps.<br/>

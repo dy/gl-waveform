@@ -86,6 +86,7 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 	}
 	this.setAttribute('position', position);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
+
 }
 
 

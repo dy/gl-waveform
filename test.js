@@ -73,10 +73,8 @@ let waveform = createWaveform({
 	scale: 4,
 	// viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
-// waveform.topGrid.element.style.fontFamily = theme.fontFamily;
-// waveform.bottomGrid.element.style.fontFamily = theme.fontFamily;
 
-// waveform.render([[0], [0], [0]]);
+
 
 // let start = Date.now();
 // let f = 440;
@@ -88,14 +86,16 @@ let waveform = createWaveform({
 // 	}
 // 	waveform.push(data);
 // 	t += 50;
-// }, 200);
+// }, 400);
+
+
+
 
 
 isMobile ? tap({
 	background: 'white',
 	foreground: '#ddd'
 }, init) : init()
-
 
 
 

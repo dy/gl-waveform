@@ -64,7 +64,7 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 let waveform = createWaveform({
-	// worker: false,
+	worker: true,
 	// autostart: true,
 	offset: null,
 	palette: theme.palette.slice().reverse(),

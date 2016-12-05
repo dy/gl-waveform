@@ -202,8 +202,6 @@ function createStorage (opts) {
 
 		return data;
 	}
-
-	return emitter;
 }
 
 

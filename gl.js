@@ -11,7 +11,6 @@ const inherit = require('inherits');
 const rgba = require('color-rgba');
 const attribute = require('gl-util/attribute')
 const uniform = require('gl-util/uniform')
-const texture = require('gl-util/texture')
 const program = require('gl-util/program')
 
 inherit(WaveformGl, Waveform)
@@ -77,7 +76,7 @@ Waveform.prototype.render = function () {
 WaveformGl.prototype.draw = function (data) {
 	let gl = this.gl;
 
-	let {width, height} = this.canvas;
+	let {width} = this.canvas;
 	program(this.gl, this.program);
 
 	//draw info line

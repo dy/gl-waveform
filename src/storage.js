@@ -8,14 +8,14 @@
  */
 'use strict';
 
-const clamp = require('mumath/clamp');
-const fromDb = require('decibels/to-gain');
-const toDb = require('decibels/from-gain');
-const Scales = require('multiscale-array');
-const Emitter = require('events').EventEmitter;
-const bits = require('bit-twiddle');
-const nidx = require('negative-index');
-const isInt = require('is-integer');
+const clamp = require('mumath/clamp')
+const fromDb = require('decibels/to-gain')
+const toDb = require('decibels/from-gain')
+const Scales = require('multiscale-array')
+const bits = require('bit-twiddle')
+const nidx = require('negative-index')
+const isInt = require('is-integer')
+const extend = require('object-assign')
 // const colorSpectrum = require('color-spectrum');
 // const ft = require('fourier-transform');
 
@@ -49,8 +49,15 @@ function createStorage (opts) {
 		maxScale: maxScale
 	});
 
-	//tasks to do inter-API
-	let tasks = [];
+	//inner state
+	let params = {
+		scale: 1,
+		offset: 0,
+		number: 0,
+		log: false,
+		minDb: -100,
+		maxDb: 0
+	}
 
 	//spectrum colors for each 512-samples step
 	// let spectrums = [];
@@ -59,15 +66,15 @@ function createStorage (opts) {
 	return {
 		push: push,
 		set: set,
-		get: get
+		get: get,
+		update: update
 	};
 
 
-	function doTasks () {
-		while (tasks.length) {
-			let task = tasks.shift()
-			task();
-		}
+	function update (opts, cb) {
+		extend(params, opts);
+
+		return get(params, cb);
 	}
 
 	function push (chunk, cb) {
@@ -87,21 +94,17 @@ function createStorage (opts) {
 		last = count % bufferSize;
 
 		//defer recalc, saves ~0.2ms
-		tasks.push(() => {
-			mins.update(prev, prev + chunk.length);
-			maxes.update(prev, prev + chunk.length);
-			averages.update(prev, prev + chunk.length);
-			//last starts rotating to the beginning
-			if (last - chunk.length < 0) {
-				mins.update(0, last);
-				maxes.update(0, last);
-				averages.update(0, last);
-			}
-		})
+		mins.update(prev, prev + chunk.length);
+		maxes.update(prev, prev + chunk.length);
+		averages.update(prev, prev + chunk.length);
+		//last starts rotating to the beginning
+		if (last - chunk.length < 0) {
+			mins.update(0, last);
+			maxes.update(0, last);
+			averages.update(0, last);
+		}
 
-		cb && cb(null, count);
-
-		doTasks();
+		return get(params, cb);
 
 
 		//calc spectrums if any
@@ -114,9 +117,6 @@ function createStorage (opts) {
 		// 		spectrums[i] = spectrum;
 		// 	}
 		// }
-
-
-		return this;
 	}
 
 	function set (data, offset, cb) {
@@ -135,10 +135,12 @@ function createStorage (opts) {
 		return this;
 	}
 
-	function get ({scale, offset, number, log, minDb, maxDb}, cb) {
-		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
+	function get (opts, cb) {
+		if (opts) extend(params, opts);
 
-		doTasks();
+		let {scale, offset, number, log, minDb, maxDb} = params;
+
+		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
 
 		//do not render not existing data
 		let maxNumber = Math.floor(number);
@@ -154,7 +156,7 @@ function createStorage (opts) {
 
 		//if offset is ahead of known data
 		if (offset > count) {
-			let data = [[], []];
+			let data = {min: [], max: [], average: [], variance: [], count: count};
 			cb && cb(null, data);
 			return data;
 		}
@@ -176,7 +178,13 @@ function createStorage (opts) {
 		}
 
 		//if offset is far from the ready data
-		let data = [Array(maxNumber), Array(maxNumber), Array(maxNumber)];
+		let data = {
+			min: Array(maxNumber),
+			max: Array(maxNumber),
+			average: Array(maxNumber),
+			variance: Array(maxNumber),
+			count: count
+		};
 
 
 		for (let i = 0; i < maxNumber; i++) {
@@ -192,11 +200,13 @@ function createStorage (opts) {
 			let max = srcMaxes[lIdx] * (1 - t) + srcMaxes[rIdx] * (t);
 			let avg = srcAvgs[lIdx] * (1 - t) + srcAvgs[rIdx] * (t);
 
-			data[0][i] = f(max, log, minDb, maxDb);
-			data[1][i] = f(min, log, minDb, maxDb);
-			data[2][i] = f(avg, log, minDb, maxDb);
+			data.max[i] = f(max, log, minDb, maxDb);
+			data.min[i] = f(min, log, minDb, maxDb);
+			data.average[i] = f(avg, log, minDb, maxDb);
 		}
+
 		cb && cb(null, data);
+
 		return data;
 	}
 

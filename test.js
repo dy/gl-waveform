@@ -65,12 +65,11 @@ fps.element.style.marginRight = '1rem';
 //hook up waveform
 let waveform = createWaveform({
 	// worker: false,
-	autostart: true,
+	// autostart: false,
 	offset: null,
 	palette: theme.palette.slice().reverse(),
-	active: theme.active,
-	padding: 50,
 	scale: 4,
+	log: false
 	// viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
 
@@ -185,7 +184,8 @@ function init () {
 					style: `background-image: linear-gradient(to top, ${Color(bg).setAlpha(.9).toString()} 0%, ${Color(bg).setAlpha(0).toString()} 100%);`
 				});
 				waveform.update({
-					palette: palette.slice().reverse()
+					palette: palette.slice().reverse(),
+					background: bg
 				});
 
 				audio.update({color: palette[0]});

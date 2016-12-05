@@ -7,9 +7,12 @@
 'use strict';
 
 const Waveform = require('./src/core');
-const extend = require('just-extend');
 const inherit = require('inherits');
 const rgba = require('color-rgba');
+const attribute = require('gl-util/attribute')
+const uniform = require('gl-util/uniform')
+const texture = require('gl-util/texture')
+const program = require('gl-util/program')
 
 inherit(WaveformGl, Waveform)
 
@@ -20,52 +23,71 @@ function WaveformGl (opts) {
 
 	opts = opts || {};
 
-	opts = extend({
-		context: {
-			antialias: true,
-			alpha: true,
-			premultipliedAlpha: true,
-			preserveDrawingBuffer: false,
-			depth: false
-		}
-	}, opts);
-
 	Waveform.call(this, opts);
 
-	this.setAttribute({
+	this.gl = this.context;
+
+	this.program = program(this.gl, this.vert, this.frag);
+
+	attribute(this.gl, {
 		position: {
 			size: 2,
 			usage: this.gl.STREAM_DRAW
 		}
-	});
+	}, this.program);
 }
+
+WaveformGl.prototype.antialias = true;
+WaveformGl.prototype.alpha = false;
+WaveformGl.prototype.premultipliedAlpha = true;
+WaveformGl.prototype.preserveDrawingBuffer = false;
+WaveformGl.prototype.depth = false;
 
 
 WaveformGl.prototype.update = function (opts) {
 	Waveform.prototype.update.call(this, opts);
 
-	this.colorArr = rgba(this.color)
-	this.infoColorArr = rgba(this.infoColor)
+	this._color = rgba(this.color)
+	this._background = rgba(this.background)
+	this._infoColor = rgba(this.infoColor)
+
+	if (this.alpha && this.background) this.canvas.style.background = this.background;
+}
+
+Waveform.prototype.render = function () {
+	this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+	if (!this.alpha) {
+		let bg = this._background;
+		this.gl.clearColor(...bg);
+		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+	}
+	this.emit('render')
+	this.draw()
+
+	return this;
 }
 
 
-WaveformGl.prototype.draw = function (gl, vp, data) {
-	if (!data) data = this.lastData;
-	if (!data) return;
+WaveformGl.prototype.draw = function (data) {
+	let gl = this.gl;
 
-	let [left, top, width, height] = vp;
-	let [tops, bottoms, middles] = data;
+	if (!data) data = this.data;
+	if (!data) return this;
 
-	if (!tops.length) return;
+	let tops = data.max, bottoms = data.min, middles = data.average, variance = data.variance;
 
+	if (!tops || !tops.length) return this;
+
+	let {width, height} = this.canvas;
+	program(this.gl, this.program);
 
 	//draw info line
-	this.setAttribute('position', [0,0,1,0]);
-	this.setUniform('color', this.infoColorArr);
+	attribute(this.gl, 'position', [0,0,1,0], this.program);
+	uniform(this.gl, 'color', this._infoColor, this.program);
 	gl.drawArrays(gl.LINES, 0, 2);
 
 	//draw waveform
-	this.setUniform('color', this.colorArr);
+	uniform(this.gl, 'color', this._color, this.program);
 
 	//draw average line
 	let position = Array(width*4);
@@ -73,7 +95,7 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 		position[j] = i/width;
 		position[j+1] = middles[i];
 	}
-	this.setAttribute('position', position);
+	attribute(this.gl, 'position', position, this.program);
 	gl.drawArrays(gl.LINE_STRIP, 0, width);
 
 	//fill min/max shape
@@ -84,9 +106,10 @@ WaveformGl.prototype.draw = function (gl, vp, data) {
 		position[j+2] = x;
 		position[j+3] = bottoms[i];
 	}
-	this.setAttribute('position', position);
+	attribute(this.gl, 'position', position, this.program);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
 
+	return this;
 }
 
 

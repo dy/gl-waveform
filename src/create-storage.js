@@ -29,7 +29,8 @@ function createStorage (opts) {
 	let cbs = {
 		push: [],
 		get: [],
-		set: []
+		set: [],
+		update: []
 	};
 
 	worker.addEventListener('message', function (e) {
@@ -56,6 +57,10 @@ function createStorage (opts) {
 		get: (opts, cb) => {
 			cbs.get.push(cb);
 			worker.postMessage({action: 'get', args: [opts] });
+		},
+		update: (opts, cb) => {
+			cbs.update.push(cb);
+			worker.postMessage({action: 'update', args: [opts]})
 		}
 	};
 }

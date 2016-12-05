@@ -3,21 +3,23 @@
  */
 'use strict';
 
-const extend = require('just-extend');
-const inherits = require('inherits');
-const GlComponent = require('gl-component');
-const Interpolate = require('color-interpolate');
-const fromDb = require('decibels/to-gain');
-const toDb = require('decibels/from-gain');
-const createStorage = require('./create-storage');
-const alpha = require('color-alpha');
-const panzoom = require('pan-zoom');
-
+const extend = require('just-extend')
+const inherits = require('inherits')
+const Emitter = require('events')
+const inter = require('color-interpolate')
+const fromDb = require('decibels/to-gain')
+const toDb = require('decibels/from-gain')
+const createStorage = require('./create-storage')
+const alpha = require('color-alpha')
+const panzoom = require('pan-zoom')
+const rgba = require('color-rgba')
+const getContext = require('gl-util/context')
+const createLoop = require('canvas-loop')
 
 module.exports = Waveform;
 
 
-inherits(Waveform, GlComponent);
+inherits(Waveform, Emitter);
 
 
 /**
@@ -26,12 +28,32 @@ inherits(Waveform, GlComponent);
 function Waveform (options) {
 	if (!(this instanceof Waveform)) return new Waveform(options);
 
-	GlComponent.call(this, options);
+	Emitter.call(this);
+
+	extend(this, options);
+
+	//create canvas/container
+	//FIXME: this is not very good for 2d case though
+	if (!this.context) this.context = getContext(this);
+	if (!this.canvas) this.canvas = this.context.canvas;
+	if (!this.container) this.container = document.body || document.documentElement;
+	if (!this.canvas.parentNode) this.container.appendChild(this.canvas);
+
+	//create loop
+	this.loop = createLoop(this.canvas, {parent: this.container, scale: this.pixelRatio});
+	this.loop.on('tick', () => {
+		this.render();
+	});
+	this.loop.on('resize', () => {
+		this.update()
+	});
+
 
 	this.init();
-
-	//init style props
 	this.update();
+
+	this.autostart && this.loop.start();
+
 }
 
 //enable pan/zoom
@@ -44,6 +66,7 @@ Waveform.prototype.log = false;
 //default palette to draw lines in
 Waveform.prototype.palette = ['black', 'white'];
 
+//FIXME: mb enable highlight as amplitude/spectrum/etc?
 //make color reflect spectrum (experimental)
 Waveform.prototype.spectrumColor = false;
 
@@ -61,10 +84,13 @@ Waveform.prototype.offset = null;
 Waveform.prototype.scale = 1;
 
 //disable overrendering
-Waveform.prototype.autostart = false;
+Waveform.prototype.autostart = true;
 
 //process data in worker
 Waveform.prototype.worker = !!window.Worker;
+
+//canvas property
+Waveform.prototype.pixelRatio = window.devicePixelRatio;
 
 //size of the buffer to allocate for the data (1min by default)
 Waveform.prototype.bufferSize = 44100 * 60;
@@ -75,15 +101,7 @@ Waveform.prototype.init = function init () {
 
 	this.storage = createStorage({worker: this.worker, bufferSize: this.bufferSize});
 
-	//samples count
-	this.count = 0;
-
-
-	//update on resize
-	this.on('resize', () => {
-		this.update();
-	});
-
+	this.data = {count: 0, max: [], min: [], average: [], variance: []}
 
 	//init pan/zoom
 	if (this.pan || this.zoom) {
@@ -91,17 +109,17 @@ Waveform.prototype.init = function init () {
 		panzoom(this.canvas, (e) => {
 			this.pan && (e.dx || e.dy) && pan.call(this, Math.floor(e.dx), e.dy, e.x, e.y);
 			this.zoom && e.dz && zoom.call(this, e.dz, e.dz, e.x, e.y);
-			this.redraw();
+			this.update();
 		});
 
 		function pan (dx, dy, x, y) {
 			if (!this.pan) return;
 
-			let width = this.viewport[2];
+			let width = this.canvas.width;
 
 			//if drag left from the end - fix offset
 			if (dx > 0 && this.offset == null) {
-				this.offset = this.count - width*this.scale;
+				this.offset = this.data.count - width*this.scale;
 			}
 
 			if (this.offset != null) {
@@ -110,7 +128,7 @@ Waveform.prototype.init = function init () {
 			}
 
 			//if panned to the end - reset offset to null
-			if (this.offset + width*this.scale > this.count) {
+			if (this.offset + width*this.scale > this.data.count) {
 				this.offset = null;
 			}
 
@@ -119,14 +137,13 @@ Waveform.prototype.init = function init () {
 		function zoom (dx, dy, x, y) {
 			if (!this.zoom) return;
 
-			let [left, top, width, height] = this.viewport;
+			let {width, height} = this.canvas;
 
 			// if (x==null) x = left + width/2;
-
-			let count = Math.min(this.bufferSize, this.count);
+			let count = Math.min(this.bufferSize, this.data.count);
 
 			//shift start
-			let cx = x - left;
+			let cx = x;
 			let tx = cx/width;
 
 			let prevScale = this.scale;
@@ -159,30 +176,6 @@ Waveform.prototype.init = function init () {
 			}
 		}
 	}
-
-
-	//update on new data
-	this.on('push', (data, length) => {
-		this.redraw();
-	});
-
-	this.on('update', opts => {
-		// this.redraw();
-	});
-
-	this.on('set', (data, length) => {
-		// this.redraw();
-	});
-
-	this.on('draw', () => {
-		this.isDirty = false;
-	});
-
-	this.on('render', () => {
-		if (this.autostart) {
-			this.redraw();
-		}
-	});
 };
 
 
@@ -190,39 +183,24 @@ Waveform.prototype.init = function init () {
 Waveform.prototype.push = function (data, cb) {
 	if (!data) return this;
 
-	this.storage.push(data, (err, length) => {
+	this.storage.push(data, (err, resp) => {
 		if (err) throw err;
-		this.count = length;
-		this.emit('push', data, length);
-		cb && cb(length);
+		this.data = resp;
+		this.emit('data', resp);
+		cb && cb(null, resp);
 	});
+	this.emit('push', data);
 
 	return this;
 };
-
-//rewrite samples with a new data
-Waveform.prototype.set = function (data, cb) {
-	if (!data) return this;
-
-	this.storage.set(data, (err, length) => {
-		if (err) throw err;
-		this.count = length;
-		this.emit('set', data, length);
-		cb && cb(length)
-	});
-
-	return this;
-};
-
 
 //update view with new options
-Waveform.prototype.update = function update (opts) {
+Waveform.prototype.update = function update (opts, cb) {
 	extend(this, opts);
 
 	//generate palette function
-	this.getColor = Interpolate(this.palette);
+	this.getColor = inter(this.palette);
 
-	this.canvas.style.backgroundColor = this.getColor(0);
 	// this.topGrid.element.style.color = this.getColor(1);
 	// this.bottomGrid.element.style.color = this.getColor(1);
 
@@ -230,54 +208,32 @@ Waveform.prototype.update = function update (opts) {
 	this.color = this.getColor(1);
 	this.infoColor = alpha(this.getColor(.5), .4);
 
+	this.background = this.getColor(0);
 	// this.timeGrid.update();
 
-	this.updateViewport();
-
-	//plan redraw
-	this.emit('update', opts);
-
-	return this;
-};
-
-
-//wrapper for draw method to avoid flooding while webworker returns data from storage
-Waveform.prototype.redraw = function () {
-	if (this.isDirty) {
-		return this;
-	}
-
-	this.isDirty = true;
 
 	let offset = this.offset;
 
 	if (offset == null) {
-		offset = -this.viewport[2] * this.scale;
+		offset = -this.canvas.width * this.scale;
 	}
 
-	this.storage.get({
+	this.storage.update({
 		scale: this.scale,
 		offset: offset,
-		number: this.viewport[2],
+		number: this.canvas.width,
 		log: this.log,
 		minDb: this.minDb,
 		maxDb: this.maxDb
-	}, (err, data) => {
-		this.emit('redraw', data);
-		this.lastData = data;
+	}, (err, resp) => {
+		if (err) throw err;
 
-		if (!this.autostart){
-			this.render(data);
-		}
-	});
-}
+		this.data = resp;
+		this.emit('data', resp);
+		cb && cb(null, resp);
+	})
 
-
-
-//data is amplitudes for curve
-//FIXME: move to 2d
-Waveform.prototype.draw = function () {
-	throw Error('Draw method is not implemented in abstract waveform. Use 2d or gl entry.')
+	this.emit('update', opts);
 
 	return this;
-}
+};

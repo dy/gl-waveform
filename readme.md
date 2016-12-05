@@ -40,6 +40,9 @@ Create waveform instance based off options:
 // Container to place waveform element
 container: document.body,
 
+// Pre-created webgl context
+context: null,
+
 // Audio viewport settings
 maxDb: -0,
 minDb: -100,
@@ -52,34 +55,28 @@ scale: 1,
 //undefined offset will move window to the tail of data, negative - from the tail.
 offset: null,
 
-// Place lines in logarithmic fashion, which makes contrast of peaks
+// Place data in logarithmic fashion, which makes feeble data more contrast
 log: true,
 
 // Colormap for the data
 palette: ['white', 'black'],
 
-// Draw each frame or only data/options changes
+// Fill background into color
+background: null,
+
+// Enable alpha to make transparent canvas
+alpha: false,
+
+// Draw automatically every frame or only data/options changes
 autostart: false,
 
 // Worker mode, a bit heavy for main thread to sample huge waveforms
 worker: true,
 
-// Webgl-context options, or existing context instance
-context: {
-	antialias: false,
-	width: 400,
-	height: 200,
-	canvas: canvas
-},
-
 // Enable panning/zooming by dragging/scrolling
 pan: true,
 zoom: true
 ```
-
-### waveform.set(data, cb?)
-
-Place new data as the source waveform. The view will be automatically repainted in the next frame.
 
 ### waveform.push(data, cb?)
 

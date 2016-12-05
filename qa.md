@@ -1,6 +1,7 @@
 ## Q: Should we include grid?
 - no, grid can be shareable with other component
 - it is not difficult to attach grid from outside, just mind to call grid.draw after waveform.draw
+- grid may want to customize axis position, label alignment etc
 
 ## Q: should we get rid of push and leave only set?
 + simplifies API

@@ -32,7 +32,7 @@ function WaveformGl (opts) {
 	attribute(this.gl, {
 		//max, min, mean, variance sequence
 		data: {
-			size: 4,
+			size: 2,
 			usage: this.gl.STREAM_DRAW
 		}
 	}, this.program);
@@ -81,7 +81,7 @@ WaveformGl.prototype.draw = function (data) {
 	program(this.gl, this.program);
 
 	//draw info line
-	attribute(this.gl, 'data', [0,0,0,0,1,0,0,0], this.program);
+	attribute(this.gl, 'data', [0,0,1,0], this.program);
 	uniform(this.gl, 'color', this._infoColor, this.program);
 	gl.drawArrays(gl.LINES, 0, 2);
 
@@ -90,52 +90,32 @@ WaveformGl.prototype.draw = function (data) {
 	if (!data) data = this.data;
 	if (!data) return this;
 
-	let tops = data.max, bottoms = data.min, avgs = data.average, vars = data.variance;
+	let tops = data.max, bottoms = data.min, avgs = data.average;
 
 	if (!tops || !tops.length) return this;
 
 	uniform(this.gl, 'color', this._color, this.program);
 
 	//draw average line
-	let position = Array(width*8);
-	for (let i = 0, j=0; i < width; i++, j+=4) {
+	let position = Array(width*4);
+	for (let i = 0, j=0; i < width; i++, j+=2) {
 		position[j] = i/width;
 		position[j+1] = avgs[i];
-		position[j+2] = avgs[i];
-		position[j+3] = 0;
 	}
 	attribute(this.gl, 'data', position, this.program);
 	gl.drawArrays(gl.LINE_STRIP, 0, width);
 
 	//fill min/max shape
-	for (let i = 0, j=0; i < width; i++, j+=8) {
+	for (let i = 0, j=0; i < width; i++, j+=4) {
 		let x = i/width;
 		position[j] = x;
-		position[j+1] = 1//Math.max(tops[i]);
-		position[j+2] = avgs[i];
-		position[j+3] = vars[i];
-		position[j+4] = x;
-		position[j+5] = -1//Math.min(bottoms[i]);
-		position[j+6] = avgs[i];
-		position[j+7] = vars[i];
+		position[j+1] = tops[i];
+		position[j+2] = x;
+		position[j+3] = bottoms[i];
 	}
 
 	attribute(this.gl, 'data', position, this.program);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
-
-
-
-	uniform(this.gl, 'color', [1,1,1,1], this.program);
-
-	//draw average line
-	// for (let i = 0, j=0; i < width; i++, j+=4) {
-	// 	position[j] = i/width;
-	// 	position[j+1] = avgs[i];
-	// 	position[j+2] = avgs[i];
-	// 	position[j+3] = 0;
-	// }
-	// attribute(this.gl, 'data', position, this.program);
-	// gl.drawArrays(gl.LINE_STRIP, 0, width);
 
 	return this;
 }
@@ -145,15 +125,9 @@ WaveformGl.prototype.draw = function (data) {
 Waveform.prototype.vert = `
 precision highp float;
 
-attribute vec4 data;
-
-varying float variance, mean, top, bottom;
+attribute vec2 data;
 
 void main () {
-	mean = data.z;
-	variance = data.w*.5;
-	top = data.x;
-	bottom = data.y;
 	gl_Position = vec4(data.x*2.-1., data.y, 0, 1);
 }
 `;
@@ -161,22 +135,10 @@ void main () {
 Waveform.prototype.frag = `
 precision highp float;
 
-const float TAU = ${Math.PI * 2};
-
 uniform vec4 color;
 uniform vec2 shape;
 
-varying float variance, mean, top, bottom;
-
-float norm (float x, float variance) {
-	variance = max(variance, 1e-6);
-	return exp(-.5 * pow(x, 2.) / variance);
-}
-
 void main () {
-	float amp = gl_FragCoord.y / shape.y;
-	float dist = abs(amp - mean*.5 - .5);
-
-	gl_FragColor = vec4(vec3( 1. - norm(dist, variance) ), 1);
+	gl_FragColor = color;
 }
 `;

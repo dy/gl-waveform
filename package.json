@@ -40,6 +40,7 @@
     "inherits": "^2.0.1",
     "is-integer": "^1.0.6",
     "multiscale-array": "^1.2.0",
+    "mumath": "^3.3.1",
     "negative-index": "^1.0.0",
     "object-assign": "^4.1.0",
     "pan-zoom": "^2.0.0",

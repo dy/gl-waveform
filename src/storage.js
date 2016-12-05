@@ -16,6 +16,7 @@ const bits = require('bit-twiddle')
 const nidx = require('negative-index')
 const isInt = require('is-integer')
 const extend = require('object-assign')
+const lerp = require('mumath/lerp')
 // const colorSpectrum = require('color-spectrum');
 // const ft = require('fourier-transform');
 
@@ -33,7 +34,6 @@ function createStorage (opts) {
 
 	//samples and samples squared holder
 	let xBuffer = Array(bufferSize);
-	let x2Buffer = Array(bufferSize);
 
 	//disregard scales more than 8192 items
 	let maxScale = opts.maxScale || Math.pow(2, 13);
@@ -50,10 +50,6 @@ function createStorage (opts) {
 		reduce: (a, b) => a*.5 + b*.5,
 		maxScale: maxScale
 	});
-	let averagesOfSquares = Scales(x2Buffer, {
-		reduce: (a, b) => a*.5 + b*.5,
-		maxScale: maxScale
-	});
 
 	//inner state
 	let params = {
@@ -64,10 +60,6 @@ function createStorage (opts) {
 		minDb: -100,
 		maxDb: 0
 	}
-
-	//spectrum colors for each 512-samples step
-	// let spectrums = [];
-	// let fftSize = opts.fftSize || 1024;
 
 	return {
 		push: push,
@@ -91,7 +83,6 @@ function createStorage (opts) {
 		//put new samples, update their scales
 		for (let i = 0; i < chunk.length; i++) {
 			xBuffer[(last + i) % bufferSize] = chunk[i];
-			x2Buffer[(last + i) % bufferSize] = chunk[i]*chunk[i];
 		}
 
 		let prev = last;
@@ -104,29 +95,15 @@ function createStorage (opts) {
 		mins.update(prev, prev + chunk.length);
 		maxes.update(prev, prev + chunk.length);
 		averages.update(prev, prev + chunk.length);
-		averagesOfSquares.update(prev, prev + chunk.length);
 
 		//last starts rotating to the beginning
 		if (last - chunk.length < 0) {
 			mins.update(0, last);
 			maxes.update(0, last);
 			averages.update(0, last);
-			averagesOfSquares.update(0, last);
 		}
 
 		return get(params, cb);
-
-
-		//calc spectrums if any
-		// let spectrumsLen = Math.floor(last / fftSize);
-		// if (spectrums.length < spectrumsLen) {
-		// 	let start = spectrums.length;
-		// 	spectrums.length = spectrumsLen;
-		// 	for (let i = start; i < spectrumsLen; i++) {
-		// 		let spectrum = ft(mins[0].slice(i * fftSize, (i + 1) * fftSize));
-		// 		spectrums[i] = spectrum;
-		// 	}
-		// }
 	}
 
 	function set (data, offset, cb) {
@@ -175,8 +152,7 @@ function createStorage (opts) {
 		let srcIdx = bits.log2(srcScale);
 		let srcMins = mins[srcIdx],
 			srcMaxes = maxes[srcIdx],
-			srcAvgs = averages[srcIdx],
-			srcAvgs2 = averagesOfSquares[srcIdx];
+			srcAvgs = averages[srcIdx]
 
 		//round to the closest scale block
 		if (isNegativeOffset) {
@@ -195,7 +171,6 @@ function createStorage (opts) {
 			min: Array(maxNumber),
 			max: Array(maxNumber),
 			average: Array(maxNumber),
-			variance: Array(maxNumber),
 			count: count
 		};
 
@@ -209,12 +184,9 @@ function createStorage (opts) {
 				lIdx = Math.floor( idx ),
 				rIdx = Math.ceil( idx );
 			let t = idx - lIdx;
-			let min = srcMins[lIdx] * (1 - t) + srcMins[rIdx] * (t);
-			let max = srcMaxes[lIdx] * (1 - t) + srcMaxes[rIdx] * (t);
-			let avg = srcAvgs[lIdx] * (1 - t) + srcAvgs[rIdx] * (t);
-			let variance = Math.abs(srcAvgs2[lIdx] - srcAvgs[lIdx]*srcAvgs[lIdx]) * (1 - t) + Math.abs(srcAvgs2[rIdx] - srcAvgs[rIdx]*srcAvgs[rIdx]) * (t);
-			variance = variance * (1 - smoothness) + lastVariance * smoothness;
-			lastVariance = variance;
+			let min = lerp(srcMins[lIdx], srcMins[rIdx], t);
+			let max = lerp(srcMaxes[lIdx], srcMaxes[rIdx], t);
+			let avg = lerp(srcAvgs[lIdx], srcAvgs[rIdx], t);
 
 			//TODO: move db scaling to vertex shader
 			min = f(min, log, minDb, maxDb);
@@ -224,7 +196,6 @@ function createStorage (opts) {
 			data.max[i] = max;
 			data.min[i] = min;
 			data.average[i] = avg;
-			data.variance[i] = variance;
 		}
 
 		cb && cb(null, data);

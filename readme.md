@@ -89,6 +89,14 @@ Using push is preferrable for dynamic waveform, when not all the samples are kno
 Update options.
 It will automatically call render. Do not call this method often, because it recalculates everything possible.
 
+### `waveform.render()`
+
+Force full-cycle rerendering.
+
+### `waveform.draw()`
+
+Single draw pass, useful for cooperation with other components on a single canvas.
+
 ## Credits
 
 > [Drawing waveforms](http://www.supermegaultragroovy.com/2009/10/06/drawing-waveforms/) — some insights on the way to draw waveforms.<br/>

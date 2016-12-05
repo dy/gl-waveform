@@ -65,15 +65,16 @@ fps.element.style.marginRight = '1rem';
 //hook up waveform
 let waveform = createWaveform({
 	// worker: false,
-	// autostart: false,
+	// autostart: true,
 	offset: null,
 	palette: theme.palette.slice().reverse(),
 	scale: 4,
 	log: false
-	// viewport: function (w, h) {return [this.grid ? 55 : 0, 55, w - (this.grid ? 55 : 0), h - 110] }
 });
 
-
+// setInterval(() => {
+// 	waveform.render();
+// }, 100);
 
 // let start = Date.now();
 // let f = 440;

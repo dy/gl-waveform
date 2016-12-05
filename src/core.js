@@ -53,7 +53,7 @@ function Waveform (options) {
 	this.update();
 
 	this.autostart && this.loop.start();
-
+	this.autostart && setTimeout(() => this.render());
 }
 
 //enable pan/zoom

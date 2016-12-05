@@ -31,20 +31,26 @@ function createStorage (opts) {
 	//pointer to the last sample (relative) and absolute number of items
 	let last = 0, count = 0;
 
-	//samples holder
-	let buffer = Array(bufferSize);
+	//samples and samples squared holder
+	let xBuffer = Array(bufferSize);
+	let x2Buffer = Array(bufferSize);
+
 	//disregard scales more than 8192 items
 	let maxScale = opts.maxScale || Math.pow(2, 13);
 
-	let mins = Scales(buffer, {
-		reduce: Math.min,
+	let mins = Scales(xBuffer, {
+		reduce: (a, b) => Math.min(a, b),
 		maxScale: maxScale
 	});
-	let maxes = Scales(buffer, {
-		reduce: Math.max,
+	let maxes = Scales(xBuffer, {
+		reduce: (a, b) => Math.max(a, b),
 		maxScale: maxScale
 	});
-	let averages = Scales(buffer, {
+	let averages = Scales(xBuffer, {
+		reduce: (a, b) => a*.5 + b*.5,
+		maxScale: maxScale
+	});
+	let averagesOfSquares = Scales(x2Buffer, {
 		reduce: (a, b) => a*.5 + b*.5,
 		maxScale: maxScale
 	});
@@ -84,7 +90,8 @@ function createStorage (opts) {
 
 		//put new samples, update their scales
 		for (let i = 0; i < chunk.length; i++) {
-			buffer[(last + i) % bufferSize] = chunk[i];
+			xBuffer[(last + i) % bufferSize] = chunk[i];
+			x2Buffer[(last + i) % bufferSize] = chunk[i]*chunk[i];
 		}
 
 		let prev = last;
@@ -97,11 +104,14 @@ function createStorage (opts) {
 		mins.update(prev, prev + chunk.length);
 		maxes.update(prev, prev + chunk.length);
 		averages.update(prev, prev + chunk.length);
+		averagesOfSquares.update(prev, prev + chunk.length);
+
 		//last starts rotating to the beginning
 		if (last - chunk.length < 0) {
 			mins.update(0, last);
 			maxes.update(0, last);
 			averages.update(0, last);
+			averagesOfSquares.update(0, last);
 		}
 
 		return get(params, cb);
@@ -163,7 +173,10 @@ function createStorage (opts) {
 
 		let srcScale = Math.min(bits.nextPow2(Math.ceil(scale)), maxScale);
 		let srcIdx = bits.log2(srcScale);
-		let srcMins = mins[srcIdx], srcMaxes = maxes[srcIdx], srcAvgs = averages[srcIdx];
+		let srcMins = mins[srcIdx],
+			srcMaxes = maxes[srcIdx],
+			srcAvgs = averages[srcIdx],
+			srcAvgs2 = averagesOfSquares[srcIdx];
 
 		//round to the closest scale block
 		if (isNegativeOffset) {
@@ -186,7 +199,7 @@ function createStorage (opts) {
 			count: count
 		};
 
-
+		let lastVariance = 0, smoothness = .9;
 		for (let i = 0; i < maxNumber; i++) {
 			let ratio = (i + .5) / (number);
 			let dataIdx = (offset + number*scale*ratio) % bufferSize;
@@ -199,10 +212,19 @@ function createStorage (opts) {
 			let min = srcMins[lIdx] * (1 - t) + srcMins[rIdx] * (t);
 			let max = srcMaxes[lIdx] * (1 - t) + srcMaxes[rIdx] * (t);
 			let avg = srcAvgs[lIdx] * (1 - t) + srcAvgs[rIdx] * (t);
+			let variance = Math.abs(srcAvgs2[lIdx] - srcAvgs[lIdx]*srcAvgs[lIdx]) * (1 - t) + Math.abs(srcAvgs2[rIdx] - srcAvgs[rIdx]*srcAvgs[rIdx]) * (t);
+			variance = variance * (1 - smoothness) + lastVariance * smoothness;
+			lastVariance = variance;
 
-			data.max[i] = f(max, log, minDb, maxDb);
-			data.min[i] = f(min, log, minDb, maxDb);
-			data.average[i] = f(avg, log, minDb, maxDb);
+			//TODO: move db scaling to vertex shader
+			min = f(min, log, minDb, maxDb);
+			max = f(max, log, minDb, maxDb);
+			avg = f(avg, log, minDb, maxDb);
+
+			data.max[i] = max;
+			data.min[i] = min;
+			data.average[i] = avg;
+			data.variance[i] = variance;
 		}
 
 		cb && cb(null, data);

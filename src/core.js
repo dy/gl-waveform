@@ -93,7 +93,7 @@ Waveform.prototype.worker = !!window.Worker;
 Waveform.prototype.pixelRatio = window.devicePixelRatio;
 
 //size of the buffer to allocate for the data (1min by default)
-Waveform.prototype.bufferSize = 44100 * 60;
+Waveform.prototype.bufferSize = 44100 * 20;
 
 //init routine
 Waveform.prototype.init = function init () {
@@ -143,8 +143,7 @@ Waveform.prototype.init = function init () {
 			let count = Math.min(this.bufferSize, this.data.count);
 
 			//shift start
-			let cx = x;
-			let tx = cx/width;
+			let tx = x/width;
 
 			let prevScale = this.scale;
 			let minScale = 2/44100;
@@ -153,19 +152,21 @@ Waveform.prototype.init = function init () {
 			this.scale = Math.max(this.scale, minScale);
 
 			if (this.offset == null) {
-				//if zoomed in - set specific offset
-				if (this.scale < prevScale && tx < .8) {
-					this.offset = Math.max(count - width*this.scale, 0);
+				if (x*this.scale < count && (this.offset + width*this.scale < count)) {
+					//if zoomed in - set specific offset
+					if (this.scale < prevScale && tx < .8) {
+						this.offset = Math.max(count - width*this.scale, 0);
+					}
 				}
 			}
 			else {
-				//adjust offset to correspond to the current mouse coord
 				this.offset -= width*(this.scale - prevScale)*tx;
 				this.offset = Math.max(this.offset, 0);
 
-				//if tail became visible - set offset to null
+				//if tail became visible - set offset to null, means all possib data
 				if (this.scale > prevScale) {
-					if (tx*width*this.scale > count) {
+					//zoom in area more than the data
+					if (x*this.scale > count) {
 						this.offset = null;
 					}
 				}

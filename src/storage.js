@@ -166,6 +166,12 @@ function createStorage (opts) {
 			offset = Math.floor(offset/srcScale)*srcScale - shift;
 		}
 
+		//rotate offset
+		//FIXME: missed buffer is invisible
+		if (count > bufferSize) {
+			offset = offset % bufferSize
+		}
+
 		//if offset is far from the ready data
 		let data = {
 			min: Array(maxNumber),

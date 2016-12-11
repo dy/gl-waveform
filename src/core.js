@@ -183,10 +183,9 @@ Waveform.prototype.init = function init () {
 Waveform.prototype.push = function (data, cb) {
 	if (!data) return this;
 
-	this.storage.push(data, (err, resp) => {
+	this.storage.push(data, (err, len) => {
 		if (err) throw err;
-		this.data = resp;
-		this.emit('data', resp);
+		this.fetch();
 		cb && cb(null, resp);
 	});
 	this.emit('push', data);
@@ -225,11 +224,9 @@ Waveform.prototype.update = function update (opts, cb) {
 		log: this.log,
 		minDb: this.minDb,
 		maxDb: this.maxDb
-	}, (err, resp) => {
+	}, (err, len) => {
 		if (err) throw err;
-
-		this.data = resp;
-		this.emit('data', resp);
+		this.fetch();
 		cb && cb(null, resp);
 	})
 
@@ -237,3 +234,15 @@ Waveform.prototype.update = function update (opts, cb) {
 
 	return this;
 };
+
+
+//fetch latest data from the storage
+Waveform.prototype.fetch = function () {
+	if (this.isAwait) return;
+	this.isAwait = true;
+	this.storage.get(null, (err, data) => {
+		this.isAwait = false;
+		this.data = data;
+		this.emit('data', data);
+	})
+}

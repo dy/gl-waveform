@@ -72,7 +72,7 @@ function createStorage (opts) {
 	function update (opts, cb) {
 		extend(params, opts);
 
-		return get(params, cb);
+		return cb && cb();
 	}
 
 	function push (chunk, cb) {
@@ -91,6 +91,8 @@ function createStorage (opts) {
 		count += chunk.length;
 		last = count % bufferSize;
 
+		cb && cb(last);
+
 		//defer recalc, saves ~0.2ms
 		mins.update(prev, prev + chunk.length);
 		maxes.update(prev, prev + chunk.length);
@@ -102,8 +104,6 @@ function createStorage (opts) {
 			maxes.update(0, last);
 			averages.update(0, last);
 		}
-
-		return get(params, cb);
 	}
 
 	function set (data, offset, cb) {

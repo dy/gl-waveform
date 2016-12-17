@@ -104,7 +104,8 @@ function init () {
 	let audio = createAudio({
 		color: theme.palette[0],
 		// autoplay: false,
-		source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
+		source: 'https://soundcloud.com/aceandtate/ace-tate-sounds-guest-mix-by-jeff-solo'
+		// source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
 	}).on('load', (node) => {
 		let scriptNode = audio.context.createScriptProcessor(512, 2, 2);
 

@@ -12,7 +12,6 @@ const rgba = require('color-rgba');
 const attribute = require('gl-util/attribute')
 const uniform = require('gl-util/uniform')
 const program = require('gl-util/program')
-const texture = require('gl-util/texture')
 
 inherit(WaveformGl, Waveform)
 
@@ -31,17 +30,11 @@ function WaveformGl (opts) {
 
 	attribute(this.gl, {
 		//max, min, mean, variance sequence
-		position: {
+		data: {
 			size: 2,
-			data: [-1,-1, -1,4, 4,-1]
+			usage: this.gl.STREAM_DRAW
 		}
 	}, this.program);
-
-	texture(this.gl, 'data', {
-		height: 1,
-		type: this.gl.FLOAT,
-		format: this.gl.RGBA
-	});
 }
 
 WaveformGl.prototype.antialias = true;
@@ -49,7 +42,6 @@ WaveformGl.prototype.alpha = false;
 WaveformGl.prototype.premultipliedAlpha = true;
 WaveformGl.prototype.preserveDrawingBuffer = false;
 WaveformGl.prototype.depth = false;
-WaveformGl.prototype.float = true;
 
 
 WaveformGl.prototype.update = function (opts) {
@@ -87,21 +79,6 @@ WaveformGl.prototype.draw = function (data) {
 	let {width} = this.canvas;
 	program(this.gl, this.program);
 
-	if (!data) data = this.data;
-	if (!data) return this;
-
-	let tops = data.max, bottoms = data.min, avgs = data.average;
-
-	if (!avgs.length) return this;
-
-	texture(this.gl, 'data', {
-		height: 1,
-		width: avgs.length/4,
-		data: avgs
-	}, this.program);
-	gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-	/*
 	//draw info line
 	attribute(this.gl, 'data', [0,0,1,0], this.program);
 	uniform(this.gl, 'color', this._infoColor, this.program);
@@ -138,53 +115,29 @@ WaveformGl.prototype.draw = function (data) {
 
 	attribute(this.gl, 'data', position, this.program);
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
-	*/
+
 	return this;
 }
+
 
 
 Waveform.prototype.vert = `
 precision highp float;
 
-attribute vec2 position;
+attribute vec2 data;
 
 void main () {
-	gl_Position = vec4(position, 0, 1);
+	gl_Position = vec4(data.x*2.-1., data.y, 0, 1);
 }
 `;
+
 Waveform.prototype.frag = `
 precision highp float;
 
-uniform sampler2D data;
+uniform vec4 color;
 uniform vec2 shape;
 
 void main () {
-	vec2 coord = gl_FragCoord.xy / shape;
-	vec4 intensity = texture2D(data, vec2(coord.x,.5));
-	gl_FragColor = vec4(vec3(intensity.y), 1);
+	gl_FragColor = color;
 }
 `;
-
-
-
-
-// Waveform.prototype.vert = `
-// precision highp float;
-
-// attribute vec2 data;
-
-// void main () {
-// 	gl_Position = vec4(data.x*2.-1., data.y, 0, 1);
-// }
-// `;
-
-// Waveform.prototype.frag = `
-// precision highp float;
-
-// uniform vec4 color;
-// uniform vec2 shape;
-
-// void main () {
-// 	gl_FragColor = color;
-// }
-// `;

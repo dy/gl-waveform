@@ -4962,11 +4962,11 @@ function WaveformGl (opts) {
 
 	Waveform.call(this, opts);
 
-	this.gl = this.context;
+	var gl = this.gl = this.context;
 
 	this.program = program(this.gl, this.vert, this.frag);
 
-	attribute(this.gl, {
+	attribute(gl, {
 		//max, min, mean, variance sequence
 		position: {
 			size: 2,
@@ -4974,10 +4974,18 @@ function WaveformGl (opts) {
 		}
 	}, this.program);
 
-	texture(this.gl, 'data', {
+	texture(gl, 'data', {
 		height: 1,
-		type: this.gl.FLOAT,
-		format: this.gl.RGBA
+		type: gl.FLOAT,
+		format: gl.RGBA
+	});
+	texture(gl, 'colormap', {
+		type: gl.UNSIGNED_BYTE,
+		format: gl.RGBA,
+		filter: gl.LINEAR,
+		wrap: gl.CLAMP_TO_EDGE,
+		height: this.levels,
+		width: 1
 	});
 }
 
@@ -4987,9 +4995,12 @@ WaveformGl.prototype.premultipliedAlpha = true;
 WaveformGl.prototype.preserveDrawingBuffer = false;
 WaveformGl.prototype.depth = false;
 WaveformGl.prototype.float = true;
+WaveformGl.prototype.levels = 16;
 
 
 WaveformGl.prototype.update = function (opts) {
+	var this$1 = this;
+
 	Waveform.prototype.update.call(this, opts);
 
 	this._color = rgba(this.color)
@@ -5002,6 +5013,18 @@ WaveformGl.prototype.update = function (opts) {
 	}
 
 	if (this.alpha && this.background) this.canvas.style.background = this.background;
+
+	if (this.gl) {
+		var colormap = [];
+		for (var i = 0; i < this.levels; i++) {
+			var channels = rgba(this$1.getColor((i + .5)/this$1.levels), false);
+			colormap.push(channels[0])
+			colormap.push(channels[1])
+			colormap.push(channels[2])
+			colormap.push(channels[3]*255)
+		}
+		texture(this.gl, 'colormap', colormap);
+	}
 }
 
 Waveform.prototype.render = function () {
@@ -5033,10 +5056,16 @@ WaveformGl.prototype.draw = function (data) {
 
 	if (!avgs.length) return this;
 
+	var intensities = Array(avgs.length*4).fill(1);
+	for (var i = 0; i < avgs.length; i++) {
+		var v = avgs[i] * .5 + .5;
+		intensities[i*4] = v;
+	}
+
 	texture(this.gl, 'data', {
 		height: 1,
-		width: avgs.length/4,
-		data: avgs
+		width: avgs.length,
+		data: intensities
 	}, this.program);
 	gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -5083,7 +5112,7 @@ WaveformGl.prototype.draw = function (data) {
 
 
 Waveform.prototype.vert = "\nprecision highp float;\n\nattribute vec2 position;\n\nvoid main () {\n\tgl_Position = vec4(position, 0, 1);\n}\n";
-Waveform.prototype.frag = "\nprecision highp float;\n\nuniform sampler2D data;\nuniform vec2 shape;\n\nvoid main () {\n\tvec2 coord = gl_FragCoord.xy / shape;\n\tvec4 intensity = texture2D(data, vec2(coord.x,.5));\n\tgl_FragColor = vec4(vec3(intensity.y), 1);\n}\n";
+Waveform.prototype.frag = "\nprecision highp float;\n\nuniform sampler2D data;\nuniform sampler2D colormap;\nuniform vec2 shape;\n\nvoid main () {\n\tvec2 coord = gl_FragCoord.xy / shape;\n\tvec4 intensity = texture2D(data, vec2(coord.x,.5));\n\tvec4 color = texture2D(colormap, vec2(.5, intensity.x));\n\tgl_FragColor = color;\n\t// gl_FragColor = vec4(vec3(intensity.x), 1);\n}\n";
 
 
 
@@ -16479,8 +16508,11 @@ var palettes = require('nice-color-palettes/500');
 var theme = require('settings-panel/theme/flat')
 var tap = require('tap-to-start')
 var isMobile = require('is-mobile')()
-
 var colormaps = {};
+
+//bipolar colormaps
+palettes = [];
+var bipolarNames = 'spring bluered rdbu picnic portland viridis warm temperature'.split(' ')
 
 for (var name in colorScales) {
 	if (name === 'alpha') continue;
@@ -16488,6 +16520,7 @@ for (var name in colorScales) {
 	if (name === 'rainbow') continue;
 	if (name === 'rainbow-soft') continue;
 	if (name === 'phase') continue;
+	if (bipolarNames.indexOf(name) < 0) continue;
 
 	colormaps[name] = colormap({
 		colormap: colorScales[name],
@@ -16496,15 +16529,16 @@ for (var name in colorScales) {
 	});
 	palettes.push(colormaps[name]);
 }
-
-palettes = palettes
+// palettes = palettes
 //filter not readable palettes
-.filter(function (palette) {
-	return Color.isReadable(palette[0], palette.slice(-1)[0], {
-		level:"AA", size:"large"
-	});
-});
+// .filter((palette) => {
+// 	return Color.isReadable(palette[0], palette.slice(-1)[0], {
+// 		level:"AA", size:"large"
+// 	});
+// });
 
+
+var defaultPalette = palettes[Math.floor(Math.random() * palettes.length)];
 
 insertCss("\n\tselect option {\n\t\t-webkit-appearance: none;\n\t\tappearance: none;\n\t\tdisplay: block;\n\t\tbackground: white;\n\t\tposition: absolute;\n\t}\n");
 
@@ -16512,7 +16546,7 @@ insertCss("\n\tselect option {\n\t\t-webkit-appearance: none;\n\t\tappearance: n
 
 //show framerate
 var fps = createFps();
-fps.element.style.color = theme.palette[0];
+fps.element.style.color = defaultPalette[0];
 fps.element.style.fontFamily = theme.fontFamily;
 fps.element.style.fontWeight = 500;
 fps.element.style.fontSize = '12px';
@@ -16526,7 +16560,7 @@ var waveform = createWaveform({
 	worker: true,
 	// autostart: true,
 	offset: null,
-	palette: theme.palette.slice().reverse(),
+	palette: defaultPalette.slice().reverse(),
 	scale: 4,
 	log: false
 });
@@ -16561,7 +16595,7 @@ isMobile ? tap({
 function init () {
 	//create audio source
 	var audio = createAudio({
-		color: theme.palette[0],
+		color: defaultPalette[0],
 		// autoplay: false,
 		source: 'https://soundcloud.com/aceandtate/ace-tate-sounds-guest-mix-by-jeff-solo'
 		// source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
@@ -16615,10 +16649,10 @@ function init () {
 		{type: 'raw', label: false, id: 'palette', style: "", content: function (data) {
 			var el = document.createElement('div');
 			el.className = 'random-palette';
-			el.style.cssText = "\n\t\t\t\twidth: 1.5em;\n\t\t\t\theight: 1.5em;\n\t\t\t\tbackground-color: rgba(120,120,120,.2);\n\t\t\t\tmargin-left: 0em;\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tvertical-align: middle;\n\t\t\t\tcursor: pointer;\n\t\t\t\tmargin-right: 1em;\n\t\t\t";
+			el.style.cssText = "\n\t\t\t\twidth: 1.5em;\n\t\t\t\theight: 1.5em;\n\t\t\t\t/* background-color: rgba(120,120,120,.2); */\n\t\t\t\tmargin-left: 0em;\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tvertical-align: middle;\n\t\t\t\tcursor: pointer;\n\t\t\t\tmargin-right: 1em;\n\t\t\t";
 			el.title = 'Randomize palette';
 			var settings = this.panel;
-			setColors(el, settings.theme.palette, settings.theme.active);
+			setColors(el, defaultPalette);
 
 			el.onclick = function () {
 				// settings.set('colors', 'custom');
@@ -16633,7 +16667,7 @@ function init () {
 
 				settings.update({
 					palette: palette,
-					style: ("background-image: linear-gradient(to top, " + (Color(bg).setAlpha(.9).toString()) + " 0%, " + (Color(bg).setAlpha(0).toString()) + " 100%);")
+					// style: `background-image: linear-gradient(to top, ${Color(bg).setAlpha(.9).toString()} 0%, ${Color(bg).setAlpha(0).toString()} 100%);`
 				});
 				waveform.update({
 					palette: palette.slice().reverse(),
@@ -16642,18 +16676,18 @@ function init () {
 
 				audio.update({color: palette[0]});
 				fps.element.style.color = waveform.getColor(1);
-				audio.element.style.background = "linear-gradient(to bottom, " + (Color(bg).setAlpha(.9).toString()) + " 0%, " + (Color(bg).setAlpha(0).toString()) + " 100%)";
+				// audio.element.style.background = `linear-gradient(to bottom, ${Color(bg).setAlpha(.9).toString()} 0%, ${Color(bg).setAlpha(0).toString()} 100%)`;
 
 				el.innerHTML = '';
 				if (active) {
 					palette = palette.slice();
 					palette.unshift(active);
 				}
-				for (var i = 0; i < 3; i++) {
+				for (var i = 0; i < 4; i++) {
 					var colorEl = document.createElement('div');
 					el.appendChild(colorEl);
 					colorEl.className = 'random-palette-color';
-					colorEl.style.cssText = "\n\t\t\t\t\t\twidth: 50%;\n\t\t\t\t\t\theight: 50%;\n\t\t\t\t\t\tfloat: left;\n\t\t\t\t\t\tbackground-color: " + (palette[i] || 'transparent') + "\n\t\t\t\t\t";
+					colorEl.style.cssText = "\n\t\t\t\t\t\twidth: 50%;\n\t\t\t\t\t\theight: 50%;\n\t\t\t\t\t\tfloat: left;\n\t\t\t\t\t\tbackground-color: " + (palette[Math.floor(palette.length * i/4)] || 'transparent') + "\n\t\t\t\t\t";
 				}
 			}
 			return el;
@@ -16673,7 +16707,7 @@ function init () {
 		title: '<a href="https://github.com/audio-lab/gl-waveform">gl-waveform</a>',
 		theme: theme,
 		fontSize: 12,
-		css: "\n\t\t\t:host {\n\t\t\t\tz-index: 1;\n\t\t\t\tposition: fixed;\n\t\t\t\tbottom: 0;\n\t\t\t\tright: 0;\n\t\t\t\tleft: 0;\n\t\t\t\twidth: 100%;\n\t\t\t\tbackground-color: transparent;\n\t\t\t\tbackground-image: linear-gradient(to top, rgba(255,255,255, .9) 0%, rgba(255,255,255,0) 120%);\n\t\t\t}\n\t\t\t.settings-panel-title {\n\t\t\t\twidth: auto;\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tline-height: 1;\n\t\t\t\tmargin-right: 3em;\n\t\t\t\tpadding: .5rem 0;\n\t\t\t\tvertical-align: baseline;\n\t\t\t}\n\t\t\t.settings-panel-field {\n\t\t\t\twidth: auto;\n\t\t\t\tvertical-align: top;\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tmargin-right: 1em;\n\t\t\t}\n\t\t\t.settings-panel-label {\n\t\t\t\twidth: auto!important;\n\t\t\t}\n\t\t"
+		css: "\n\t\t\t:host {\n\t\t\t\tz-index: 1;\n\t\t\t\tposition: fixed;\n\t\t\t\tbottom: 0;\n\t\t\t\tright: 0;\n\t\t\t\tleft: 0;\n\t\t\t\twidth: 100%;\n\t\t\t\tbackground-color: transparent;\n\t\t\t\t/*background-image: linear-gradient(to top, rgba(255,255,255, .9) 0%, rgba(255,255,255,0) 120%);*/\n\t\t\t}\n\t\t\t.settings-panel-title {\n\t\t\t\twidth: auto;\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tline-height: 1;\n\t\t\t\tmargin-right: 3em;\n\t\t\t\tpadding: .5rem 0;\n\t\t\t\tvertical-align: baseline;\n\t\t\t}\n\t\t\t.settings-panel-field {\n\t\t\t\twidth: auto;\n\t\t\t\tvertical-align: top;\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tmargin-right: 1em;\n\t\t\t}\n\t\t\t.settings-panel-label {\n\t\t\t\twidth: auto!important;\n\t\t\t}\n\t\t"
 	});
 
 }

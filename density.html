@@ -5112,7 +5112,7 @@ WaveformGl.prototype.draw = function (data) {
 
 
 Waveform.prototype.vert = "\nprecision highp float;\n\nattribute vec2 position;\n\nvoid main () {\n\tgl_Position = vec4(position, 0, 1);\n}\n";
-Waveform.prototype.frag = "\nprecision highp float;\n\nuniform sampler2D data;\nuniform sampler2D colormap;\nuniform vec2 shape;\n\nvoid main () {\n\tvec2 coord = gl_FragCoord.xy / shape;\n\tvec4 intensity = texture2D(data, vec2(coord.x,.5));\n\tvec4 color = texture2D(colormap, vec2(.5, intensity.x));\n\tgl_FragColor = color;\n\t// gl_FragColor = vec4(vec3(intensity.x), 1);\n}\n";
+Waveform.prototype.frag = "\nprecision highp float;\n\nuniform sampler2D data;\nuniform sampler2D colormap;\nuniform vec2 shape;\n\nvoid main () {\n\tvec2 coord = gl_FragCoord.xy / shape;\n\tvec4 intensity = texture2D(data, vec2(coord.x,.5));\n\tvec4 color = texture2D(colormap, vec2(.5, intensity.x));\n\tcolor.xyz *= pow(1. - abs(.5 - coord.y) * 2., 1.5);\n\tgl_FragColor = color;\n\t// gl_FragColor = vec4(vec3(intensity.x), 1);\n}\n";
 
 
 
@@ -16538,7 +16538,7 @@ for (var name in colorScales) {
 // });
 
 
-var defaultPalette = palettes[Math.floor(Math.random() * palettes.length)];
+var defaultPalette = ['rgb(0,255,255)', 'blue', 'black', 'red', 'rgb(255,255,0)'];//palettes[Math.floor(Math.random() * palettes.length)];
 
 insertCss("\n\tselect option {\n\t\t-webkit-appearance: none;\n\t\tappearance: none;\n\t\tdisplay: block;\n\t\tbackground: white;\n\t\tposition: absolute;\n\t}\n");
 

@@ -49,6 +49,7 @@
   "devDependencies": {
     "app-audio": "^1.1.4",
     "audio-context": "^0.1.0",
+    "audio-table": "^1.0.0",
     "bubleify": "^0.5.1",
     "enable-mobile": "^1.0.5",
     "fps-indicator": "^1.0.1",

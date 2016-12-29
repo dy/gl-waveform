@@ -198,6 +198,14 @@ Waveform.prototype.push = function (data, cb) {
 Waveform.prototype.update = function update (opts, cb) {
 	extend(this, opts);
 
+	if (!Array.isArray(this.palette)) {
+		this.palette = [this.palette];
+	}
+	if (this.palette.length === 1) {
+		// this.palette = [alpha(this.palette[0], 0), this.palette[0]];
+		this.palette = ['rgba(0,0,0,0)', this.palette[0]];
+	}
+
 	//generate palette function
 	this.getColor = inter(this.palette);
 
@@ -245,5 +253,6 @@ Waveform.prototype.fetch = function () {
 		this.isAwait = false;
 		this.data = data;
 		this.emit('data', data);
+		if (!this.autostart) this.render();
 	})
 }

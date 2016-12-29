@@ -9,9 +9,9 @@
 const Waveform = require('./src/core');
 const inherit = require('inherits');
 const rgba = require('color-rgba');
-const attribute = require('gl-util/attribute')
-const uniform = require('gl-util/uniform')
-const program = require('gl-util/program')
+const attribute = require('../gl-util/attribute')
+const uniform = require('../gl-util/uniform')
+const program = require('../gl-util/program')
 
 inherit(WaveformGl, Waveform)
 
@@ -113,8 +113,11 @@ WaveformGl.prototype.draw = function (data) {
 		position[j+3] = bottoms[i];
 	}
 
-	attribute(this.gl, 'data', position, this.program);
+	let attr = attribute(this.gl, 'data', position, this.program);
+
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
+
+	this.emit('draw');
 
 	return this;
 }

@@ -9,9 +9,9 @@
 const Waveform = require('./src/core');
 const inherit = require('inherits');
 const rgba = require('color-rgba');
-const attribute = require('../gl-util/attribute')
-const uniform = require('../gl-util/uniform')
-const program = require('../gl-util/program')
+const attribute = require('gl-util/attribute')
+const uniform = require('gl-util/uniform')
+const program = require('gl-util/program')
 
 inherit(WaveformGl, Waveform)
 

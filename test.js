@@ -2,7 +2,7 @@
 require('enable-mobile');
 const createSettings = require('settings-panel');
 const createWaveform = require('./gl');
-const createAudio = require('../app-audio');
+const createAudio = require('app-audio');
 const createFps = require('fps-indicator');
 const insertCss =  require('insert-styles');
 const Color = require('tinycolor2');

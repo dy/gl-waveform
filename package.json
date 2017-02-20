@@ -44,7 +44,8 @@
     "negative-index": "^1.0.0",
     "object-assign": "^4.1.0",
     "pan-zoom": "^2.0.0",
-    "webworkify": "^1.3.0"
+    "webworkify": "^1.3.0",
+    "webworkify-webpack": "2.0.1"
   },
   "devDependencies": {
     "app-audio": "^1.1.4",

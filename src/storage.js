@@ -67,7 +67,7 @@ function createStorage (opts) {
 
 		if (typeof chunk === 'number') chunk = [chunk];
 
-		//put new samples, update their scales
+		//put new samples, calc accumulators
 		for (let i = 0; i < chunk.length; i++) {
 			let ptr = (lastPtr + i) % bufferSize
 			accum[ptr] = lastAvg + chunk[i];
@@ -82,18 +82,11 @@ function createStorage (opts) {
 		cb && cb(null, lastPtr);
 	}
 
-	function set (data, offset, cb) {
-		// this.samples = Array.prototype.slice.call(data);
+	function set (chunk, cb) {
+		lastPtr = 0; count = 0;
+		lastAvg = 0; lastDev = 0;
 
-		// //get the data, if not explicitly passed
-		// this.amplitudes = getData(this.samples, this.getRenderOptions());
-
-		// this.render(this.amplitudes);
-
-		// //reset some things for push
-		// this.lastLen = this.samples.length;
-
-		// cb && cb(null, [mins, maxes]);
+		push(chunk, cb)
 
 		return this;
 	}
@@ -130,6 +123,7 @@ function createStorage (opts) {
 		let averages = Array(maxNumber),
 			variances = Array(maxNumber)
 
+		//TODO: use backward counting to preserve push offsets in case of null offset
 		for (let i = 0; i < maxNumber; i++) {
 			let idx = (offset + scale * i) % bufferSize;
 
@@ -167,6 +161,7 @@ function createStorage (opts) {
 				let rightVar = lerp(accum2[Math.floor(idx)], accum2[Math.ceil(idx)], rt)
 
 				let avg = (right - left) / scale
+
 				averages[i] = avg
 				variances[i] = (rightVar - leftVar) / scale - avg*avg
 			}
@@ -174,9 +169,7 @@ function createStorage (opts) {
 
 		let data = {average: averages, variance: variances, count: count}
 
-		setTimeout(() => {
-			cb && cb(null, data)
-		})
+		cb && cb(null, data)
 
 		return data
 	}

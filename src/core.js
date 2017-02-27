@@ -180,11 +180,11 @@ Waveform.prototype.init = function init () {
 			}
 		}
 	}
-};
+}
 
 
-//push new data to cache
-Waveform.prototype.push = function (data, cb) {
+//push new data to waveform
+Waveform.prototype.push = function push (data, cb) {
 	if (!data) return this;
 
 	this.storage.push(data, (err, len) => {
@@ -195,7 +195,21 @@ Waveform.prototype.push = function (data, cb) {
 	this.emit('push', data);
 
 	return this;
-};
+}
+
+//set new data
+Waveform.prototype.set = function set (data, cb) {
+	if (!data) return this;
+
+	this.storage.set(data, (err, len) => {
+		if (err) throw err;
+		this.fetch();
+		cb && cb(null, resp);
+	});
+	this.emit('set', data);
+
+	return this;
+}
 
 //update view with new options
 Waveform.prototype.update = function update (opts, cb) {
@@ -245,8 +259,7 @@ Waveform.prototype.update = function update (opts, cb) {
 	this.emit('update', opts);
 
 	return this;
-};
-
+}
 
 //fetch latest data from the storage
 Waveform.prototype.fetch = function () {

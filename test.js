@@ -95,11 +95,11 @@ function init () {
 	let t = 0;
 	let iid = setInterval(() => {
 		let data = [];
-		for (let i = t; i < t + 50; i++) {
+		for (let i = t; i < t + 1000; i++) {
 			data.push(Math.sin(i/10))
 		}
 		waveform.push(data);
-		t += 50;
+		t += 1000;
 	}, 50);
 
 	setTimeout(() => {

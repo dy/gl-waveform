@@ -62,6 +62,8 @@ WaveformGl.prototype.update = function (opts) {
 }
 
 Waveform.prototype.render = function () {
+	if (!this.gl) return this;
+
 	this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 	if (!this.alpha) {
 		let bg = this._background;

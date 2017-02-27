@@ -28,11 +28,11 @@ setTimeout(() => {
 
 ## API
 
-### const Waveform = require('gl-waveform')
+### `const Waveform = require('gl-waveform')`
 
 Get waveform component class. `require('gl-waveform/2d')` for canvas-2d version.
 
-### let waveform = new Waveform(options)
+### `let waveform = new Waveform(options)`
 
 Create waveform instance based off options:
 
@@ -81,16 +81,19 @@ pan: true,
 zoom: true
 ```
 
-### waveform.push(data, cb?)
+### `waveform.push(data, cb?)`
 
 Append new data to the waveform. Data is whether single sample or array/float array with values from `0..1` range.
 The visible waveform will be automatically rerendered in the next frame.
 Using push is preferrable for dynamic waveform, when not all the samples are known, because it is highly optimized for large scale repaints.
 
-### waveform.update(options?)
+### `waveform.set(data, cb?)`
+
+Set new data for the waveform, discard existing data.
+
+### `waveform.update(options?)`
 
 Update options.
-It will automatically call render. Do not call this method often, because it recalculates everything possible.
 
 ### `waveform.render()`
 

@@ -2,7 +2,7 @@
 require('enable-mobile');
 const createSettings = require('settings-panel');
 const createWaveform = require('./gl');
-const createAudio = require('app-audio');
+const createAudio = require('../app-audio');
 const createFps = require('fps-indicator');
 const insertCss =  require('insert-styles');
 const Color = require('tinycolor2');
@@ -66,27 +66,13 @@ fps.element.style.marginRight = '1rem';
 let waveform = createWaveform({
 	worker: true,
 	// autostart: true,
-	offset: null,
+	// offset: null,
+	offset: 0,
 	palette: theme.palette.slice().reverse(),
-	scale: 4,
+	scale: .02,
 	log: false
 });
 
-// setInterval(() => {
-// 	waveform.render();
-// }, 100);
-
-// let start = Date.now();
-// let f = 440;
-// let t = 0;
-// setInterval(() => {
-// 	let data = [];
-// 	for (let i = t; i < t + 50; i++) {
-// 		data.push(Math.sin(i/10))
-// 	}
-// 	waveform.push(data);
-// 	t += 50;
-// }, 400);
 
 
 
@@ -100,11 +86,34 @@ isMobile ? tap({
 
 
 function init () {
+	setInterval(() => {
+		waveform.render();
+	}, 100);
+
+	let start = Date.now();
+	let f = 440;
+	let t = 0;
+	let iid = setInterval(() => {
+		let data = [];
+		for (let i = t; i < t + 50; i++) {
+			data.push(Math.sin(i/10))
+		}
+		waveform.push(data);
+		t += 50;
+	}, 500);
+
+	setTimeout(() => {
+		clearInterval(iid)
+	}, 2000)
+
+
+
 	//create audio source
 	let audio = createAudio({
 		color: theme.palette[0],
 		// autoplay: false,
-		source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
+		source: 'saw'
+		// source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
 	}).on('load', (node) => {
 		let scriptNode = audio.context.createScriptProcessor(512, 2, 2);
 
@@ -115,14 +124,14 @@ function init () {
 				let input = e.inputBuffer.getChannelData(c);
 				let output = e.outputBuffer.getChannelData(c);
 				for (let i = 0; i < input.length; i++) {
-					output[i] = input[i]
+					// output[i] = input[i]
 				}
 			}
 			// e.outputBuffer.copyToChannel(input, 0);
 			// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
 			if (!input[0]) return;
 
-			waveform.push(input);
+			// waveform.push(input);
 		});
 
 		node.disconnect();

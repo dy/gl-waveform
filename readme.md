@@ -73,6 +73,9 @@ autostart: false,
 // Worker mode, a bit heavy for main thread to sample huge waveforms
 worker: true,
 
+// Pixel ratio
+pixelRatio: window.pixelRatio,
+
 // Enable panning/zooming by dragging/scrolling
 pan: true,
 zoom: true

@@ -56,7 +56,9 @@ WaveformGl.prototype.update = function (opts) {
 		uniform(this.gl, 'shape', [this.canvas.width, this.canvas.height], this.program);
 	}
 
-	if (this.alpha && this.background) this.canvas.style.background = this.background;
+	// if (this.alpha && this.background) {
+	// 	this.canvas.style.background = this.background;
+	// }
 }
 
 Waveform.prototype.render = function () {
@@ -89,28 +91,30 @@ WaveformGl.prototype.draw = function (data) {
 	if (!data) data = this.data;
 	if (!data) return this;
 
-	let tops = data.max, bottoms = data.min, avgs = data.average;
-
-	if (!tops || !tops.length) return this;
+	let avgs = data.average, vars = data.variance, count = data.count;
+	if (!avgs || !avgs.length) return;
 
 	uniform(this.gl, 'color', this._color, this.program);
 
 	//draw average line
 	let position = Array(width*4);
-	for (let i = 0, j=0; i < width; i++, j+=2) {
+	for (let i = 0, j=0, l = Math.min(count, width); i < l; i++, j+=2) {
 		position[j] = i/width;
 		position[j+1] = avgs[i];
 	}
+
 	attribute(this.gl, 'data', position, this.program);
 	gl.drawArrays(gl.LINE_STRIP, 0, width);
 
 	//fill min/max shape
-	for (let i = 0, j=0; i < width; i++, j+=4) {
+	let dist = 1.5
+	for (let i = 0, j=0, l = Math.min(count, width); i < l; i++, j+=4) {
 		let x = i/width;
+		let sdev = Math.sqrt(vars[i])
 		position[j] = x;
-		position[j+1] = tops[i];
+		position[j+1] = avgs[i] - dist * sdev;
 		position[j+2] = x;
-		position[j+3] = bottoms[i];
+		position[j+3] = avgs[i] + dist * sdev;
 	}
 
 	let attr = attribute(this.gl, 'data', position, this.program);

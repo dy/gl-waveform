@@ -36,7 +36,9 @@ function createStorage (opts) {
 	worker.addEventListener('message', function (e) {
 		let action = e.data.action;
 		let data = e.data.data;
+		let err = e.data.error;
 		if (!cbs[action]) throw Error('Unknown action ' + action);
+		if (err) throw err;
 		let cb = cbs[action].shift();
 		cb && cb(null, data);
 	});

@@ -87,7 +87,7 @@ Waveform.prototype.scale = 1;
 Waveform.prototype.autostart = true;
 
 //process data in worker
-Waveform.prototype.worker = !!window.Worker;
+Waveform.prototype.worker = false;//!!window.Worker;
 
 //canvas property
 Waveform.prototype.pixelRatio = window.devicePixelRatio;
@@ -151,10 +151,13 @@ Waveform.prototype.init = function init () {
 			this.scale *= (1 + dy / height);
 			this.scale = Math.max(this.scale, minScale);
 
+			//null offset means tail
 			if (this.offset == null) {
-				if (x*this.scale < count && (this.offset + width*this.scale < count)) {
+				//hovered on data and
+				if (x*this.scale < count) {
 					//if zoomed in - set specific offset
 					if (this.scale < prevScale && tx < .8) {
+						let b = this.offset
 						this.offset = Math.max(count - width*this.scale, 0);
 					}
 				}

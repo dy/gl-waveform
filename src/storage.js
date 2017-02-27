@@ -11,7 +11,6 @@
 const clamp = require('mumath/clamp')
 const fromDb = require('decibels/to-gain')
 const toDb = require('decibels/from-gain')
-const Scales = require('multiscale-array')
 const bits = require('bit-twiddle')
 const nidx = require('negative-index')
 const isInt = require('is-integer')
@@ -23,6 +22,8 @@ const lerp = require('mumath/lerp')
 
 module.exports = createStorage;
 
+	let _x = 0;
+
 function createStorage (opts) {
 	opts = opts || {};
 
@@ -30,26 +31,12 @@ function createStorage (opts) {
 	let bufferSize = opts.bufferSize || Math.pow(2, 16)*60;
 
 	//pointer to the last sample (relative) and absolute number of items
-	let last = 0, count = 0;
+	let lastPtr = 0, count = 0;
+	let lastAvg = 0, lastDev = 0;
 
-	//samples and samples squared holder
-	let xBuffer = Array(bufferSize);
-
-	//disregard scales more than 8192 items
-	let maxScale = opts.maxScale || Math.pow(2, 13);
-
-	let mins = Scales(xBuffer, {
-		reduce: (a, b) => Math.min(a, b),
-		maxScale: maxScale
-	});
-	let maxes = Scales(xBuffer, {
-		reduce: (a, b) => Math.max(a, b),
-		maxScale: maxScale
-	});
-	let averages = Scales(xBuffer, {
-		reduce: (a, b) => a*.5 + b*.5,
-		maxScale: maxScale
-	});
+	//accumulator and accumulator of squares
+	let accum = Array(bufferSize)
+	let accum2 = Array(bufferSize)
 
 	//inner state
 	let params = {
@@ -82,28 +69,17 @@ function createStorage (opts) {
 
 		//put new samples, update their scales
 		for (let i = 0; i < chunk.length; i++) {
-			xBuffer[(last + i) % bufferSize] = chunk[i];
+			let ptr = (lastPtr + i) % bufferSize
+			accum[ptr] = lastAvg + chunk[i];
+			accum2[ptr] = lastDev + chunk[i]*chunk[i];
+			lastAvg = accum[ptr]
+			lastDev = accum2[ptr]
 		}
-
-		let prev = last;
 
 		//rotate last pointer
 		count += chunk.length;
-		last = count % bufferSize;
-
-		cb && cb(last);
-
-		//defer recalc, saves ~0.2ms
-		mins.update(prev, prev + chunk.length);
-		maxes.update(prev, prev + chunk.length);
-		averages.update(prev, prev + chunk.length);
-
-		//last starts rotating to the beginning
-		if (last - chunk.length < 0) {
-			mins.update(0, last);
-			maxes.update(0, last);
-			averages.update(0, last);
-		}
+		lastPtr = count % bufferSize;
+		cb && cb(null, lastPtr);
 	}
 
 	function set (data, offset, cb) {
@@ -123,8 +99,11 @@ function createStorage (opts) {
 	}
 
 	function get (opts, cb) {
+		_x++;
+
 		if (opts) extend(params, opts);
 
+		//scale is group size, offset is in sample terms, number is number of groups
 		let {scale, offset, number, log, minDb, maxDb} = params;
 
 		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
@@ -134,79 +113,67 @@ function createStorage (opts) {
 		maxNumber = Math.min(maxNumber, Math.floor(count/scale));
 		maxNumber = Math.min(maxNumber, Math.floor(bufferSize/scale));
 
-		let isNegativeOffset = offset < 0;
-
-		if (isNegativeOffset) {
-			offset = Math.max(offset, -Math.floor(maxNumber*scale));
-		}
 		offset = nidx(offset, count);
 
 		//if offset is ahead of known data
 		if (offset > count) {
-			let data = {min: [], max: [], average: [], variance: [], count: count};
+			let data = {average: [], variance: [], count: count};
 			cb && cb(null, data);
 			return data;
 		}
 
-		let srcScale = Math.min(bits.nextPow2(Math.ceil(scale)), maxScale);
-		let srcIdx = bits.log2(srcScale);
-		let srcMins = mins[srcIdx],
-			srcMaxes = maxes[srcIdx],
-			srcAvgs = averages[srcIdx]
-
-		//round to the closest scale block
-		if (isNegativeOffset) {
-			//hack to avoid wiggling
-			let shift = 0;
-			if (number*scale < count) {
-				let srcNum = Math.floor(count/srcScale)*srcScale;
-				let resNum = Math.floor(count/scale)*scale;
-				shift = srcNum - resNum;
-			}
-			offset = Math.floor(offset/srcScale)*srcScale - shift;
-		}
-
 		//rotate offset
-		//FIXME: missed buffer is invisible
 		if (count > bufferSize) {
 			offset = offset % bufferSize
 		}
 
-		//if offset is far from the ready data
-		let data = {
-			min: Array(maxNumber),
-			max: Array(maxNumber),
-			average: Array(maxNumber),
-			count: count
-		};
+		let averages = Array(maxNumber),
+			variances = Array(maxNumber)
 
-		let lastVariance = 0, smoothness = .9;
 		for (let i = 0; i < maxNumber; i++) {
-			let ratio = (i + .5) / (number);
-			let dataIdx = (offset + number*scale*ratio) % bufferSize;
+			let idx = (offset + scale * i) % bufferSize;
 
-			//interpolate value
-			let idx = dataIdx / srcScale,
-				lIdx = Math.floor( idx ),
-				rIdx = Math.ceil( idx );
-			let t = idx - lIdx;
-			let min = lerp(srcMins[lIdx], srcMins[rIdx], t);
-			let max = lerp(srcMaxes[lIdx], srcMaxes[rIdx], t);
-			let avg = lerp(srcAvgs[lIdx], srcAvgs[rIdx], t);
+			//interpolate value for lower scales
+			if (scale < .01) {
+				let lIdx = Math.floor( idx ),
+					rIdx = Math.ceil( idx );
 
-			//TODO: move db scaling to vertex shader
-			min = f(min, log, minDb, maxDb);
-			max = f(max, log, minDb, maxDb);
-			avg = f(avg, log, minDb, maxDb);
+				if (lIdx === rIdx) {
+					averages[i] = accum[lIdx]
+				}
+				else {
+					let t = idx - lIdx;
+					let left = accum[lIdx] - (accum[(!lIdx ? accum.length : lIdx) - 1] || 0)
+					let right = accum[rIdx] - accum[lIdx]
 
-			data.max[i] = max;
-			data.min[i] = min;
-			data.average[i] = avg;
+					averages[i] = lerp(left, right, t)
+				}
+
+				variances[i] = 0
+			}
+
+			//take fast avg for larger scales
+			else {
+				let lIdx = Math.max(0, idx - scale);
+
+				let lt = lIdx - Math.floor(lIdx),
+					rt = idx - Math.floor(idx)
+
+				let left = lerp(accum[Math.floor(lIdx)], accum[Math.ceil(lIdx)], lt)
+				let right = lerp(accum[Math.floor(idx)], accum[Math.ceil(idx)], rt)
+				let leftVar = lerp(accum2[Math.floor(lIdx)], accum2[Math.ceil(lIdx)], lt)
+				let rightVar = lerp(accum2[Math.floor(idx)], accum2[Math.ceil(idx)], rt)
+
+				// if (_x == 1) console.log(i, lt);
+				let avg = (right - left) / scale
+				averages[i] = avg
+				variances[i] = (rightVar - leftVar) / scale - avg*avg
+			}
 		}
 
-		cb && cb(null, data);
-
-		return data;
+		let data = {average: averages, variance: variances, count: count}
+		cb && cb(null, data)
+		return data
 	}
 }
 

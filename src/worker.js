@@ -21,8 +21,8 @@ module.exports = function (self) {
 
 		//forward method call
 		else {
-			args.push((err, data) => {
-				postMessage({action, data});
+			args.push((error, data) => {
+				postMessage({action, data, error});
 			});
 			storage[action].apply(storage, args);
 		}

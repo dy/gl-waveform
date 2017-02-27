@@ -133,6 +133,8 @@ function createStorage (opts) {
 		for (let i = 0; i < maxNumber; i++) {
 			let idx = (offset + scale * i) % bufferSize;
 
+			idx = Math.min(idx, count - 1)
+
 			//interpolate value for lower scales
 			if (scale < .01) {
 				let lIdx = Math.floor( idx ),
@@ -164,7 +166,6 @@ function createStorage (opts) {
 				let leftVar = lerp(accum2[Math.floor(lIdx)], accum2[Math.ceil(lIdx)], lt)
 				let rightVar = lerp(accum2[Math.floor(idx)], accum2[Math.ceil(idx)], rt)
 
-				// if (_x == 1) console.log(i, lt);
 				let avg = (right - left) / scale
 				averages[i] = avg
 				variances[i] = (rightVar - leftVar) / scale - avg*avg
@@ -172,7 +173,11 @@ function createStorage (opts) {
 		}
 
 		let data = {average: averages, variance: variances, count: count}
-		cb && cb(null, data)
+
+		setTimeout(() => {
+			cb && cb(null, data)
+		})
+
 		return data
 	}
 }

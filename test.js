@@ -64,8 +64,8 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 let waveform = createWaveform({
-	worker: true,
-	// autostart: true,
+	// worker: true,
+	autostart: false,
 	// offset: null,
 	offset: 0,
 	palette: theme.palette.slice().reverse(),
@@ -86,9 +86,9 @@ isMobile ? tap({
 
 
 function init () {
-	setInterval(() => {
-		waveform.render();
-	}, 100);
+	// setTimeout(() => {
+		// waveform.render();
+	// }, 400);
 
 	let start = Date.now();
 	let f = 440;
@@ -100,11 +100,11 @@ function init () {
 		}
 		waveform.push(data);
 		t += 50;
-	}, 500);
+	}, 50);
 
 	setTimeout(() => {
 		clearInterval(iid)
-	}, 2000)
+	}, 1000)
 
 
 

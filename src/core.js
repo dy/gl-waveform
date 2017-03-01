@@ -93,7 +93,7 @@ Waveform.prototype.worker = !!window.Worker;
 Waveform.prototype.pixelRatio = window.devicePixelRatio;
 
 //size of the buffer to allocate for the data (1min by default)
-Waveform.prototype.bufferSize = 44100 * 5;
+Waveform.prototype.bufferSize = 44100 * 20;
 
 //init routine
 Waveform.prototype.init = function init () {

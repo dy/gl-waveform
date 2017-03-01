@@ -80,8 +80,9 @@ Waveform.prototype.render = function () {
 WaveformGl.prototype.draw = function (data) {
 	let gl = this.gl;
 
-	let {width} = this.canvas;
-	program(this.gl, this.program);
+	let {width} = this.canvas
+	let pixelRatio = this.pixelRatio || 1
+	program(this.gl, this.program)
 
 	//draw info line
 	attribute(this.gl, 'data', [0,0,1,0], this.program);
@@ -100,19 +101,19 @@ WaveformGl.prototype.draw = function (data) {
 
 	//draw average line
 	let position = Array(width*4);
-	for (let i = 0, j=0, l = Math.min(count, width); i < l; i++, j+=2) {
-		position[j] = i/width;
+	for (let i = 0, j = 0, l = Math.min(count, width); i < l; i++, j+=2) {
+		position[j] = (i + .5)/width;
 		position[j+1] = avgs[i];
 	}
 
 	attribute(this.gl, 'data', position, this.program);
 	gl.drawArrays(gl.LINE_STRIP, 0, width);
 
-	//fill min/max shape
-	let dist = 1.5
-	for (let i = 0, j=0, l = Math.min(count, width); i < l; i++, j+=4) {
-		let x = i/width;
-		let sdev = Math.sqrt(vars[i])
+	//create line shape
+	let dist = 1.5 * pixelRatio
+	for (let i = 0, j = 0, l = Math.min(count, width); i < l; i++, j+=4) {
+		let x = (i + .5) / width;
+		let sdev = Math.sqrt(Math.max(vars[i], 1e-6))
 		position[j] = x;
 		position[j+1] = avgs[i] - dist * sdev;
 		position[j+2] = x;

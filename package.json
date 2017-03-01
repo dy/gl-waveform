@@ -32,6 +32,7 @@
     "color-interpolate": "^1.0.2",
     "color-rgba": "^1.0.0",
     "decibels": "^1.0.1",
+    "extrude-polyline": "^1.0.6",
     "fourier-transform": "^1.0.2",
     "get-uid": "^1.0.1",
     "gl-util": "^1.1.3",

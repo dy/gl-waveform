@@ -71,7 +71,7 @@ let waveform = createWaveform({
 	palette: theme.palette.slice().reverse(),
 	scale: 2,
 	log: false,
-	bufferSize: 44100*2
+	bufferSize: 44100*10
 });
 
 

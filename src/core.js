@@ -152,8 +152,8 @@ function zoom (dx, dy, x, y) {
 	if (this.offset == null) {
 		//hovered on data and
 		if (x*this.scale < count) {
-			//if zoomed in - set specific offset
-			if (this.scale < prevScale && tx < .8) {
+			//if zoomed in before the end of the signal - set specific offset
+			if (this.scale < prevScale && tx < .8 && prevScale * width < count) {
 				this.offset = Math.max(count - width*this.scale, 0);
 			}
 		}
@@ -229,7 +229,6 @@ Waveform.prototype.update = function update (opts, cb) {
 
 	this.background = this.getColor(0);
 	// this.timeGrid.update();
-
 
 	this.storage.update({
 		scale: this.scale,

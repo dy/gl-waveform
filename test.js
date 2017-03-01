@@ -67,9 +67,9 @@ let waveform = createWaveform({
 	// worker: true,
 	autostart: false,
 	// offset: null,
-	offset: 0,
+	// offset: 0,
 	palette: theme.palette.slice().reverse(),
-	scale: .02,
+	scale: 2,
 	log: false
 });
 
@@ -86,25 +86,21 @@ isMobile ? tap({
 
 
 function init () {
+	// let start = Date.now();
+	// let f = 440;
+	// let t = 0;
+	// let iid = setInterval(() => {
+	// 	let data = [];
+	// 	for (let i = t; i < t + 1000; i++) {
+	// 		data.push(Math.sin(i/10))
+	// 	}
+	// 	waveform.push(data);
+	// 	t += 1000;
+	// }, 50);
+
 	// setTimeout(() => {
-		// waveform.render();
-	// }, 400);
-
-	let start = Date.now();
-	let f = 440;
-	let t = 0;
-	let iid = setInterval(() => {
-		let data = [];
-		for (let i = t; i < t + 1000; i++) {
-			data.push(Math.sin(i/10))
-		}
-		waveform.push(data);
-		t += 1000;
-	}, 50);
-
-	setTimeout(() => {
-		clearInterval(iid)
-	}, 1000)
+	// 	clearInterval(iid)
+	// }, 1000)
 
 
 
@@ -112,8 +108,8 @@ function init () {
 	let audio = createAudio({
 		color: theme.palette[0],
 		// autoplay: false,
-		source: 'saw'
-		// source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
+		// source: 'saw'
+		source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
 	}).on('load', (node) => {
 		let scriptNode = audio.context.createScriptProcessor(512, 2, 2);
 
@@ -131,7 +127,7 @@ function init () {
 			// e.outputBuffer.copyToChannel(e.inputBuffer.getChannelData(1), 1);
 			if (!input[0]) return;
 
-			// waveform.push(input);
+			waveform.push(input);
 		});
 
 		node.disconnect();

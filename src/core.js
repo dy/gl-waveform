@@ -87,13 +87,13 @@ Waveform.prototype.scale = 1;
 Waveform.prototype.autostart = true;
 
 //process data in worker
-Waveform.prototype.worker = false;//!!window.Worker;
+Waveform.prototype.worker = !!window.Worker;
 
 //canvas property
 Waveform.prototype.pixelRatio = window.devicePixelRatio;
 
 //size of the buffer to allocate for the data (1min by default)
-Waveform.prototype.bufferSize = 44100 * 20;
+Waveform.prototype.bufferSize = 44100 * 5;
 
 //init routine
 Waveform.prototype.init = function init () {
@@ -237,15 +237,9 @@ Waveform.prototype.update = function update (opts, cb) {
 	// this.timeGrid.update();
 
 
-	let offset = this.offset;
-
-	if (offset == null) {
-		offset = -this.canvas.width * this.scale;
-	}
-
 	this.storage.update({
 		scale: this.scale,
-		offset: offset,
+		offset: this.offset,
 		number: this.canvas.width,
 		log: this.log,
 		minDb: this.minDb,

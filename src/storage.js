@@ -11,28 +11,24 @@
 const clamp = require('mumath/clamp')
 const fromDb = require('decibels/to-gain')
 const toDb = require('decibels/from-gain')
-const bits = require('bit-twiddle')
 const nidx = require('negative-index')
 const isInt = require('is-integer')
 const extend = require('object-assign')
 const lerp = require('mumath/lerp')
-// const colorSpectrum = require('color-spectrum');
-// const ft = require('fourier-transform');
 
 
 module.exports = createStorage;
 
-	let _x = 0;
 
 function createStorage (opts) {
-	opts = opts || {};
+	opts = opts || {}
 
 	//max size of the buffer
-	let bufferSize = opts.bufferSize || Math.pow(2, 16)*60;
+	let bufferSize = opts.bufferSize || Math.pow(2, 16) * 60
 
 	//pointer to the last sample (relative) and absolute number of items
-	let lastPtr = 0, count = 0;
-	let lastAvg = 0, lastDev = 0;
+	let lastPtr = 0, count = 0
+	let lastAvg = 0, lastDev = 0
 
 	//accumulator and accumulator of squares
 	let accum = Array(bufferSize)
@@ -53,7 +49,7 @@ function createStorage (opts) {
 		set: set,
 		get: get,
 		update: update
-	};
+	}
 
 
 	function update (opts, cb) {
@@ -92,14 +88,21 @@ function createStorage (opts) {
 	}
 
 	function get (opts, cb) {
-		_x++;
-
 		if (opts) extend(params, opts);
 
 		//scale is group size, offset is in sample terms, number is number of groups
 		let {scale, offset, number, log, minDb, maxDb} = params;
 
-		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
+		if (number==null) {
+			throw Error('`number` is not defined');
+		}
+
+		//if offset is null use backward counting to preserve push offsets
+		let isNullOffset = false
+		if (offset == null) {
+			isNullOffset = true
+			offset = -number * scale
+		}
 
 		//do not render not existing data
 		let maxNumber = Math.floor(number);
@@ -117,20 +120,25 @@ function createStorage (opts) {
 
 		//rotate offset
 		if (count > bufferSize) {
+			if (isNullOffset) {
+				offset = Math.max(offset, count - bufferSize)
+			}
 			offset = offset % bufferSize
 		}
+
+		//round offset to scale block
+		offset = Math.floor(offset / scale) * scale
 
 		let averages = Array(maxNumber),
 			variances = Array(maxNumber)
 
-		//TODO: use backward counting to preserve push offsets in case of null offset
 		for (let i = 0; i < maxNumber; i++) {
 			let idx = (offset + scale * i) % bufferSize;
 
-			idx = Math.min(idx, count - 1)
+			idx = Math.max(Math.min(idx, count - 1))
 
 			//interpolate value for lower scales
-			if (scale < .01) {
+			if (scale <= 1) {
 				let lIdx = Math.floor( idx ),
 					rIdx = Math.ceil( idx );
 

@@ -109,7 +109,7 @@ Single draw pass, useful for cooperation with other components on a single canva
 
 ## Related
 
-> [plot-grid](https://github.com/audio-lab/gl-spectrogram) — useful to add time/db info
+> [plot-grid](https://github.com/audio-lab/gl-spectrogram) — useful to add time/db info<br/>
 > [gl-spectrogram](https://github.com/audio-lab/gl-spectrogram) — spectrogram painter for any signal.<br/>
 > [gl-spectrum](https://github.com/audio-lab/gl-spectrum) — nice-looking signal spectrum visualiser for.<br/>
 > [colormap](https://github.com/bpostlethwaite/colormap) — list of js color maps.<br/>

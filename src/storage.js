@@ -8,11 +8,7 @@
  */
 'use strict';
 
-const clamp = require('mumath/clamp')
-const fromDb = require('decibels/to-gain')
-const toDb = require('decibels/from-gain')
 const nidx = require('negative-index')
-const isInt = require('is-integer')
 const extend = require('object-assign')
 const lerp = require('mumath/lerp')
 
@@ -91,7 +87,7 @@ function createStorage (opts) {
 		if (opts) extend(params, opts);
 
 		//scale is group size, offset is in sample terms, number is number of groups
-		let {scale, offset, number, log, minDb, maxDb} = params;
+		let {scale, offset, number} = params;
 
 		if (number==null) {
 			throw Error('`number` is not defined');
@@ -184,23 +180,23 @@ function createStorage (opts) {
 }
 
 
-function f(ratio, log, min, max) {
-	if (log) {
-		let db = toDb(Math.abs(ratio));
-		db = clamp(db, min, max);
+// function f(ratio, log, min, max) {
+// 	if (log) {
+// 		let db = toDb(Math.abs(ratio));
+// 		db = clamp(db, min, max);
 
-		let dbRatio = (db - min) / (max - min);
+// 		let dbRatio = (db - min) / (max - min);
 
-		ratio = ratio < 0 ? -dbRatio : dbRatio;
-	}
-	else {
-		min = fromDb(min);
-		max = fromDb(max);
-		let v = clamp(Math.abs(ratio), min, max);
+// 		ratio = ratio < 0 ? -dbRatio : dbRatio;
+// 	}
+// 	else {
+// 		min = fromDb(min);
+// 		max = fromDb(max);
+// 		let v = clamp(Math.abs(ratio), min, max);
 
-		v = (v - min) / (max - min);
-		ratio = ratio < 0 ? -v : v;
-	}
+// 		v = (v - min) / (max - min);
+// 		ratio = ratio < 0 ? -v : v;
+// 	}
 
-	return clamp(ratio, -1, 1);
-}
+// 	return clamp(ratio, -1, 1);
+// }

@@ -9,7 +9,7 @@ const Storage = require('./storage');
 
 let isWorkerAvailable = window.Worker;
 
-let workify, worker;
+let workify;
 if (isWorkerAvailable) {
 	workify = require('webworkify');
 }

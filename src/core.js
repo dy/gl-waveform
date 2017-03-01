@@ -7,12 +7,9 @@ const extend = require('just-extend')
 const inherits = require('inherits')
 const Emitter = require('events')
 const inter = require('color-interpolate')
-const fromDb = require('decibels/to-gain')
-const toDb = require('decibels/from-gain')
 const createStorage = require('./create-storage')
 const alpha = require('color-alpha')
 const panzoom = require('pan-zoom')
-const rgba = require('color-rgba')
 const getContext = require('gl-util/context')
 const createLoop = require('canvas-loop')
 
@@ -97,8 +94,6 @@ Waveform.prototype.bufferSize = 44100 * 20;
 
 //init routine
 Waveform.prototype.init = function init () {
-	let that = this;
-
 	this.storage = createStorage({worker: this.worker, bufferSize: this.bufferSize});
 
 	this.data = {count: 0, max: [], min: [], average: [], variance: []}
@@ -111,73 +106,72 @@ Waveform.prototype.init = function init () {
 			this.zoom && e.dz && zoom.call(this, e.dz, e.dz, e.x, e.y);
 			this.update();
 		});
+	}
+}
 
-		function pan (dx, dy, x, y) {
-			if (!this.pan) return;
+function pan (dx, dy, x, y) {
+	if (!this.pan) return;
 
-			let width = this.canvas.width;
+	let width = this.canvas.width;
 
-			//if drag left from the end - fix offset
-			if (dx > 0 && this.offset == null) {
-				this.offset = this.data.count - width*this.scale;
+	//if drag left from the end - fix offset
+	if (dx > 0 && this.offset == null) {
+		this.offset = this.data.count - width*this.scale;
+	}
+
+	if (this.offset != null) {
+		this.offset -= this.scale*dx;
+		this.offset = Math.max(this.offset, 0);
+	}
+
+	//if panned to the end - reset offset to null
+	if (this.offset + width*this.scale > this.data.count) {
+		this.offset = null;
+	}
+
+}
+
+function zoom (dx, dy, x, y) {
+	if (!this.zoom) return;
+
+	let {width, height} = this.canvas;
+
+	// if (x==null) x = left + width/2;
+	let count = Math.min(this.bufferSize, this.data.count);
+
+	//shift start
+	let tx = x/width;
+
+	let prevScale = this.scale;
+	let minScale = 2/44100;
+
+	this.scale *= (1 + dy / height);
+	this.scale = Math.max(this.scale, minScale);
+
+	//null offset means tail
+	if (this.offset == null) {
+		//hovered on data and
+		if (x*this.scale < count) {
+			//if zoomed in - set specific offset
+			if (this.scale < prevScale && tx < .8) {
+				this.offset = Math.max(count - width*this.scale, 0);
 			}
+		}
+	}
+	else {
+		this.offset -= width*(this.scale - prevScale)*tx;
+		this.offset = Math.max(this.offset, 0);
 
-			if (this.offset != null) {
-				this.offset -= this.scale*dx;
-				this.offset = Math.max(this.offset, 0);
-			}
-
-			//if panned to the end - reset offset to null
-			if (this.offset + width*this.scale > this.data.count) {
+		//if tail became visible - set offset to null, means all possib data
+		if (this.scale > prevScale) {
+			//zoom in area more than the data
+			if (x*this.scale > count) {
 				this.offset = null;
 			}
-
 		}
 
-		function zoom (dx, dy, x, y) {
-			if (!this.zoom) return;
-
-			let {width, height} = this.canvas;
-
-			// if (x==null) x = left + width/2;
-			let count = Math.min(this.bufferSize, this.data.count);
-
-			//shift start
-			let tx = x/width;
-
-			let prevScale = this.scale;
-			let minScale = 2/44100;
-
-			this.scale *= (1 + dy / height);
-			this.scale = Math.max(this.scale, minScale);
-
-			//null offset means tail
-			if (this.offset == null) {
-				//hovered on data and
-				if (x*this.scale < count) {
-					//if zoomed in - set specific offset
-					if (this.scale < prevScale && tx < .8) {
-						let b = this.offset
-						this.offset = Math.max(count - width*this.scale, 0);
-					}
-				}
-			}
-			else {
-				this.offset -= width*(this.scale - prevScale)*tx;
-				this.offset = Math.max(this.offset, 0);
-
-				//if tail became visible - set offset to null, means all possib data
-				if (this.scale > prevScale) {
-					//zoom in area more than the data
-					if (x*this.scale > count) {
-						this.offset = null;
-					}
-				}
-
-				if (this.offset + width*this.scale > count) {
-					this.offset = null;
-				}
-			}
+		if (this.offset + width*this.scale > count) {
+			this.offset = null;
 		}
 	}
 }
@@ -187,7 +181,7 @@ Waveform.prototype.init = function init () {
 Waveform.prototype.push = function push (data, cb) {
 	if (!data) return this;
 
-	this.storage.push(data, (err, len) => {
+	this.storage.push(data, (err, resp) => {
 		if (err) throw err;
 		this.fetch();
 		cb && cb(null, resp);
@@ -201,7 +195,7 @@ Waveform.prototype.push = function push (data, cb) {
 Waveform.prototype.set = function set (data, cb) {
 	if (!data) return this;
 
-	this.storage.set(data, (err, len) => {
+	this.storage.set(data, (err, resp) => {
 		if (err) throw err;
 		this.fetch();
 		cb && cb(null, resp);
@@ -244,7 +238,7 @@ Waveform.prototype.update = function update (opts, cb) {
 		log: this.log,
 		minDb: this.minDb,
 		maxDb: this.maxDb
-	}, (err, len) => {
+	}, (err, resp) => {
 		if (err) throw err;
 		this.fetch();
 		cb && cb(null, resp);

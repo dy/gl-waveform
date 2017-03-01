@@ -120,7 +120,7 @@ WaveformGl.prototype.draw = function (data) {
 		position[j+3] = avgs[i] + dist * sdev;
 	}
 
-	let attr = attribute(this.gl, 'data', position, this.program);
+	attribute(this.gl, 'data', position, this.program);
 
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
 

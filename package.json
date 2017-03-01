@@ -6,7 +6,7 @@
   "scripts": {
     "test": "budo test.js",
     "test:browser": "budo test.js -- -g bubleify",
-    "lint": "eslint *.js --ignore-pattern test*",
+    "lint": "eslint */*.js *.js --ignore-pattern test*",
     "build": "browserify test.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
   },
   "repository": {

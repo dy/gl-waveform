@@ -2,7 +2,7 @@
 require('enable-mobile');
 const createSettings = require('settings-panel');
 const createWaveform = require('./gl');
-const createAudio = require('../app-audio');
+const createAudio = require('app-audio');
 const createFps = require('fps-indicator');
 const insertCss =  require('insert-styles');
 const Color = require('tinycolor2');
@@ -64,7 +64,7 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 let waveform = createWaveform({
-	// worker: true,
+	// worker: false,
 	autostart: false,
 	// offset: null,
 	// offset: 0,
@@ -110,7 +110,7 @@ function init () {
 		color: theme.palette[0],
 		// autoplay: false,
 		// source: 'saw'
-		source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
+		source: isMobile ? 'sine' : 'https://soundcloud.com/vanilla/swept-away'
 	}).on('load', (node) => {
 		let scriptNode = audio.context.createScriptProcessor(512, 2, 2);
 
@@ -121,7 +121,7 @@ function init () {
 				let input = e.inputBuffer.getChannelData(c);
 				let output = e.outputBuffer.getChannelData(c);
 				for (let i = 0; i < input.length; i++) {
-					// output[i] = input[i]
+					output[i] = input[i]
 				}
 			}
 			// e.outputBuffer.copyToChannel(input, 0);

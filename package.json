@@ -9,6 +9,9 @@
     "lint": "eslint */*.js *.js --ignore-pattern test*",
     "build": "browserify test.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
   },
+  "browserify": {
+    "transform": ["glslify"]
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/audio-lab/gl-waveform.git"
@@ -36,6 +39,8 @@
     "fourier-transform": "^1.0.2",
     "get-uid": "^1.0.1",
     "gl-util": "^1.1.3",
+    "glsl-decibels": "^1.0.0",
+    "glslify": "^6.0.1",
     "inherits": "^2.0.1",
     "is-integer": "^1.0.6",
     "mumath": "^3.3.1",

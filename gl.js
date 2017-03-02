@@ -12,6 +12,7 @@ const rgba = require('color-rgba');
 const attribute = require('gl-util/attribute')
 const uniform = require('gl-util/uniform')
 const program = require('gl-util/program')
+const glsl = require('glslify')
 
 inherit(WaveformGl, Waveform)
 
@@ -52,8 +53,10 @@ WaveformGl.prototype.update = function (opts) {
 	this._infoColor = rgba(this.infoColor)
 
 	if (this.gl) {
-		program(this.gl, this.program);
-		uniform(this.gl, 'shape', [this.canvas.width, this.canvas.height], this.program);
+		program(this.gl, this.program)
+		uniform(this.gl, 'minDb', this.minDb, this.program)
+		uniform(this.gl, 'maxDb', this.maxDb, this.program)
+		uniform(this.gl, 'logarithmic', this.log ? 1 : 0, this.program)
 	}
 
 	// if (this.alpha && this.background) {
@@ -113,7 +116,7 @@ WaveformGl.prototype.draw = function (data) {
 	let dist = 1.5 * pixelRatio
 	for (let i = 0, j = 0, l = Math.min(count, width); i < l; i++, j+=4) {
 		let x = (i + .5) / width;
-		let sdev = Math.sqrt(Math.max(vars[i], 1e-6))
+		let sdev = Math.sqrt(Math.max(vars[i], 1e-9))
 		position[j] = x;
 		position[j+1] = avgs[i] - dist * sdev;
 		position[j+2] = x;
@@ -131,13 +134,39 @@ WaveformGl.prototype.draw = function (data) {
 
 
 
-Waveform.prototype.vert = `
+Waveform.prototype.vert = glsl`
+#pragma glslify: toGain = require('glsl-decibels/to-gain')
+#pragma glslify: fromGain = require('glsl-decibels/from-gain')
+
 precision highp float;
 
 attribute vec2 data;
 
+uniform float minDb, maxDb, logarithmic;
+
+float f (float ratio) {
+	if (logarithmic > 0.) {
+		float db = fromGain(abs(ratio));
+		db = clamp(db, minDb, maxDb);
+
+		float dbRatio = (db - minDb) / (maxDb - minDb);
+
+		ratio = ratio < 0. ? -dbRatio : dbRatio;
+	}
+	else {
+		float minGain = toGain(minDb);
+		float maxGain = toGain(maxDb);
+		float v = clamp(abs(ratio), minGain, maxGain);
+
+		v = (v - minGain) / (maxGain - minGain);
+		ratio = ratio < 0. ? -v : v;
+	}
+
+	return clamp(ratio, -1., 1.);
+}
+
 void main () {
-	gl_Position = vec4(data.x*2.-1., data.y, 0, 1);
+	gl_Position = vec4(data.x*2.-1., f(data.y), 0, 1);
 }
 `;
 
@@ -145,9 +174,31 @@ Waveform.prototype.frag = `
 precision highp float;
 
 uniform vec4 color;
-uniform vec2 shape;
 
 void main () {
 	gl_FragColor = color;
 }
 `;
+
+
+// function f(ratio, log, min, max) {
+// 	if (log) {
+// 		let db = toDb(Math.abs(ratio));
+// 		db = clamp(db, min, max);
+
+// 		let dbRatio = (db - min) / (max - min);
+
+// 		ratio = ratio < 0 ? -dbRatio : dbRatio;
+// 	}
+// 	else {
+// 		min = fromDb(min);
+// 		max = fromDb(max);
+// 		let v = clamp(Math.abs(ratio), min, max);
+
+// 		v = (v - min) / (max - min);
+// 		ratio = ratio < 0 ? -v : v;
+// 	}
+
+// 	return clamp(ratio, -1, 1);
+// }
+

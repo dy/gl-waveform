@@ -178,25 +178,3 @@ function createStorage (opts) {
 		return data
 	}
 }
-
-
-// function f(ratio, log, min, max) {
-// 	if (log) {
-// 		let db = toDb(Math.abs(ratio));
-// 		db = clamp(db, min, max);
-
-// 		let dbRatio = (db - min) / (max - min);
-
-// 		ratio = ratio < 0 ? -dbRatio : dbRatio;
-// 	}
-// 	else {
-// 		min = fromDb(min);
-// 		max = fromDb(max);
-// 		let v = clamp(Math.abs(ratio), min, max);
-
-// 		v = (v - min) / (max - min);
-// 		ratio = ratio < 0 ? -v : v;
-// 	}
-
-// 	return clamp(ratio, -1, 1);
-// }

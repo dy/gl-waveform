@@ -18,9 +18,9 @@ let wf = createWaveform({
 	width: 44100
 });
 
-//update waveform data each 50ms
+//update waveform data after 50ms
 setTimeout(() => {
-	wf.push(newData);
+	wf.set(newData);
 }, 50);
 ```
 
@@ -40,10 +40,10 @@ Create waveform instance based off options:
 // Container to place waveform element
 container: document.body,
 
-// Pre-created webgl context
+// Webgl context, will be created by default
 context: null,
 
-// Audio viewport settings
+// Audio viewport params
 maxDb: -0,
 minDb: -100,
 sampleRate: 44100,
@@ -61,13 +61,13 @@ log: true,
 // Colormap for the data
 palette: ['white', 'black'],
 
-// Fill background into color
+// Fill background with the color
 background: null,
 
 // Enable alpha to make transparent canvas
 alpha: false,
 
-// Draw automatically every frame or only data/options changes
+// Draw automatically every frame or only when data/options changes
 autostart: false,
 
 // Worker mode, a bit heavy for main thread to sample huge waveforms
@@ -109,9 +109,6 @@ Single draw pass, useful for cooperation with other components on a single canva
 
 ## Related
 
-> [plot-grid](https://github.com/audio-lab/gl-spectrogram) — useful to add time/db info<br/>
 > [gl-spectrogram](https://github.com/audio-lab/gl-spectrogram) — spectrogram painter for any signal.<br/>
 > [gl-spectrum](https://github.com/audio-lab/gl-spectrum) — nice-looking signal spectrum visualiser for.<br/>
 > [colormap](https://github.com/bpostlethwaite/colormap) — list of js color maps.<br/>
-> [waveform-data](https://www.npmjs.com/package/waveform-data) — similar waveform drawing component.<br/>
-> [waveform-playlist](https://github.com/naomiaro/waveform-playlist) — waveform editor

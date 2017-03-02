@@ -2548,6 +2548,212 @@ process.umask = function() { return 0; };
 
 },{}],7:[function(require,module,exports){
 /**
+ * @module gl-waveform/gl
+ *
+ * Webgl waveform renderer
+ */
+
+'use strict';
+
+var Waveform = require('./src/core');
+var inherit = require('inherits');
+var rgba = require('color-rgba');
+var attribute = require('gl-util/attribute')
+var uniform = require('gl-util/uniform')
+var program = require('gl-util/program')
+var glsl = require('glslify')
+
+inherit(WaveformGl, Waveform)
+
+module.exports = WaveformGl;
+
+function WaveformGl (opts) {
+	if (!(this instanceof Waveform)) return new WaveformGl(opts);
+
+	opts = opts || {};
+
+	Waveform.call(this, opts);
+
+	this.gl = this.context;
+
+	this.program = program(this.gl, this.vert, this.frag);
+
+	attribute(this.gl, {
+		//max, min, mean, variance sequence
+		data: {
+			size: 2,
+			usage: this.gl.STREAM_DRAW
+		}
+	}, this.program);
+}
+
+WaveformGl.prototype.antialias = true;
+WaveformGl.prototype.alpha = false;
+WaveformGl.prototype.premultipliedAlpha = true;
+WaveformGl.prototype.preserveDrawingBuffer = false;
+WaveformGl.prototype.depth = false;
+
+
+WaveformGl.prototype.update = function (opts) {
+	Waveform.prototype.update.call(this, opts);
+
+	this._color = rgba(this.color)
+	this._background = rgba(this.background)
+	this._infoColor = rgba(this.infoColor)
+
+	if (this.gl) {
+		program(this.gl, this.program)
+		uniform(this.gl, 'minDb', this.minDb, this.program)
+		uniform(this.gl, 'maxDb', this.maxDb, this.program)
+		uniform(this.gl, 'logarithmic', this.log ? 1 : 0, this.program)
+	}
+
+	// if (this.alpha && this.background) {
+	// 	this.canvas.style.background = this.background;
+	// }
+}
+
+Waveform.prototype.render = function () {
+	if (!this.gl) return this;
+
+	this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+	if (!this.alpha) {
+		var bg = this._background;
+		var ref = this.gl;
+		ref.clearColor.apply(ref, bg);
+		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+	}
+	this.emit('render')
+	this.draw()
+
+	return this;
+}
+
+
+WaveformGl.prototype.draw = function (data) {
+	var gl = this.gl;
+
+	var ref = this.canvas;
+	var width = ref.width;
+	var pixelRatio = this.pixelRatio || 1
+	program(this.gl, this.program)
+
+	//draw info line
+	attribute(this.gl, 'data', [0,0,1,0], this.program);
+	uniform(this.gl, 'color', this._infoColor, this.program);
+	gl.drawArrays(gl.LINES, 0, 2);
+
+
+	//draw waveform
+	if (!data) data = this.data;
+	if (!data) return this;
+
+	var avgs = data.average, vars = data.variance, count = data.count;
+	if (!avgs || !avgs.length) return;
+
+	uniform(this.gl, 'color', this._color, this.program);
+
+	//draw average line
+	var position = Array(width*4);
+	for (var i = 0, j = 0, l = Math.min(count, width); i < l; i++, j+=2) {
+		position[j] = (i + .5)/width;
+		position[j+1] = avgs[i];
+	}
+
+	attribute(this.gl, 'data', position, this.program);
+	gl.drawArrays(gl.LINE_STRIP, 0, width);
+
+	//create line shape
+	var dist = 1.5 * pixelRatio
+	for (var i$1 = 0, j$1 = 0, l$1 = Math.min(count, width); i$1 < l$1; i$1++, j$1+=4) {
+		var x = (i$1 + .5) / width;
+		var sdev = Math.sqrt(Math.max(vars[i$1], 1e-9))
+		position[j$1] = x;
+		position[j$1+1] = avgs[i$1] - dist * sdev;
+		position[j$1+2] = x;
+		position[j$1+3] = avgs[i$1] + dist * sdev;
+	}
+
+	attribute(this.gl, 'data', position, this.program);
+
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
+
+	this.emit('draw');
+
+	return this;
+}
+
+
+
+Waveform.prototype.vert = glsl(["\nfloat round_0 (float value_0) {\n\treturn floor (value_0 + .5);\n}\n\nfloat toGain (float value_0) {\n\tif (value_0 <= -40.) {\n\t\treturn 0.;\n\t}\n\n\treturn round_0(exp(value_0 / 8.6858) * 10000.) / 10000.;\n}\n\nfloat round_1 (float value_1) {\n\treturn floor (value_1 + .5);\n}\n\nfloat fromGain (float value_1) {\n\treturn round_1(round_1(20. * (0.43429 * log(value_1)) * 100.) / 100. * 10.) / 10.;\n}\n\nprecision highp float;\n#define GLSLIFY 1\n\nattribute vec2 data;\n\nuniform float minDb, maxDb, logarithmic;\n\nfloat f (float ratio) {\n\tif (logarithmic > 0.) {\n\t\tfloat db = fromGain(abs(ratio));\n\t\tdb = clamp(db, minDb, maxDb);\n\n\t\tfloat dbRatio = (db - minDb) / (maxDb - minDb);\n\n\t\tratio = ratio < 0. ? -dbRatio : dbRatio;\n\t}\n\telse {\n\t\tfloat minGain = toGain(minDb);\n\t\tfloat maxGain = toGain(maxDb);\n\t\tfloat v = clamp(abs(ratio), minGain, maxGain);\n\n\t\tv = (v - minGain) / (maxGain - minGain);\n\t\tratio = ratio < 0. ? -v : v;\n\t}\n\n\treturn clamp(ratio, -1., 1.);\n}\n\nvoid main () {\n\tgl_Position = vec4(data.x*2.-1., f(data.y), 0, 1);\n}\n",""]);
+
+Waveform.prototype.frag = "\nprecision highp float;\n\nuniform vec4 color;\n\nvoid main () {\n\tgl_FragColor = color;\n}\n";
+
+
+// function f(ratio, log, min, max) {
+// 	if (log) {
+// 		let db = toDb(Math.abs(ratio));
+// 		db = clamp(db, min, max);
+
+// 		let dbRatio = (db - min) / (max - min);
+
+// 		ratio = ratio < 0 ? -dbRatio : dbRatio;
+// 	}
+// 	else {
+// 		min = fromDb(min);
+// 		max = fromDb(max);
+// 		let v = clamp(Math.abs(ratio), min, max);
+
+// 		v = (v - min) / (max - min);
+// 		ratio = ratio < 0 ? -v : v;
+// 	}
+
+// 	return clamp(ratio, -1, 1);
+// }
+},{"./src/core":163,"color-rgba":31,"gl-util/attribute":54,"gl-util/program":56,"gl-util/uniform":57,"glslify":60,"inherits":63}],8:[function(require,module,exports){
+/* The following list is defined in React's core */
+var IS_UNITLESS = {
+  animationIterationCount: true,
+  boxFlex: true,
+  boxFlexGroup: true,
+  boxOrdinalGroup: true,
+  columnCount: true,
+  flex: true,
+  flexGrow: true,
+  flexPositive: true,
+  flexShrink: true,
+  flexNegative: true,
+  flexOrder: true,
+  gridRow: true,
+  gridColumn: true,
+  fontWeight: true,
+  lineClamp: true,
+  lineHeight: true,
+  opacity: true,
+  order: true,
+  orphans: true,
+  tabSize: true,
+  widows: true,
+  zIndex: true,
+  zoom: true,
+
+  // SVG-related properties
+  fillOpacity: true,
+  stopOpacity: true,
+  strokeDashoffset: true,
+  strokeOpacity: true,
+  strokeWidth: true
+};
+
+module.exports = function(name, value) {
+  if(typeof value === 'number' && !IS_UNITLESS[ name ]) {
+    return value + 'px';
+  } else {
+    return value;
+  }
+};
+},{}],9:[function(require,module,exports){
+/**
  * @module app-audio
  */
 'use strict';
@@ -3566,314 +3772,7 @@ AppAudio.prototype.info = function info (msg, icon) {
 
 	return this;
 };
-},{"audio-context":8,"audio-decode":10,"capitalize-first-letter":13,"events":3,"get-float-time-domain-data":15,"inherits":17,"insert-styles":18,"is-mobile":21,"is-plain-obj":22,"is-url":23,"just-extend":24,"left-pad":25,"web-audio-player":31,"xhr":40}],8:[function(require,module,exports){
-var window = require('global/window');
-
-var Context = window.AudioContext || window.webkitAudioContext;
-if (Context) module.exports = new Context;
-
-},{"global/window":16}],9:[function(require,module,exports){
-/**
- * Web-Audio-API decoder
- *
- * @module  audio-decode
- */
-
-var context = require('audio-context');
-
-module.exports = decode;
-
-function decode (buffer, opts, cb, err) {
-	if (opts instanceof Function) {
-		err = cb;
-		cb = opts;
-		opts = {};
-	}
-	else {
-		opts = cb;
-	}
-
-	if (!opts) opts = {};
-
-	var ctx = opts.context || context;
-
-	return ctx.decodeAudioData(buffer, cb, err);
-}
-},{"audio-context":8}],10:[function(require,module,exports){
-/**
- * Web-Audio-API decoder
- *
- * @module  audio-decode
- */
-
-module.exports = require('./direct');
-},{"./direct":9}],11:[function(require,module,exports){
-// sourced from:
-// http://www.leanbackplayer.com/test/h5mt.html
-// https://github.com/broofa/node-mime/blob/master/types.json
-var mimeTypes = require('./mime-types.json')
-
-var mimeLookup = {}
-Object.keys(mimeTypes).forEach(function (key) {
-  var extensions = mimeTypes[key]
-  extensions.forEach(function (ext) {
-    mimeLookup[ext] = key
-  })
-})
-
-module.exports = function lookup (ext) {
-  if (!ext) throw new TypeError('must specify extension string')
-  if (ext.indexOf('.') === 0) {
-    ext = ext.substring(1)
-  }
-  return mimeLookup[ext.toLowerCase()]
-}
-
-},{"./mime-types.json":12}],12:[function(require,module,exports){
-module.exports={
-  "audio/midi": ["mid", "midi", "kar", "rmi"],
-  "audio/mp4": ["mp4a", "m4a"],
-  "audio/mpeg": ["mpga", "mp2", "mp2a", "mp3", "m2a", "m3a"],
-  "audio/ogg": ["oga", "ogg", "spx"],
-  "audio/webm": ["weba"],
-  "audio/x-matroska": ["mka"],
-  "audio/x-mpegurl": ["m3u"],
-  "audio/wav": ["wav"],
-  "video/3gpp": ["3gp"],
-  "video/3gpp2": ["3g2"],
-  "video/mp4": ["mp4", "mp4v", "mpg4"],
-  "video/mpeg": ["mpeg", "mpg", "mpe", "m1v", "m2v"],
-  "video/ogg": ["ogv"],
-  "video/quicktime": ["qt", "mov"],
-  "video/webm": ["webm"],
-  "video/x-f4v": ["f4v"],
-  "video/x-fli": ["fli"],
-  "video/x-flv": ["flv"],
-  "video/x-m4v": ["m4v"],
-  "video/x-matroska": ["mkv", "mk3d", "mks"]
-}
-},{}],13:[function(require,module,exports){
-module.exports = function (string) {
-  return string.charAt(0).toUpperCase() + string.substring(1);
-}
-
-},{}],14:[function(require,module,exports){
-var isFunction = require('is-function')
-
-module.exports = forEach
-
-var toString = Object.prototype.toString
-var hasOwnProperty = Object.prototype.hasOwnProperty
-
-function forEach(list, iterator, context) {
-    if (!isFunction(iterator)) {
-        throw new TypeError('iterator must be a function')
-    }
-
-    if (arguments.length < 3) {
-        context = this
-    }
-    
-    if (toString.call(list) === '[object Array]')
-        forEachArray(list, iterator, context)
-    else if (typeof list === 'string')
-        forEachString(list, iterator, context)
-    else
-        forEachObject(list, iterator, context)
-}
-
-function forEachArray(array, iterator, context) {
-    for (var i = 0, len = array.length; i < len; i++) {
-        if (hasOwnProperty.call(array, i)) {
-            iterator.call(context, array[i], i, array)
-        }
-    }
-}
-
-function forEachString(string, iterator, context) {
-    for (var i = 0, len = string.length; i < len; i++) {
-        // no such thing as a sparse string.
-        iterator.call(context, string.charAt(i), i, string)
-    }
-}
-
-function forEachObject(object, iterator, context) {
-    for (var k in object) {
-        if (hasOwnProperty.call(object, k)) {
-            iterator.call(context, object[k], k, object)
-        }
-    }
-}
-
-},{"is-function":20}],15:[function(require,module,exports){
-(function (global){
-"use strict";
-
-if (global.AnalyserNode && !global.AnalyserNode.prototype.getFloatTimeDomainData) {
-  var uint8 = new Uint8Array(2048);
-  global.AnalyserNode.prototype.getFloatTimeDomainData = function(array) {
-    this.getByteTimeDomainData(uint8);
-    for (var i = 0, imax = array.length; i < imax; i++) {
-      array[i] = (uint8[i] - 128) * 0.0078125;
-    }
-  };
-}
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],16:[function(require,module,exports){
-(function (global){
-if (typeof window !== "undefined") {
-    module.exports = window;
-} else if (typeof global !== "undefined") {
-    module.exports = global;
-} else {
-    module.exports = {};
-}
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],17:[function(require,module,exports){
-if (typeof Object.create === 'function') {
-  // implementation from standard node.js 'util' module
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    ctor.prototype = Object.create(superCtor.prototype, {
-      constructor: {
-        value: ctor,
-        enumerable: false,
-        writable: true,
-        configurable: true
-      }
-    });
-  };
-} else {
-  // old school shim for old browsers
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    var TempCtor = function () {}
-    TempCtor.prototype = superCtor.prototype
-    ctor.prototype = new TempCtor()
-    ctor.prototype.constructor = ctor
-  }
-}
-
-},{}],18:[function(require,module,exports){
-(function (global){
-'use strict'
-
-var cache = {}
-
-function noop () {}
-
-module.exports = !global.document ? noop : insertStyles
-
-function insertStyles (styles, options) {
-  var id = options && options.id || styles
-
-  var element = cache[id] = (cache[id] || createStyle(id))
-
-  if ('textContent' in element) {
-    element.textContent = styles
-  } else {
-    element.styleSheet.cssText = styles
-  }
-}
-
-function createStyle (id) {
-  var element = document.getElementById(id)
-
-  if (element) return element
-
-  element = document.createElement('style')
-  element.setAttribute('type', 'text/css')
-
-  document.head.appendChild(element)
-
-  return element
-}
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],19:[function(require,module,exports){
-/*global window*/
-
-/**
- * Check if object is dom node.
- *
- * @param {Object} val
- * @return {Boolean}
- * @api public
- */
-
-module.exports = function isNode(val){
-  if (!val || typeof val !== 'object') return false;
-  if (window && 'object' == typeof window.Node) return val instanceof window.Node;
-  return 'number' == typeof val.nodeType && 'string' == typeof val.nodeName;
-}
-
-},{}],20:[function(require,module,exports){
-module.exports = isFunction
-
-var toString = Object.prototype.toString
-
-function isFunction (fn) {
-  var string = toString.call(fn)
-  return string === '[object Function]' ||
-    (typeof fn === 'function' && string !== '[object RegExp]') ||
-    (typeof window !== 'undefined' &&
-     // IE8 and below
-     (fn === window.setTimeout ||
-      fn === window.alert ||
-      fn === window.confirm ||
-      fn === window.prompt))
-};
-
-},{}],21:[function(require,module,exports){
-module.exports = isMobile;
-
-function isMobile (ua) {
-  if (!ua && typeof navigator != 'undefined') ua = navigator.userAgent;
-  if (ua && ua.headers && typeof ua.headers['user-agent'] == 'string') {
-    ua = ua.headers['user-agent'];
-  }
-  if (typeof ua != 'string') return false;
-
-  return /(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows (ce|phone)|xda|xiino/i.test(ua) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(ua.substr(0,4));
-}
-
-},{}],22:[function(require,module,exports){
-'use strict';
-var toString = Object.prototype.toString;
-
-module.exports = function (x) {
-	var prototype;
-	return toString.call(x) === '[object Object]' && (prototype = Object.getPrototypeOf(x), prototype === null || prototype === Object.getPrototypeOf({}));
-};
-
-},{}],23:[function(require,module,exports){
-
-/**
- * Expose `isUrl`.
- */
-
-module.exports = isUrl;
-
-/**
- * Matcher.
- */
-
-var matcher = /^(?:\w+:)?\/\/([^\s\.]+\.\S{2}|localhost[\:?\d]*)\S*$/;
-
-/**
- * Loosely validate a URL `string`.
- *
- * @param {String} string
- * @return {Boolean}
- */
-
-function isUrl(string){
-  return matcher.test(string);
-}
-
-},{}],24:[function(require,module,exports){
+},{"audio-context":12,"audio-decode":14,"capitalize-first-letter":20,"events":3,"get-float-time-domain-data":52,"inherits":63,"insert-styles":69,"is-mobile":74,"is-plain-obj":77,"is-url":78,"just-extend":10,"left-pad":80,"web-audio-player":150,"xhr":161}],10:[function(require,module,exports){
 module.exports = extend;
 
 /*
@@ -3914,7 +3813,7 @@ function extend(obj1, obj2 /*, [objn]*/) {
       var value = extender[key];
       if (deep && value && (typeof value == 'object')) {
         var base = Array.isArray(value) ? [] : {};
-        result[key] = extend(true, base, value);
+        result[key] = extend(true, result[key] || base, value);
       } else {
         result[key] = value;
       }
@@ -3923,1189 +3822,7 @@ function extend(obj1, obj2 /*, [objn]*/) {
   return result;
 }
 
-},{}],25:[function(require,module,exports){
-'use strict';
-module.exports = leftPad;
-
-var cache = [
-  '',
-  ' ',
-  '  ',
-  '   ',
-  '    ',
-  '     ',
-  '      ',
-  '       ',
-  '        ',
-  '         '
-];
-
-function leftPad (str, len, ch) {
-  // convert `str` to `string`
-  str = str + '';
-  // `len` is the `pad`'s length now
-  len = len - str.length;
-  // doesn't need to pad
-  if (len <= 0) return str;
-  // `ch` defaults to `' '`
-  if (!ch && ch !== 0) ch = ' ';
-  // convert `ch` to `string`
-  ch = ch + '';
-  // cache common use cases
-  if (ch === ' ' && len < 10) return cache[len] + str;
-  // `pad` starts with an empty string
-  var pad = '';
-  // loop
-  while (true) {
-    // add `ch` to `pad` if `len` is odd
-    if (len & 1) pad += ch;
-    // devide `len` by 2, ditch the fraction
-    len >>= 1;
-    // "double" the `ch` so this operation count grows logarithmically on `len`
-    // each time `ch` is "doubled", the `len` would need to be "doubled" too
-    // similar to finding a value in binary search tree, hence O(log(n))
-    if (len) ch += ch;
-    // `len` is 0, exit the loop
-    else break;
-  }
-  // pad `str`!
-  return pad + str;
-}
-
-},{}],26:[function(require,module,exports){
-'use strict';
-/* eslint-disable no-unused-vars */
-var hasOwnProperty = Object.prototype.hasOwnProperty;
-var propIsEnumerable = Object.prototype.propertyIsEnumerable;
-
-function toObject(val) {
-	if (val === null || val === undefined) {
-		throw new TypeError('Object.assign cannot be called with null or undefined');
-	}
-
-	return Object(val);
-}
-
-function shouldUseNative() {
-	try {
-		if (!Object.assign) {
-			return false;
-		}
-
-		// Detect buggy property enumeration order in older V8 versions.
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
-		var test1 = new String('abc');  // eslint-disable-line
-		test1[5] = 'de';
-		if (Object.getOwnPropertyNames(test1)[0] === '5') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test2 = {};
-		for (var i = 0; i < 10; i++) {
-			test2['_' + String.fromCharCode(i)] = i;
-		}
-		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
-			return test2[n];
-		});
-		if (order2.join('') !== '0123456789') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test3 = {};
-		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
-			test3[letter] = letter;
-		});
-		if (Object.keys(Object.assign({}, test3)).join('') !==
-				'abcdefghijklmnopqrst') {
-			return false;
-		}
-
-		return true;
-	} catch (e) {
-		// We don't expect any of the above to throw, but better to be safe.
-		return false;
-	}
-}
-
-module.exports = shouldUseNative() ? Object.assign : function (target, source) {
-	var arguments$1 = arguments;
-
-	var from;
-	var to = toObject(target);
-	var symbols;
-
-	for (var s = 1; s < arguments.length; s++) {
-		from = Object(arguments$1[s]);
-
-		for (var key in from) {
-			if (hasOwnProperty.call(from, key)) {
-				to[key] = from[key];
-			}
-		}
-
-		if (Object.getOwnPropertySymbols) {
-			symbols = Object.getOwnPropertySymbols(from);
-			for (var i = 0; i < symbols.length; i++) {
-				if (propIsEnumerable.call(from, symbols[i])) {
-					to[symbols[i]] = from[symbols[i]];
-				}
-			}
-		}
-	}
-
-	return to;
-};
-
-},{}],27:[function(require,module,exports){
-var trim = require('trim')
-  , forEach = require('for-each')
-  , isArray = function(arg) {
-      return Object.prototype.toString.call(arg) === '[object Array]';
-    }
-
-module.exports = function (headers) {
-  if (!headers)
-    return {}
-
-  var result = {}
-
-  forEach(
-      trim(headers).split('\n')
-    , function (row) {
-        var index = row.indexOf(':')
-          , key = trim(row.slice(0, index)).toLowerCase()
-          , value = trim(row.slice(index + 1))
-
-        if (typeof(result[key]) === 'undefined') {
-          result[key] = value
-        } else if (isArray(result[key])) {
-          result[key].push(value)
-        } else {
-          result[key] = [ result[key], value ]
-        }
-      }
-  )
-
-  return result
-}
-},{"for-each":14,"trim":30}],28:[function(require,module,exports){
-(function (global){
-module.exports =
-  global.performance &&
-  global.performance.now ? function now() {
-    return performance.now()
-  } : Date.now || function now() {
-    return +new Date
-  }
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],29:[function(require,module,exports){
-var isDom = require('is-dom')
-var lookup = require('browser-media-mime-type')
-
-module.exports.video = simpleMediaElement.bind(null, 'video')
-module.exports.audio = simpleMediaElement.bind(null, 'audio')
-
-function simpleMediaElement (elementName, sources, opt) {
-  opt = opt || {}
-
-  if (!Array.isArray(sources)) {
-    sources = [ sources ]
-  }
-
-  var media = opt.element || document.createElement(elementName)
-
-  if (opt.loop) media.setAttribute('loop', 'loop')
-  if (opt.muted) media.setAttribute('muted', 'muted')
-  if (opt.autoplay) media.setAttribute('autoplay', 'autoplay')
-  if (opt.controls) media.setAttribute('controls', 'controls')
-  if (opt.crossOrigin) media.setAttribute('crossorigin', opt.crossOrigin)
-  if (opt.preload) media.setAttribute('preload', opt.preload)
-  if (opt.poster) media.setAttribute('poster', opt.poster)
-  if (typeof opt.volume !== 'undefined') media.setAttribute('volume', opt.volume)
-
-  sources = sources.filter(Boolean)
-  sources.forEach(function (source) {
-    media.appendChild(createSourceElement(source))
-  })
-
-  return media
-}
-
-function createSourceElement (data) {
-  if (isDom(data)) return data
-  if (typeof data === 'string') {
-    data = { src: data }
-    if (data.src) {
-      var ext = extension(data.src)
-      if (ext) data.type = lookup(ext)
-    }
-  }
-
-  var source = document.createElement('source')
-  if (data.src) source.setAttribute('src', data.src)
-  if (data.type) source.setAttribute('type', data.type)
-  return source
-}
-
-function extension (data) {
-  var extIdx = data.lastIndexOf('.')
-  if (extIdx <= 0 || extIdx === data.length - 1) {
-    return null
-  }
-  return data.substring(extIdx + 1)
-}
-
-},{"browser-media-mime-type":11,"is-dom":19}],30:[function(require,module,exports){
-
-exports = module.exports = trim;
-
-function trim(str){
-  return str.replace(/^\s*|\s*$/g, '');
-}
-
-exports.left = function(str){
-  return str.replace(/^\s*/, '');
-};
-
-exports.right = function(str){
-  return str.replace(/\s*$/, '');
-};
-
-},{}],31:[function(require,module,exports){
-var buffer = require('./lib/buffer-source')
-var media = require('./lib/media-source')
-
-module.exports = webAudioPlayer
-function webAudioPlayer (src, opt) {
-  if (!src) throw new TypeError('must specify a src parameter')
-  opt = opt || {}
-  if (opt.buffer) return buffer(src, opt)
-  else return media(src, opt)
-}
-
-},{"./lib/buffer-source":33,"./lib/media-source":36}],32:[function(require,module,exports){
-module.exports = createAudioContext
-function createAudioContext () {
-  var AudioCtor = window.AudioContext || window.webkitAudioContext
-  return new AudioCtor()
-}
-
-},{}],33:[function(require,module,exports){
-(function (process){
-var canPlaySrc = require('./can-play-src')
-var createAudioContext = require('./audio-context')
-var xhrAudio = require('./xhr-audio')
-var EventEmitter = require('events').EventEmitter
-var rightNow = require('right-now')
-var resume = require('./resume-context')
-
-module.exports = createBufferSource
-function createBufferSource (src, opt) {
-  opt = opt || {}
-  var emitter = new EventEmitter()
-  var audioContext = opt.context || createAudioContext()
-
-  // a pass-through node so user just needs to
-  // connect() once
-  var bufferNode, buffer, duration
-  var node = audioContext.createGain()
-  var audioStartTime = null
-  var audioPauseTime = null
-  var audioCurrentTime = 0
-  var playing = false
-  var loop = opt.loop
-
-  emitter.play = function () {
-    if (playing) return
-    playing = true
-
-    if (opt.autoResume !== false) resume(emitter.context)
-    bufferNode = audioContext.createBufferSource()
-    bufferNode.connect(emitter.node)
-    bufferNode.onended = ended
-    if (buffer) {
-      // Might be null undefined if we are still loading
-      bufferNode.buffer = buffer
-    }
-    if (loop) {
-      bufferNode.loop = true
-    }
-
-    if (duration && audioCurrentTime > duration) {
-      // for when it loops...
-      audioCurrentTime = audioCurrentTime % duration
-    }
-    var nextTime = audioCurrentTime
-
-    bufferNode.start(0, nextTime)
-    audioStartTime = rightNow()
-  }
-
-  emitter.pause = function () {
-    if (!playing) return
-    playing = false
-    // Don't let the "end" event
-    // get triggered on manual pause.
-    bufferNode.onended = null
-    bufferNode.stop(0)
-    audioPauseTime = rightNow()
-    audioCurrentTime += (audioPauseTime - audioStartTime) / 1000
-  }
-
-  emitter.stop = function () {
-    emitter.pause()
-    ended()
-  }
-
-  emitter.dispose = function () {
-    buffer = null
-  }
-
-  emitter.node = node
-  emitter.context = audioContext
-
-  Object.defineProperties(emitter, {
-    duration: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return duration
-      }
-    },
-    playing: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return playing
-      }
-    },
-    buffer: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return buffer
-      }
-    },
-    volume: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return node.gain.value
-      },
-      set: function (n) {
-        node.gain.value = n
-      }
-    }
-  })
-
-  // set initial volume
-  if (typeof opt.volume === 'number') {
-    emitter.volume = opt.volume
-  }
-
-  // filter down to a list of playable sources
-  var sources = Array.isArray(src) ? src : [ src ]
-  sources = sources.filter(Boolean)
-  var playable = sources.some(canPlaySrc)
-  if (playable) {
-    var source = sources.filter(canPlaySrc)[0]
-    // Support the same source types as in
-    // MediaElement mode...
-    if (typeof source.getAttribute === 'function') {
-      source = source.getAttribute('src')
-    } else if (typeof source.src === 'string') {
-      source = source.src
-    }
-    // We have at least one playable source.
-    // For now just play the first,
-    // ideally this module could attempt each one.
-    startLoad(source)
-  } else {
-    // no sources can be played...
-    process.nextTick(function () {
-      emitter.emit('error', canPlaySrc.createError(sources))
-    })
-  }
-  return emitter
-
-  function startLoad (src) {
-    xhrAudio(audioContext, src, function audioDecoded (err, decoded) {
-      if (err) return emitter.emit('error', err)
-      buffer = decoded // store for later use
-      if (bufferNode) {
-        // if play() was called early
-        bufferNode.buffer = buffer
-      }
-      duration = buffer.duration
-      node.buffer = buffer
-      emitter.emit('load')
-    }, function audioProgress (amount, total) {
-      emitter.emit('progress', amount, total)
-    }, function audioDecoding () {
-      emitter.emit('decoding')
-    })
-  }
-
-  function ended () {
-    emitter.emit('end')
-    playing = false
-    audioCurrentTime = 0
-  }
-}
-
-}).call(this,require('_process'))
-},{"./audio-context":32,"./can-play-src":34,"./resume-context":37,"./xhr-audio":38,"_process":6,"events":3,"right-now":28}],34:[function(require,module,exports){
-var lookup = require('browser-media-mime-type')
-var audio
-
-module.exports = isSrcPlayable
-function isSrcPlayable (src) {
-  if (!src) throw new TypeError('src cannot be empty')
-  var type
-  if (typeof src.getAttribute === 'function') {
-    // <source> element
-    type = src.getAttribute('type')
-  } else if (typeof src === 'string') {
-    // 'foo.mp3' string
-    var ext = extension(src)
-    if (ext) type = lookup(ext)
-  } else {
-    // { src: 'foo.mp3', type: 'audio/mpeg; codecs..'}
-    type = src.type
-  }
-
-  // We have an unknown file extension or
-  // a <source> tag without an explicit type,
-  // just let the browser handle it!
-  if (!type) return true
-
-  // handle "no" edge case with super legacy browsers...
-  // https://groups.google.com/forum/#!topic/google-web-toolkit-contributors/a8Uy0bXq1Ho
-  if (!audio) audio = new window.Audio()
-  var canplay = audio.canPlayType(type).replace(/no/, '')
-  return Boolean(canplay)
-}
-
-module.exports.createError = createError
-function createError (sources) {
-  // All sources are unplayable
-  var err = new Error('This browser does not support any of the following sources:\n    ' +
-      sources.join(', ') + '\n' +
-      'Try using an array of OGG, MP3 and WAV.')
-  err.type = 'AUDIO_FORMAT'
-  return err
-}
-
-function extension (data) {
-  var extIdx = data.lastIndexOf('.')
-  if (extIdx <= 0 || extIdx === data.length - 1) {
-    return undefined
-  }
-  return data.substring(extIdx + 1)
-}
-
-},{"browser-media-mime-type":11}],35:[function(require,module,exports){
-module.exports = addOnce
-function addOnce (element, event, fn) {
-  function tmp (ev) {
-    element.removeEventListener(event, tmp, false)
-    fn(ev, element)
-  }
-  element.addEventListener(event, tmp, false)
-}
-},{}],36:[function(require,module,exports){
-(function (process){
-var EventEmitter = require('events').EventEmitter
-var createAudio = require('simple-media-element').audio
-var assign = require('object-assign')
-
-var resume = require('./resume-context')
-var createAudioContext = require('./audio-context')
-var canPlaySrc = require('./can-play-src')
-var addOnce = require('./event-add-once')
-
-module.exports = createMediaSource
-function createMediaSource (src, opt) {
-  opt = assign({}, opt)
-  var emitter = new EventEmitter()
-
-  // Default to Audio instead of HTMLAudioElement
-  // There is not much difference except in the following:
-  //    x instanceof Audio
-  //    x instanceof HTMLAudioElement
-  // And in my experience Audio has better support on various
-  // platforms like CocoonJS.
-  // Please open an issue if there is a concern with this.
-  if (!opt.element) opt.element = new window.Audio()
-
-  var desiredVolume = opt.volume
-  delete opt.volume // make sure <audio> tag receives full volume
-  var audio = createAudio(src, opt)
-  var audioContext = opt.context || createAudioContext()
-  var node = audioContext.createGain()
-  var mediaNode = audioContext.createMediaElementSource(audio)
-  mediaNode.connect(node)
-
-  audio.addEventListener('ended', function () {
-    emitter.emit('end')
-  })
-
-  emitter.element = audio
-  emitter.context = audioContext
-  emitter.node = node
-  emitter.pause = audio.pause.bind(audio)
-  emitter.play = function () {
-    if (opt.autoResume !== false) resume(emitter.context)
-    return audio.play()
-  }
-
-  // This exists currently for parity with Buffer source
-  // Open to suggestions for what this should dispose...
-  emitter.dispose = function () {}
-
-  emitter.stop = function () {
-    var wasPlaying = emitter.playing
-    audio.pause()
-    audio.currentTime = 0
-    if (wasPlaying) {
-      emitter.emit('end')
-    }
-  }
-
-  Object.defineProperties(emitter, {
-    duration: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return audio.duration
-      }
-    },
-    currentTime: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return audio.currentTime
-      }
-    },
-    playing: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return !audio.paused
-      }
-    },
-    volume: {
-      enumerable: true, configurable: true,
-      get: function () {
-        return node.gain.value
-      },
-      set: function (n) {
-        node.gain.value = n
-      }
-    }
-  })
-
-  // Set initial volume
-  if (typeof desiredVolume === 'number') {
-    emitter.volume = desiredVolume
-  }
-
-  // Check if all sources are unplayable,
-  // if so we emit an error since the browser
-  // might not.
-  var sources = Array.isArray(src) ? src : [ src ]
-  sources = sources.filter(Boolean)
-  var playable = sources.some(canPlaySrc)
-  if (playable) {
-    // At least one source is probably/maybe playable
-    startLoad()
-  } else {
-    // emit error on next tick so user can catch it
-    process.nextTick(function () {
-      emitter.emit('error', canPlaySrc.createError(sources))
-    })
-  }
-
-  return emitter
-
-  function startLoad () {
-    // The file errors (like decoding / 404s) appear on <source>
-    var srcElements = Array.prototype.slice.call(audio.children)
-    var remainingSrcErrors = srcElements.length
-    var hasErrored = false
-    var sourceError = function (err, el) {
-      if (hasErrored) return
-      remainingSrcErrors--
-      console.warn('Error loading source: ' + el.getAttribute('src'))
-      if (remainingSrcErrors <= 0) {
-        hasErrored = true
-        srcElements.forEach(function (el) {
-          el.removeEventListener('error', sourceError, false)
-        })
-        emitter.emit('error', new Error('Could not play any of the supplied sources'))
-      }
-    }
-
-    var done = function () {
-      emitter.emit('load')
-    }
-
-    if (audio.readyState >= audio.HAVE_ENOUGH_DATA) {
-      process.nextTick(done)
-    } else {
-      addOnce(audio, 'canplay', done)
-      addOnce(audio, 'error', function (ev) {
-        emitter.emit(new Error('Unknown error while loading <audio>'))
-      })
-      srcElements.forEach(function (el) {
-        addOnce(el, 'error', sourceError)
-      })
-    }
-
-    // On most browsers the loading begins
-    // immediately. However, on iOS 9.2 Safari,
-    // you need to call load() for events
-    // to be triggered.
-    audio.load()
-  }
-}
-
-}).call(this,require('_process'))
-},{"./audio-context":32,"./can-play-src":34,"./event-add-once":35,"./resume-context":37,"_process":6,"events":3,"object-assign":26,"simple-media-element":29}],37:[function(require,module,exports){
-module.exports = function (audioContext) {
-  if (audioContext.state === 'suspended' &&
-      typeof audioContext.resume === 'function') {
-    audioContext.resume()
-  }
-}
-
-},{}],38:[function(require,module,exports){
-var xhr = require('xhr')
-var xhrProgress = require('xhr-progress')
-
-module.exports = xhrAudio
-function xhrAudio (audioContext, src, cb, progress, decoding) {
-  var xhrObject = xhr({
-    uri: src,
-    responseType: 'arraybuffer'
-  }, function (err, resp, arrayBuf) {
-    if (!/^2/.test(resp.statusCode)) {
-      err = new Error('status code ' + resp.statusCode + ' requesting ' + src)
-    }
-    if (err) return cb(err)
-    decode(arrayBuf)
-  })
-
-  xhrProgress(xhrObject)
-    .on('data', function (amount, total) {
-      progress(amount, total)
-    })
-
-  function decode (arrayBuf) {
-    decoding()
-    audioContext.decodeAudioData(arrayBuf, function (decoded) {
-      cb(null, decoded)
-    }, function () {
-      var err = new Error('Error decoding audio data')
-      err.type = 'DECODE_AUDIO_DATA'
-      cb(err)
-    })
-  }
-}
-
-},{"xhr":40,"xhr-progress":39}],39:[function(require,module,exports){
-var EventEmitter = require('events').EventEmitter
-
-module.exports = progress
-
-function progress(xhr) {
-  var emitter = new EventEmitter
-  var finished = false
-
-  if (xhr.attachEvent) {
-    xhr.attachEvent('onreadystatechange', done)
-    return emitter
-  }
-
-  xhr.addEventListener('load', done, false)
-  xhr.addEventListener('progress', progress, false)
-  function progress(event) {
-    var value = event.lengthComputable
-      ? event.loaded / event.total
-      : 0
-
-    if (!finished) emitter.emit('data'
-      , value
-      , event.total || null
-    )
-
-    finished = value === 1
-  }
-
-  function done(event) {
-    if (event.type !== 'load' && !/^(ready|complete)$/g.test(
-      (event.currentTarget || event.srcElement).readyState
-    )) return
-
-    if (finished) return
-    if (xhr.removeEventListener) {
-      xhr.removeEventListener('load', done, false)
-      xhr.removeEventListener('progress', progress, false)
-    } else
-    if (xhr.detatchEvent) {
-      xhr.detatchEvent('onreadystatechange', done)
-    }
-
-    emitter.emit('data', 1, event.total || null)
-    emitter.emit('done')
-    finished = true
-  }
-
-  return emitter
-}
-
-},{"events":3}],40:[function(require,module,exports){
-"use strict";
-var window = require("global/window")
-var isFunction = require("is-function")
-var parseHeaders = require("parse-headers")
-var xtend = require("xtend")
-
-module.exports = createXHR
-createXHR.XMLHttpRequest = window.XMLHttpRequest || noop
-createXHR.XDomainRequest = "withCredentials" in (new createXHR.XMLHttpRequest()) ? createXHR.XMLHttpRequest : window.XDomainRequest
-
-forEachArray(["get", "put", "post", "patch", "head", "delete"], function(method) {
-    createXHR[method === "delete" ? "del" : method] = function(uri, options, callback) {
-        options = initParams(uri, options, callback)
-        options.method = method.toUpperCase()
-        return _createXHR(options)
-    }
-})
-
-function forEachArray(array, iterator) {
-    for (var i = 0; i < array.length; i++) {
-        iterator(array[i])
-    }
-}
-
-function isEmpty(obj){
-    for(var i in obj){
-        if(obj.hasOwnProperty(i)) return false
-    }
-    return true
-}
-
-function initParams(uri, options, callback) {
-    var params = uri
-
-    if (isFunction(options)) {
-        callback = options
-        if (typeof uri === "string") {
-            params = {uri:uri}
-        }
-    } else {
-        params = xtend(options, {uri: uri})
-    }
-
-    params.callback = callback
-    return params
-}
-
-function createXHR(uri, options, callback) {
-    options = initParams(uri, options, callback)
-    return _createXHR(options)
-}
-
-function _createXHR(options) {
-    if(typeof options.callback === "undefined"){
-        throw new Error("callback argument missing")
-    }
-
-    var called = false
-    var callback = function cbOnce(err, response, body){
-        if(!called){
-            called = true
-            options.callback(err, response, body)
-        }
-    }
-
-    function readystatechange() {
-        if (xhr.readyState === 4) {
-            loadFunc()
-        }
-    }
-
-    function getBody() {
-        // Chrome with requestType=blob throws errors arround when even testing access to responseText
-        var body = undefined
-
-        if (xhr.response) {
-            body = xhr.response
-        } else {
-            body = xhr.responseText || getXml(xhr)
-        }
-
-        if (isJson) {
-            try {
-                body = JSON.parse(body)
-            } catch (e) {}
-        }
-
-        return body
-    }
-
-    var failureResponse = {
-                body: undefined,
-                headers: {},
-                statusCode: 0,
-                method: method,
-                url: uri,
-                rawRequest: xhr
-            }
-
-    function errorFunc(evt) {
-        clearTimeout(timeoutTimer)
-        if(!(evt instanceof Error)){
-            evt = new Error("" + (evt || "Unknown XMLHttpRequest Error") )
-        }
-        evt.statusCode = 0
-        return callback(evt, failureResponse)
-    }
-
-    // will load the data & process the response in a special response object
-    function loadFunc() {
-        if (aborted) return
-        var status
-        clearTimeout(timeoutTimer)
-        if(options.useXDR && xhr.status===undefined) {
-            //IE8 CORS GET successful response doesn't have a status field, but body is fine
-            status = 200
-        } else {
-            status = (xhr.status === 1223 ? 204 : xhr.status)
-        }
-        var response = failureResponse
-        var err = null
-
-        if (status !== 0){
-            response = {
-                body: getBody(),
-                statusCode: status,
-                method: method,
-                headers: {},
-                url: uri,
-                rawRequest: xhr
-            }
-            if(xhr.getAllResponseHeaders){ //remember xhr can in fact be XDR for CORS in IE
-                response.headers = parseHeaders(xhr.getAllResponseHeaders())
-            }
-        } else {
-            err = new Error("Internal XMLHttpRequest Error")
-        }
-        return callback(err, response, response.body)
-    }
-
-    var xhr = options.xhr || null
-
-    if (!xhr) {
-        if (options.cors || options.useXDR) {
-            xhr = new createXHR.XDomainRequest()
-        }else{
-            xhr = new createXHR.XMLHttpRequest()
-        }
-    }
-
-    var key
-    var aborted
-    var uri = xhr.url = options.uri || options.url
-    var method = xhr.method = options.method || "GET"
-    var body = options.body || options.data || null
-    var headers = xhr.headers = options.headers || {}
-    var sync = !!options.sync
-    var isJson = false
-    var timeoutTimer
-
-    if ("json" in options) {
-        isJson = true
-        headers["accept"] || headers["Accept"] || (headers["Accept"] = "application/json") //Don't override existing accept header declared by user
-        if (method !== "GET" && method !== "HEAD") {
-            headers["content-type"] || headers["Content-Type"] || (headers["Content-Type"] = "application/json") //Don't override existing accept header declared by user
-            body = JSON.stringify(options.json)
-        }
-    }
-
-    xhr.onreadystatechange = readystatechange
-    xhr.onload = loadFunc
-    xhr.onerror = errorFunc
-    // IE9 must have onprogress be set to a unique function.
-    xhr.onprogress = function () {
-        // IE must die
-    }
-    xhr.ontimeout = errorFunc
-    xhr.open(method, uri, !sync, options.username, options.password)
-    //has to be after open
-    if(!sync) {
-        xhr.withCredentials = !!options.withCredentials
-    }
-    // Cannot set timeout with sync request
-    // not setting timeout on the xhr object, because of old webkits etc. not handling that correctly
-    // both npm's request and jquery 1.x use this kind of timeout, so this is being consistent
-    if (!sync && options.timeout > 0 ) {
-        timeoutTimer = setTimeout(function(){
-            aborted=true//IE9 may still call readystatechange
-            xhr.abort("timeout")
-            var e = new Error("XMLHttpRequest timeout")
-            e.code = "ETIMEDOUT"
-            errorFunc(e)
-        }, options.timeout )
-    }
-
-    if (xhr.setRequestHeader) {
-        for(key in headers){
-            if(headers.hasOwnProperty(key)){
-                xhr.setRequestHeader(key, headers[key])
-            }
-        }
-    } else if (options.headers && !isEmpty(options.headers)) {
-        throw new Error("Headers cannot be set on an XDomainRequest object")
-    }
-
-    if ("responseType" in options) {
-        xhr.responseType = options.responseType
-    }
-
-    if ("beforeSend" in options &&
-        typeof options.beforeSend === "function"
-    ) {
-        options.beforeSend(xhr)
-    }
-
-    xhr.send(body)
-
-    return xhr
-
-
-}
-
-function getXml(xhr) {
-    if (xhr.responseType === "document") {
-        return xhr.responseXML
-    }
-    var firefoxBugTakenEffect = xhr.status === 204 && xhr.responseXML && xhr.responseXML.documentElement.nodeName === "parsererror"
-    if (xhr.responseType === "" && !firefoxBugTakenEffect) {
-        return xhr.responseXML
-    }
-
-    return null
-}
-
-function noop() {}
-
-},{"global/window":41,"is-function":20,"parse-headers":27,"xtend":42}],41:[function(require,module,exports){
-(function (global){
-if (typeof window !== "undefined") {
-    module.exports = window;
-} else if (typeof global !== "undefined") {
-    module.exports = global;
-} else if (typeof self !== "undefined"){
-    module.exports = self;
-} else {
-    module.exports = {};
-}
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],42:[function(require,module,exports){
-module.exports = extend
-
-var hasOwnProperty = Object.prototype.hasOwnProperty;
-
-function extend() {
-    var arguments$1 = arguments;
-
-    var target = {}
-
-    for (var i = 0; i < arguments.length; i++) {
-        var source = arguments$1[i]
-
-        for (var key in source) {
-            if (hasOwnProperty.call(source, key)) {
-                target[key] = source[key]
-            }
-        }
-    }
-
-    return target
-}
-
-},{}],43:[function(require,module,exports){
-/**
- * @module gl-waveform/gl
- *
- * Webgl waveform renderer
- */
-
-'use strict';
-
-var Waveform = require('./src/core');
-var inherit = require('inherits');
-var rgba = require('color-rgba');
-var attribute = require('gl-util/attribute')
-var uniform = require('gl-util/uniform')
-var program = require('gl-util/program')
-
-inherit(WaveformGl, Waveform)
-
-module.exports = WaveformGl;
-
-function WaveformGl (opts) {
-	if (!(this instanceof Waveform)) return new WaveformGl(opts);
-
-	opts = opts || {};
-
-	Waveform.call(this, opts);
-
-	this.gl = this.context;
-
-	this.program = program(this.gl, this.vert, this.frag);
-
-	attribute(this.gl, {
-		//max, min, mean, variance sequence
-		data: {
-			size: 2,
-			usage: this.gl.STREAM_DRAW
-		}
-	}, this.program);
-}
-
-WaveformGl.prototype.antialias = true;
-WaveformGl.prototype.alpha = false;
-WaveformGl.prototype.premultipliedAlpha = true;
-WaveformGl.prototype.preserveDrawingBuffer = false;
-WaveformGl.prototype.depth = false;
-
-
-WaveformGl.prototype.update = function (opts) {
-	Waveform.prototype.update.call(this, opts);
-
-	this._color = rgba(this.color)
-	this._background = rgba(this.background)
-	this._infoColor = rgba(this.infoColor)
-
-	if (this.gl) {
-		program(this.gl, this.program);
-		uniform(this.gl, 'shape', [this.canvas.width, this.canvas.height], this.program);
-	}
-
-	if (this.alpha && this.background) this.canvas.style.background = this.background;
-}
-
-Waveform.prototype.render = function () {
-	this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-	if (!this.alpha) {
-		var bg = this._background;
-		var ref = this.gl;
-		ref.clearColor.apply(ref, bg);
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-	}
-	this.emit('render')
-	this.draw()
-
-	return this;
-}
-
-
-WaveformGl.prototype.draw = function (data) {
-	var gl = this.gl;
-
-	var ref = this.canvas;
-	var width = ref.width;
-	program(this.gl, this.program);
-
-	//draw info line
-	attribute(this.gl, 'data', [0,0,1,0], this.program);
-	uniform(this.gl, 'color', this._infoColor, this.program);
-	gl.drawArrays(gl.LINES, 0, 2);
-
-
-	//draw waveform
-	if (!data) data = this.data;
-	if (!data) return this;
-
-	var tops = data.max, bottoms = data.min, avgs = data.average;
-
-	if (!tops || !tops.length) return this;
-
-	uniform(this.gl, 'color', this._color, this.program);
-
-	//draw average line
-	var position = Array(width*4);
-	for (var i = 0, j=0; i < width; i++, j+=2) {
-		position[j] = i/width;
-		position[j+1] = avgs[i];
-	}
-	attribute(this.gl, 'data', position, this.program);
-	gl.drawArrays(gl.LINE_STRIP, 0, width);
-
-	//fill min/max shape
-	for (var i$1 = 0, j$1=0; i$1 < width; i$1++, j$1+=4) {
-		var x = i$1/width;
-		position[j$1] = x;
-		position[j$1+1] = tops[i$1];
-		position[j$1+2] = x;
-		position[j$1+3] = bottoms[i$1];
-	}
-
-	attribute(this.gl, 'data', position, this.program);
-	gl.drawArrays(gl.TRIANGLE_STRIP, 0, width*2);
-
-	return this;
-}
-
-
-
-Waveform.prototype.vert = "\nprecision highp float;\n\nattribute vec2 data;\n\nvoid main () {\n\tgl_Position = vec4(data.x*2.-1., data.y, 0, 1);\n}\n";
-
-Waveform.prototype.frag = "\nprecision highp float;\n\nuniform vec4 color;\nuniform vec2 shape;\n\nvoid main () {\n\tgl_FragColor = color;\n}\n";
-},{"./src/core":178,"color-rgba":60,"gl-util/attribute":84,"gl-util/program":86,"gl-util/uniform":87,"inherits":91}],44:[function(require,module,exports){
-/* The following list is defined in React's core */
-var IS_UNITLESS = {
-  animationIterationCount: true,
-  boxFlex: true,
-  boxFlexGroup: true,
-  boxOrdinalGroup: true,
-  columnCount: true,
-  flex: true,
-  flexGrow: true,
-  flexPositive: true,
-  flexShrink: true,
-  flexNegative: true,
-  flexOrder: true,
-  gridRow: true,
-  gridColumn: true,
-  fontWeight: true,
-  lineClamp: true,
-  lineHeight: true,
-  opacity: true,
-  order: true,
-  orphans: true,
-  tabSize: true,
-  widows: true,
-  zIndex: true,
-  zoom: true,
-
-  // SVG-related properties
-  fillOpacity: true,
-  stopOpacity: true,
-  strokeDashoffset: true,
-  strokeOpacity: true,
-  strokeWidth: true
-};
-
-module.exports = function(name, value) {
-  if(typeof value === 'number' && !IS_UNITLESS[ name ]) {
-    return value + 'px';
-  } else {
-    return value;
-  }
-};
-},{}],45:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 'use strict';
 
 var arraytools  = function () {
@@ -5294,7 +4011,52 @@ var arraytools  = function () {
 
 module.exports = arraytools();
 
-},{}],46:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
+var window = require('global/window');
+
+var Context = window.AudioContext || window.webkitAudioContext;
+if (Context) module.exports = new Context;
+
+},{"global/window":13}],13:[function(require,module,exports){
+(function (global){
+if (typeof window !== "undefined") {
+    module.exports = window;
+} else if (typeof global !== "undefined") {
+    module.exports = global;
+} else {
+    module.exports = {};
+}
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],14:[function(require,module,exports){
+/**
+ * Web-Audio-API decoder fn style
+ *
+ * @module  audio-decode
+ */
+'use strict';
+
+var context = require('audio-context');
+
+module.exports = decode;
+
+function decode (buffer, opts, cb) {
+	if (opts instanceof Function) {
+		cb = opts;
+		opts = {};
+	}
+
+	if (!opts) opts = {};
+
+	var ctx = opts.context || context;
+
+	return ctx.decodeAudioData(buffer, function (buf) {
+		cb && cb(null, buf);
+	}, function (err) {
+		cb && cb(err);
+	});
+}
+},{"audio-context":12}],15:[function(require,module,exports){
 /*!
 	Autosize 3.0.17
 	license: MIT
@@ -5557,212 +4319,52 @@ module.exports = arraytools();
 
 	module.exports = autosize;
 });
-},{}],47:[function(require,module,exports){
-/**
- * Bit twiddling hacks for JavaScript.
- *
- * Author: Mikola Lysenko
- *
- * Ported from Stanford bit twiddling hack library:
- *    http://graphics.stanford.edu/~seander/bithacks.html
- */
+},{}],16:[function(require,module,exports){
+// sourced from:
+// http://www.leanbackplayer.com/test/h5mt.html
+// https://github.com/broofa/node-mime/blob/master/types.json
+var mimeTypes = require('./mime-types.json')
 
-"use strict"; "use restrict";
+var mimeLookup = {}
+Object.keys(mimeTypes).forEach(function (key) {
+  var extensions = mimeTypes[key]
+  extensions.forEach(function (ext) {
+    mimeLookup[ext] = key
+  })
+})
 
-//Number of bits in an integer
-var INT_BITS = 32;
-
-//Constants
-exports.INT_BITS  = INT_BITS;
-exports.INT_MAX   =  0x7fffffff;
-exports.INT_MIN   = -1<<(INT_BITS-1);
-
-//Returns -1, 0, +1 depending on sign of x
-exports.sign = function(v) {
-  return (v > 0) - (v < 0);
-}
-
-//Computes absolute value of integer
-exports.abs = function(v) {
-  var mask = v >> (INT_BITS-1);
-  return (v ^ mask) - mask;
-}
-
-//Computes minimum of integers x and y
-exports.min = function(x, y) {
-  return y ^ ((x ^ y) & -(x < y));
-}
-
-//Computes maximum of integers x and y
-exports.max = function(x, y) {
-  return x ^ ((x ^ y) & -(x < y));
-}
-
-//Checks if a number is a power of two
-exports.isPow2 = function(v) {
-  return !(v & (v-1)) && (!!v);
-}
-
-//Computes log base 2 of v
-exports.log2 = function(v) {
-  var r, shift;
-  r =     (v > 0xFFFF) << 4; v >>>= r;
-  shift = (v > 0xFF  ) << 3; v >>>= shift; r |= shift;
-  shift = (v > 0xF   ) << 2; v >>>= shift; r |= shift;
-  shift = (v > 0x3   ) << 1; v >>>= shift; r |= shift;
-  return r | (v >> 1);
-}
-
-//Computes log base 10 of v
-exports.log10 = function(v) {
-  return  (v >= 1000000000) ? 9 : (v >= 100000000) ? 8 : (v >= 10000000) ? 7 :
-          (v >= 1000000) ? 6 : (v >= 100000) ? 5 : (v >= 10000) ? 4 :
-          (v >= 1000) ? 3 : (v >= 100) ? 2 : (v >= 10) ? 1 : 0;
-}
-
-//Counts number of bits
-exports.popCount = function(v) {
-  v = v - ((v >>> 1) & 0x55555555);
-  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
-  return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
-}
-
-//Counts number of trailing zeros
-function countTrailingZeros(v) {
-  var c = 32;
-  v &= -v;
-  if (v) c--;
-  if (v & 0x0000FFFF) c -= 16;
-  if (v & 0x00FF00FF) c -= 8;
-  if (v & 0x0F0F0F0F) c -= 4;
-  if (v & 0x33333333) c -= 2;
-  if (v & 0x55555555) c -= 1;
-  return c;
-}
-exports.countTrailingZeros = countTrailingZeros;
-
-//Rounds to next power of 2
-exports.nextPow2 = function(v) {
-  v += v === 0;
-  --v;
-  v |= v >>> 1;
-  v |= v >>> 2;
-  v |= v >>> 4;
-  v |= v >>> 8;
-  v |= v >>> 16;
-  return v + 1;
-}
-
-//Rounds down to previous power of 2
-exports.prevPow2 = function(v) {
-  v |= v >>> 1;
-  v |= v >>> 2;
-  v |= v >>> 4;
-  v |= v >>> 8;
-  v |= v >>> 16;
-  return v - (v>>>1);
-}
-
-//Computes parity of word
-exports.parity = function(v) {
-  v ^= v >>> 16;
-  v ^= v >>> 8;
-  v ^= v >>> 4;
-  v &= 0xf;
-  return (0x6996 >>> v) & 1;
-}
-
-var REVERSE_TABLE = new Array(256);
-
-(function(tab) {
-  for(var i=0; i<256; ++i) {
-    var v = i, r = i, s = 7;
-    for (v >>>= 1; v; v >>>= 1) {
-      r <<= 1;
-      r |= v & 1;
-      --s;
-    }
-    tab[i] = (r << s) & 0xff;
+module.exports = function lookup (ext) {
+  if (!ext) throw new TypeError('must specify extension string')
+  if (ext.indexOf('.') === 0) {
+    ext = ext.substring(1)
   }
-})(REVERSE_TABLE);
-
-//Reverse bits in a 32 bit word
-exports.reverse = function(v) {
-  return  (REVERSE_TABLE[ v         & 0xff] << 24) |
-          (REVERSE_TABLE[(v >>> 8)  & 0xff] << 16) |
-          (REVERSE_TABLE[(v >>> 16) & 0xff] << 8)  |
-           REVERSE_TABLE[(v >>> 24) & 0xff];
+  return mimeLookup[ext.toLowerCase()]
 }
 
-//Interleave bits of 2 coordinates with 16 bits.  Useful for fast quadtree codes
-exports.interleave2 = function(x, y) {
-  x &= 0xFFFF;
-  x = (x | (x << 8)) & 0x00FF00FF;
-  x = (x | (x << 4)) & 0x0F0F0F0F;
-  x = (x | (x << 2)) & 0x33333333;
-  x = (x | (x << 1)) & 0x55555555;
-
-  y &= 0xFFFF;
-  y = (y | (y << 8)) & 0x00FF00FF;
-  y = (y | (y << 4)) & 0x0F0F0F0F;
-  y = (y | (y << 2)) & 0x33333333;
-  y = (y | (y << 1)) & 0x55555555;
-
-  return x | (y << 1);
+},{"./mime-types.json":17}],17:[function(require,module,exports){
+module.exports={
+  "audio/midi": ["mid", "midi", "kar", "rmi"],
+  "audio/mp4": ["mp4a", "m4a"],
+  "audio/mpeg": ["mpga", "mp2", "mp2a", "mp3", "m2a", "m3a"],
+  "audio/ogg": ["oga", "ogg", "spx"],
+  "audio/webm": ["weba"],
+  "audio/x-matroska": ["mka"],
+  "audio/x-mpegurl": ["m3u"],
+  "audio/wav": ["wav"],
+  "video/3gpp": ["3gp"],
+  "video/3gpp2": ["3g2"],
+  "video/mp4": ["mp4", "mp4v", "mpg4"],
+  "video/mpeg": ["mpeg", "mpg", "mpe", "m1v", "m2v"],
+  "video/ogg": ["ogv"],
+  "video/quicktime": ["qt", "mov"],
+  "video/webm": ["webm"],
+  "video/x-f4v": ["f4v"],
+  "video/x-fli": ["fli"],
+  "video/x-flv": ["flv"],
+  "video/x-m4v": ["m4v"],
+  "video/x-matroska": ["mkv", "mk3d", "mks"]
 }
-
-//Extracts the nth interleaved component
-exports.deinterleave2 = function(v, n) {
-  v = (v >>> n) & 0x55555555;
-  v = (v | (v >>> 1))  & 0x33333333;
-  v = (v | (v >>> 2))  & 0x0F0F0F0F;
-  v = (v | (v >>> 4))  & 0x00FF00FF;
-  v = (v | (v >>> 16)) & 0x000FFFF;
-  return (v << 16) >> 16;
-}
-
-
-//Interleave bits of 3 coordinates, each with 10 bits.  Useful for fast octree codes
-exports.interleave3 = function(x, y, z) {
-  x &= 0x3FF;
-  x  = (x | (x<<16)) & 4278190335;
-  x  = (x | (x<<8))  & 251719695;
-  x  = (x | (x<<4))  & 3272356035;
-  x  = (x | (x<<2))  & 1227133513;
-
-  y &= 0x3FF;
-  y  = (y | (y<<16)) & 4278190335;
-  y  = (y | (y<<8))  & 251719695;
-  y  = (y | (y<<4))  & 3272356035;
-  y  = (y | (y<<2))  & 1227133513;
-  x |= (y << 1);
-  
-  z &= 0x3FF;
-  z  = (z | (z<<16)) & 4278190335;
-  z  = (z | (z<<8))  & 251719695;
-  z  = (z | (z<<4))  & 3272356035;
-  z  = (z | (z<<2))  & 1227133513;
-  
-  return x | (z << 2);
-}
-
-//Extracts nth interleaved component of a 3-tuple
-exports.deinterleave3 = function(v, n) {
-  v = (v >>> n)       & 1227133513;
-  v = (v | (v>>>2))   & 3272356035;
-  v = (v | (v>>>4))   & 251719695;
-  v = (v | (v>>>8))   & 4278190335;
-  v = (v | (v>>>16))  & 0x3FF;
-  return (v<<22)>>22;
-}
-
-//Computes next combination in colexicographic order (this is mistakenly called nextPermutation on the bit twiddling hacks page)
-exports.nextCombination = function(v) {
-  var t = v | (v - 1);
-  return (t + 1) | (((~t & -~t) - 1) >>> (countTrailingZeros(v) + 1));
-}
-
-},{}],48:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 var size = require('element-size')
 
 module.exports = fit
@@ -5812,7 +4414,7 @@ function fit(canvas, parent, scale) {
   }
 }
 
-},{"element-size":78}],49:[function(require,module,exports){
+},{"element-size":47}],19:[function(require,module,exports){
 var fitter = require('canvas-fit')
 var loop = require('raf-loop')
 
@@ -5868,7 +4470,12 @@ module.exports = function (canvas, opt) {
   }
 }
 
-},{"canvas-fit":48,"raf-loop":136}],50:[function(require,module,exports){
+},{"canvas-fit":18,"raf-loop":109}],20:[function(require,module,exports){
+module.exports = function (string) {
+  return string.charAt(0).toUpperCase() + string.substring(1);
+}
+
+},{}],21:[function(require,module,exports){
 /**
  * @module  caret-position/get
  *
@@ -5918,7 +4525,7 @@ module.exports = function (input) {
 	}
 	return result;
 };
-},{}],51:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 /**
  * @module  caret-position
  */
@@ -5932,7 +4539,7 @@ function caret(a,b,c){
 
 caret.get = require('./get');
 caret.set = require('./set');
-},{"./get":50,"./set":52}],52:[function(require,module,exports){
+},{"./get":21,"./set":23}],23:[function(require,module,exports){
 /**
  * @module  caret-position/set
  *
@@ -5956,7 +4563,7 @@ module.exports = function(input, start, end) {
 		range.select();
 	}
 };
-},{}],53:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = clamp
 
 function clamp(value, min, max) {
@@ -5965,7 +4572,7 @@ function clamp(value, min, max) {
     : (value < max ? max : value > min ? min : value)
 }
 
-},{}],54:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 (function (Buffer){
 var clone = (function() {
 'use strict';
@@ -6129,7 +4736,7 @@ if (typeof module === 'object' && module.exports) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":2}],55:[function(require,module,exports){
+},{"buffer":2}],26:[function(require,module,exports){
 /**
  * @module  color-alpha
  */
@@ -6149,7 +4756,7 @@ function alpha (color, value) {
 
 	return obj.space + "a(" + (obj.values) + "," + value + ")";
 }
-},{"color-parse":59}],56:[function(require,module,exports){
+},{"color-parse":30}],27:[function(require,module,exports){
 /**
  * @module  color-interpolate
  * Pick color from palette by index
@@ -6198,7 +4805,7 @@ function interpolate (palette) {
 		return ("rgba(" + result + ")");
 	};
 }
-},{"color-parse":59,"color-space/hsl":63,"lerp":107,"mumath/clamp":57}],57:[function(require,module,exports){
+},{"color-parse":30,"color-space/hsl":34,"lerp":81,"mumath/clamp":28}],28:[function(require,module,exports){
 /**
  * Clamp value.
  * Detects proper clamp min/max.
@@ -6213,7 +4820,7 @@ function interpolate (palette) {
 module.exports = function(a, min, max){
 	return max > min ? Math.max(Math.min(a,max),min) : Math.max(Math.min(a,min),max);
 };
-},{}],58:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 module.exports = {
 	"aliceblue": [240, 248, 255],
 	"antiquewhite": [250, 235, 215],
@@ -6364,7 +4971,7 @@ module.exports = {
 	"yellow": [255, 255, 0],
 	"yellowgreen": [154, 205, 50]
 };
-},{}],59:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 /**
  * @module color-parse
  */
@@ -6531,7 +5138,7 @@ function parse (cstr) {
 		alpha: alpha
 	};
 }
-},{"color-name":58,"is-plain-obj":104,"left-pad":106}],60:[function(require,module,exports){
+},{"color-name":29,"is-plain-obj":77,"left-pad":80}],31:[function(require,module,exports){
 /** @module  color-rgba */
 
 'use strict'
@@ -6561,7 +5168,7 @@ module.exports = function rgba (color, normalize) {
 
 	return parsed.values
 }
-},{"clamp":53,"color-parse":59,"color-space/hsl":61}],61:[function(require,module,exports){
+},{"clamp":24,"color-parse":30,"color-space/hsl":32}],32:[function(require,module,exports){
 /**
  * @module color-space/hsl
  */
@@ -6670,7 +5277,7 @@ rgb.hsl = function(rgb) {
 	return [h, s * 100, l * 100];
 };
 
-},{"./rgb":62}],62:[function(require,module,exports){
+},{"./rgb":33}],33:[function(require,module,exports){
 /**
  * RGB space.
  *
@@ -6686,7 +5293,7 @@ module.exports = {
 	alias: ['RGB']
 };
 
-},{}],63:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 /**
  * @module color-space/hsl
  */
@@ -6793,7 +5400,7 @@ rgb.hsl = function(rgb) {
 
 	return [h, s * 100, l * 100];
 };
-},{"./rgb":64}],64:[function(require,module,exports){
+},{"./rgb":35}],35:[function(require,module,exports){
 /**
  * RGB space.
  *
@@ -6807,7 +5414,7 @@ module.exports = {
 	channel: ['red', 'green', 'blue'],
 	alias: ['RGB']
 };
-},{}],65:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 module.exports={
 	"jet":[{"index":0,"rgb":[0,0,131]},{"index":0.125,"rgb":[0,60,170]},{"index":0.375,"rgb":[5,255,255]},{"index":0.625,"rgb":[255,255,0]},{"index":0.875,"rgb":[250,0,0]},{"index":1,"rgb":[128,0,0]}],
 
@@ -6900,7 +5507,7 @@ module.exports={
 	"cubehelix": [{"index":0,"rgb":[0,0,0]},{"index":0.07,"rgb":[22,5,59]},{"index":0.13,"rgb":[60,4,105]},{"index":0.2,"rgb":[109,1,135]},{"index":0.27,"rgb":[161,0,147]},{"index":0.33,"rgb":[210,2,142]},{"index":0.4,"rgb":[251,11,123]},{"index":0.47,"rgb":[255,29,97]},{"index":0.53,"rgb":[255,54,69]},{"index":0.6,"rgb":[255,85,46]},{"index":0.67,"rgb":[255,120,34]},{"index":0.73,"rgb":[255,157,37]},{"index":0.8,"rgb":[241,191,57]},{"index":0.87,"rgb":[224,220,93]},{"index":0.93,"rgb":[218,241,142]},{"index":1,"rgb":[227,253,198]}]
 };
 
-},{}],66:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 /*
  * Ben Postlethwaite
  * January 2013
@@ -7037,7 +5644,7 @@ function rgbaStr (rgba) {
     return 'rgba(' + rgba.join(',') + ')';
 }
 
-},{"./colorScales":65,"arraytools":45,"clone":54}],67:[function(require,module,exports){
+},{"./colorScales":36,"arraytools":11,"clone":25}],38:[function(require,module,exports){
 
 /**
  * Expose `Emitter`.
@@ -7203,19 +5810,7 @@ Emitter.prototype.listeners = function(event){
 Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
-},{}],68:[function(require,module,exports){
-module.exports = function gainToDecibels(value) {
-  if (value == null) return 0
-  return Math.round(Math.round(20 * (0.43429 * Math.log(value)) * 100) / 100 * 10) / 10
-}
-},{}],69:[function(require,module,exports){
-module.exports = function decibelsToGain(value){
-  if (value <= -40){
-    return 0
-  }
-  return Math.round(Math.exp(value / 8.6858) * 10000) / 10000
-}
-},{}],70:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 var prefix = require('prefix-style')
 var toCamelCase = require('to-camel-case')
 var cache = { 'float': 'cssFloat' }
@@ -7278,7 +5873,7 @@ module.exports.get = function (element, properties) {
   }
 }
 
-},{"add-px-to-style":44,"prefix-style":134,"to-camel-case":168}],71:[function(require,module,exports){
+},{"add-px-to-style":8,"prefix-style":107,"to-camel-case":142}],40:[function(require,module,exports){
 'use strict';
 
 var trim = require('trim');
@@ -7366,7 +5961,7 @@ function numToString(value) {
   return value;
 }
 
-},{"./lib/properties":73,"prefix":135,"trim":174}],72:[function(require,module,exports){
+},{"./lib/properties":42,"prefix":108,"trim":148}],41:[function(require,module,exports){
 'use strict';
 
 exports = module.exports = compose;
@@ -7385,7 +5980,7 @@ function compose() {
   };
 }
 
-},{}],73:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 'use strict';
 
 var trim = require('trim');
@@ -7508,7 +6103,7 @@ function defaultUnit(unit) {
   };
 }
 
-},{"./compose":72,"trim":174}],74:[function(require,module,exports){
+},{"./compose":41,"trim":148}],43:[function(require,module,exports){
 
 /**
  * Expose `parse`.
@@ -7622,7 +6217,7 @@ function parse(html, doc) {
   return fragment;
 }
 
-},{}],75:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 module.exports = defaultProperty
 
 function defaultProperty (get, set) {
@@ -7634,13 +6229,13 @@ function defaultProperty (get, set) {
   }
 }
 
-},{}],76:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 function circOut(t) {
   return Math.sqrt(1 - ( --t * t ))
 }
 
 module.exports = circOut
-},{}],77:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 function expoInOut(t) {
   return (t === 0.0 || t === 1.0)
     ? t
@@ -7650,7 +6245,7 @@ function expoInOut(t) {
 }
 
 module.exports = expoInOut
-},{}],78:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports = getSize
 
 function getSize(element) {
@@ -7686,7 +6281,7 @@ function parse(prop) {
   return parseFloat(prop) || 0
 }
 
-},{}],79:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 require('typedarray-methods');
 require('get-float-time-domain-data');
 var css = require('insert-styles');
@@ -7718,7 +6313,55 @@ function addMeta (obj) {
 		document.head.insertBefore(meta, document.head.firstChild);
 	}
 }
-},{"get-float-time-domain-data":82,"insert-styles":97,"typedarray-methods":175}],80:[function(require,module,exports){
+},{"get-float-time-domain-data":52,"insert-styles":69,"typedarray-methods":149}],49:[function(require,module,exports){
+var isFunction = require('is-function')
+
+module.exports = forEach
+
+var toString = Object.prototype.toString
+var hasOwnProperty = Object.prototype.hasOwnProperty
+
+function forEach(list, iterator, context) {
+    if (!isFunction(iterator)) {
+        throw new TypeError('iterator must be a function')
+    }
+
+    if (arguments.length < 3) {
+        context = this
+    }
+    
+    if (toString.call(list) === '[object Array]')
+        forEachArray(list, iterator, context)
+    else if (typeof list === 'string')
+        forEachString(list, iterator, context)
+    else
+        forEachObject(list, iterator, context)
+}
+
+function forEachArray(array, iterator, context) {
+    for (var i = 0, len = array.length; i < len; i++) {
+        if (hasOwnProperty.call(array, i)) {
+            iterator.call(context, array[i], i, array)
+        }
+    }
+}
+
+function forEachString(string, iterator, context) {
+    for (var i = 0, len = string.length; i < len; i++) {
+        // no such thing as a sparse string.
+        iterator.call(context, string.charAt(i), i, string)
+    }
+}
+
+function forEachObject(object, iterator, context) {
+    for (var k in object) {
+        if (hasOwnProperty.call(object, k)) {
+            iterator.call(context, object[k], k, object)
+        }
+    }
+}
+
+},{"is-function":73}],50:[function(require,module,exports){
 /**
  * @module fps-indicator
  */
@@ -7805,7 +6448,7 @@ function fps (opts) {
 		raf(measure);
 	});
 }
-},{"raf":137,"right-now":138}],81:[function(require,module,exports){
+},{"raf":110,"right-now":111}],51:[function(require,module,exports){
 module.exports = getCanvasContext
 function getCanvasContext (type, opts) {
   if (typeof type !== 'string') {
@@ -7845,7 +6488,7 @@ function getCanvasContext (type, opts) {
   return (gl || null) // ensure null on fail
 }
 
-},{}],82:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -7860,14 +6503,14 @@ if (global.AnalyserNode && !global.AnalyserNode.prototype.getFloatTimeDomainData
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],83:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 /** generate unique id for selector */
 var counter = Date.now() % 1e9;
 
 module.exports = function getUid(){
 	return (Math.random() * 1e9 >>> 0) + (counter++);
 };
-},{}],84:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 'use strict'
 
 var isPlainObject = require('is-plain-obj');
@@ -7929,6 +6572,7 @@ function setAttribute (gl, name, options, program) {
 
 			gl.bindBuffer(attribute.target, attribute.buffer);
 			gl.bufferSubData(attribute.target, 0, attribute.data);
+
 			//FIXME: sort out why do we need to set pointer every program switch
 			// gl.enableVertexAttribArray(attribute.index);
 			gl.vertexAttribPointer(attribute.index, attribute.size, attribute.type, attribute.normalized, attribute.stride, attribute.offset);
@@ -8051,6 +6695,7 @@ function setAttribute (gl, name, options, program) {
 	if (attribute.offset == null) {
 		attribute.offset = 0;
 	}
+
 	gl.bindBuffer(attribute.target, attribute.buffer);
 	gl.bufferData(attribute.target, attribute.data, attribute.usage);
 
@@ -8060,7 +6705,7 @@ function setAttribute (gl, name, options, program) {
 
 	return attribute;
 }
-},{"./program":86,"is-firefox":99,"is-plain-obj":104,"object-assign":129}],85:[function(require,module,exports){
+},{"./program":56,"is-firefox":72,"is-plain-obj":77,"object-assign":101}],55:[function(require,module,exports){
 /** @module  gl-util/context */
 'use strict'
 
@@ -8085,7 +6730,9 @@ function setContext (opts) {
 		premultipliedAlpha: opts.premultipliedAlpha != null ? opts.premultipliedAlpha : true,
 		preserveDrawingBuffer: opts.preserveDrawingBuffer != null ? opts.preserveDrawingBuffer : true,
 		depth: opts.depth != null ? opts.depth : false,
-		stencil: opts.stencil != null ? opts.stencil : false
+		stencil: opts.stencil != null ? opts.stencil : false,
+		width: opts.width,
+		height: opts.height
 	});
 
 	//enable extensions
@@ -8114,7 +6761,7 @@ function setContext (opts) {
 
 	return gl;
 }
-},{"webgl-context":176}],86:[function(require,module,exports){
+},{"webgl-context":158}],56:[function(require,module,exports){
 'use strict'
 
 module.exports = setProgram;
@@ -8172,7 +6819,7 @@ function setProgram (gl, vSrc, fSrc) {
 
 	return program;
 }
-},{}],87:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 /* @module gl-util/unifrom */
 
 'use strict'
@@ -8331,7 +6978,7 @@ function setUniform (gl, name, options, program) {
 
 	return uniform;
 }
-},{"./program":86,"is-firefox":99,"is-plain-obj":104,"number-is-integer":127,"object-assign":129}],88:[function(require,module,exports){
+},{"./program":56,"is-firefox":72,"is-plain-obj":77,"number-is-integer":99,"object-assign":101}],58:[function(require,module,exports){
 module.exports = distance
 
 /**
@@ -8346,7 +6993,32 @@ function distance(a, b) {
         y = b[1] - a[1]
     return Math.sqrt(x*x + y*y)
 }
-},{}],89:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
+(function (global){
+if (typeof window !== "undefined") {
+    module.exports = window;
+} else if (typeof global !== "undefined") {
+    module.exports = global;
+} else if (typeof self !== "undefined"){
+    module.exports = self;
+} else {
+    module.exports = {};
+}
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],60:[function(require,module,exports){
+module.exports = function(strings) {
+  if (typeof strings === 'string') strings = [strings]
+  var exprs = [].slice.call(arguments,1)
+  var parts = []
+  for (var i = 0; i < strings.length-1; i++) {
+    parts.push(strings[i], exprs[i] || '')
+  }
+  parts.push(strings[i])
+  return parts.join('')
+}
+
+},{}],61:[function(require,module,exports){
 module.exports = asString
 module.exports.add = append
 
@@ -8386,7 +7058,7 @@ function makeArray(arr) {
   return Array.isArray(arr) ? arr : [arr]
 }
 
-},{}],90:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 (function (global, factory) {
 	if (typeof define === 'function' && define.amd) {
 		define(['exports', 'module'], factory);
@@ -8812,7 +7484,7 @@ function makeArray(arr) {
 	})();
 });
 
-},{}],91:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -8837,7 +7509,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],92:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 /**
  * @module  input-number
  */
@@ -8926,7 +7598,7 @@ function numerify (input, opts) {
 
 	return input;
 }
-},{"caret-position2":51,"mumath/clamp":93,"mumath/round":95}],93:[function(require,module,exports){
+},{"caret-position2":22,"mumath/clamp":65,"mumath/round":67}],65:[function(require,module,exports){
 /**
  * Clamp value.
  * Detects proper clamp min/max.
@@ -8941,7 +7613,7 @@ function numerify (input, opts) {
 module.exports = require('./wrap')(function(a, min, max){
 	return max > min ? Math.max(Math.min(a,max),min) : Math.max(Math.min(a,min),max);
 });
-},{"./wrap":96}],94:[function(require,module,exports){
+},{"./wrap":68}],66:[function(require,module,exports){
 /**
  * @module  mumath/precision
  *
@@ -8961,7 +7633,7 @@ module.exports = require('./wrap')(function(n){
 
 	return !d ? 0 : s.length - d;
 });
-},{"./wrap":96}],95:[function(require,module,exports){
+},{"./wrap":68}],67:[function(require,module,exports){
 /**
  * Precision round
  *
@@ -8984,7 +7656,7 @@ module.exports = require('./wrap')(function(value, step) {
 	value = Math.round(value / step) * step;
 	return parseFloat(value.toFixed(precision(step)));
 });
-},{"./precision":94,"./wrap":96}],96:[function(require,module,exports){
+},{"./precision":66,"./wrap":68}],68:[function(require,module,exports){
 /**
  * Get fn wrapped with array/object attrs recognition
  *
@@ -9026,7 +7698,7 @@ module.exports = function(fn){
 		}
 	};
 };
-},{}],97:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 (function (global){
 'use strict'
 
@@ -9062,7 +7734,19 @@ function createStyle (id) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],98:[function(require,module,exports){
+},{}],70:[function(require,module,exports){
+module.exports = isNode
+
+function isNode (val) {
+  return (!val || typeof val !== 'object')
+    ? false
+    : (typeof window === 'object' && typeof window.Node === 'object')
+      ? (val instanceof window.Node)
+      : (typeof val.nodeType === 'number') &&
+        (typeof val.nodeName === 'string')
+}
+
+},{}],71:[function(require,module,exports){
 'use strict';
 var numberIsNan = require('number-is-nan');
 
@@ -9070,21 +7754,28 @@ module.exports = Number.isFinite || function (val) {
 	return !(typeof val !== 'number' || numberIsNan(val) || val === Infinity || val === -Infinity);
 };
 
-},{"number-is-nan":128}],99:[function(require,module,exports){
+},{"number-is-nan":100}],72:[function(require,module,exports){
 'use strict';
 module.exports = typeof navigator !== 'undefined' && /^(?!.*Seamonkey)(?=.*Firefox).*/i.test(navigator.userAgent);
 
-},{}],100:[function(require,module,exports){
-// https://github.com/paulmillr/es6-shim
-// http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isinteger
-var isFinite = require("is-finite");
-module.exports = Number.isInteger || function(val) {
-  return typeof val === "number" &&
-    isFinite(val) &&
-    Math.floor(val) === val;
+},{}],73:[function(require,module,exports){
+module.exports = isFunction
+
+var toString = Object.prototype.toString
+
+function isFunction (fn) {
+  var string = toString.call(fn)
+  return string === '[object Function]' ||
+    (typeof fn === 'function' && string !== '[object RegExp]') ||
+    (typeof window !== 'undefined' &&
+     // IE8 and below
+     (fn === window.setTimeout ||
+      fn === window.alert ||
+      fn === window.confirm ||
+      fn === window.prompt))
 };
 
-},{"is-finite":98}],101:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 module.exports = isMobile;
 
 function isMobile (ua) {
@@ -9097,14 +7788,14 @@ function isMobile (ua) {
   return /(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows (ce|phone)|xda|xiino/i.test(ua) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(ua.substr(0,4));
 }
 
-},{}],102:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 'use strict';
 
 module.exports = function isNegativeZero(number) {
 	return number === 0 && (1 / number) === -Infinity;
 };
 
-},{}],103:[function(require,module,exports){
+},{}],76:[function(require,module,exports){
 (function(root) {
   'use strict';
 
@@ -9130,7 +7821,7 @@ module.exports = function isNegativeZero(number) {
 
 })(this);
 
-},{}],104:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
 'use strict';
 var toString = Object.prototype.toString;
 
@@ -9139,7 +7830,32 @@ module.exports = function (x) {
 	return toString.call(x) === '[object Object]' && (prototype = Object.getPrototypeOf(x), prototype === null || prototype === Object.getPrototypeOf({}));
 };
 
-},{}],105:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
+
+/**
+ * Expose `isUrl`.
+ */
+
+module.exports = isUrl;
+
+/**
+ * Matcher.
+ */
+
+var matcher = /^(?:\w+:)?\/\/([^\s\.]+\.\S{2}|localhost[\:?\d]*)\S*$/;
+
+/**
+ * Loosely validate a URL `string`.
+ *
+ * @param {String} string
+ * @return {Boolean}
+ */
+
+function isUrl(string){
+  return matcher.test(string);
+}
+
+},{}],79:[function(require,module,exports){
 module.exports = extend;
 
 /*
@@ -9189,7 +7905,7 @@ function extend(obj1, obj2 /*, [objn]*/) {
   return result;
 }
 
-},{}],106:[function(require,module,exports){
+},{}],80:[function(require,module,exports){
 'use strict';
 module.exports = leftPad;
 
@@ -9238,12 +7954,12 @@ function leftPad (str, len, ch) {
   return pad + str;
 }
 
-},{}],107:[function(require,module,exports){
+},{}],81:[function(require,module,exports){
 function lerp(v0, v1, t) {
     return v0*(1-t)+v1*t
 }
 module.exports = lerp
-},{}],108:[function(require,module,exports){
+},{}],82:[function(require,module,exports){
 /**
  * lodash 3.1.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -9376,7 +8092,7 @@ function isLength(value) {
 
 module.exports = baseFlatten;
 
-},{"lodash.isarguments":114,"lodash.isarray":115}],109:[function(require,module,exports){
+},{"lodash.isarguments":88,"lodash.isarray":89}],83:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -9413,7 +8129,7 @@ function baseFunctions(object, props) {
 
 module.exports = baseFunctions;
 
-},{"lodash.isfunction":116}],110:[function(require,module,exports){
+},{"lodash.isfunction":90}],84:[function(require,module,exports){
 /**
  * lodash 3.2.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modularize exports="npm" -o ./`
@@ -10096,7 +8812,7 @@ function toNumber(value) {
 
 module.exports = createWrapper;
 
-},{"lodash._root":111}],111:[function(require,module,exports){
+},{"lodash._root":85}],85:[function(require,module,exports){
 (function (global){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
@@ -10159,7 +8875,7 @@ function checkGlobal(value) {
 module.exports = root;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],112:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 /**
  * lodash 3.1.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -10219,7 +8935,7 @@ var bindAll = restParam(function(object, methodNames) {
 
 module.exports = bindAll;
 
-},{"lodash._baseflatten":108,"lodash._createwrapper":110,"lodash.functions":113,"lodash.restparam":118}],113:[function(require,module,exports){
+},{"lodash._baseflatten":82,"lodash._createwrapper":84,"lodash.functions":87,"lodash.restparam":92}],87:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -10252,7 +8968,7 @@ function functions(object) {
 
 module.exports = functions;
 
-},{"lodash._basefunctions":109,"lodash.keysin":117}],114:[function(require,module,exports){
+},{"lodash._basefunctions":83,"lodash.keysin":91}],88:[function(require,module,exports){
 /**
  * lodash (Custom Build) <https://lodash.com/>
  * Build: `lodash modularize exports="npm" -o ./`
@@ -10483,7 +9199,7 @@ function isObjectLike(value) {
 
 module.exports = isArguments;
 
-},{}],115:[function(require,module,exports){
+},{}],89:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -10665,7 +9381,7 @@ function isNative(value) {
 
 module.exports = isArray;
 
-},{}],116:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 /**
  * lodash 3.0.8 (Custom Build) <https://lodash.com/>
  * Build: `lodash modularize exports="npm" -o ./`
@@ -10742,7 +9458,7 @@ function isObject(value) {
 
 module.exports = isFunction;
 
-},{}],117:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 /**
  * lodash 3.0.8 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -10876,7 +9592,7 @@ function keysIn(object) {
 
 module.exports = keysIn;
 
-},{"lodash.isarguments":114,"lodash.isarray":115}],118:[function(require,module,exports){
+},{"lodash.isarguments":88,"lodash.isarray":89}],92:[function(require,module,exports){
 /**
  * lodash 3.6.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -10945,7 +9661,7 @@ function restParam(func, start) {
 
 module.exports = restParam;
 
-},{}],119:[function(require,module,exports){
+},{}],93:[function(require,module,exports){
 /**
  * Special language-specific overrides.
  *
@@ -11001,7 +9717,7 @@ module.exports = function (str, locale) {
   return str.toLowerCase()
 }
 
-},{}],120:[function(require,module,exports){
+},{}],94:[function(require,module,exports){
 var rootPosition = { left: 0, top: 0 }
 
 module.exports = mouseEventOffset
@@ -11028,7 +9744,7 @@ function getBoundingClientOffset (element) {
   }
 }
 
-},{}],121:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 'use strict'
 
 var toPX = require('to-px')
@@ -11070,129 +9786,7 @@ function mouseWheelListen(element, callback, noScroll) {
   return listener
 }
 
-},{"to-px":170}],122:[function(require,module,exports){
-/**
- * @module  multiscale-array
- *
- * Create power-of-two scales for and array
- */
-'use strict';
-
-var nidx = require('negative-index');
-
-module.exports = createScales;
-
-function createScales (buffer, opts) {
-	if (!buffer) throw Error('An array should be passed as a first argument');
-
-	if (opts instanceof Function) {
-		opts = {reduce: opts}
-	}
-	opts = opts || {};
-
-	var maxScale = opts.maxScale || Math.pow(2, 16);
-
-	if (maxScale < 2) throw Error('Bad scales');
-
-	var reduce = opts.reduce || (function (left, right, i, l) { return left*.5 + right*.5; });
-
-	//list of data  for scales, scale index is the power of 2
-	var scales = [buffer];
-
-	for (var group = 2, idx = 1; group <= maxScale; group*=2, idx++) {
-		scales[idx] = [];
-	}
-
-	scales.scales = scales;
-	scales.update = update;
-	scales.subset = subset;
-	update();
-
-	return scales;
-
-	//recalculate stats for the range
-	function update (arr, start, end) {
-		if (typeof arr === 'number' || arr == null) {
-			end = start;
-			start = arr;
-			arr = null;
-		}
-		//update array, if passed one
-		else {
-			if (arr.length == null) throw Error('New data should be array[ish]')
-
-			//reset lengths if new data is smaller
-			if (arr.length < scales[0].length) {
-				for (var group = 2, idx = 1; group <= maxScale; group*=2, idx++) {
-					var len = Math.ceil(arr.length/group);
-					scales[idx].length = len;
-				}
-			}
-
-			scales[0] = arr;
-		}
-
-		if (start == null) start = 0;
-		if (end == null) end = scales[0].length;
-
-		start = nidx(start, scales[0].length);
-		end = nidx(end, scales[0].length);
-
-		for (var group$1 = 2, idx$1 = 1; group$1 <= maxScale; group$1*=2, idx$1++) {
-			var scaleBuffer = scales[idx$1];
-			var prevScaleBuffer = scales[idx$1 - 1];
-			var len$1 = Math.ceil(end/group$1);
-
-			//ensure size
-			if (scaleBuffer.length < len$1) scaleBuffer.length = len$1;
-
-			var groupStart = Math.floor(start/group$1);
-
-			for (var i = groupStart; i < len$1; i++) {
-				var left = prevScaleBuffer[i*2];
-				if (left === undefined) left = 0;
-				var right = prevScaleBuffer[i*2+1];
-				if (right === undefined) right = left;
-				scaleBuffer[i] = reduce(left, right, i*2, idx$1-1);
-			}
-		}
-
-		return scales;
-	}
-
-	//return subset of scales with sliced data
-	function subset (start, end) {
-		if (start == null) start = 0;
-		if (end == null) end = scales[0].length;
-
-		start = nidx(start, scales[0].length);
-		end = nidx(end, scales[0].length);
-
-		for (var group = 2, idx = 1; group <= maxScale; group*=2, idx++) {
-			var groupEnd = Math.round(end/group);
-			var groupStart = Math.floor(start/group);
-			scales[idx] = scales[idx].slice(groupStart, groupEnd);
-		}
-
-		return scales;
-	}
-}
-},{"negative-index":125}],123:[function(require,module,exports){
-/**
- * Clamp value.
- * Detects proper clamp min/max.
- *
- * @param {number} a Current value to cut off
- * @param {number} min One side limit
- * @param {number} max Other side limit
- *
- * @return {number} Clamped value
- */
-'use strict';
-module.exports = function(a, min, max){
-	return max > min ? Math.max(Math.min(a,max),min) : Math.max(Math.min(a,min),max);
-};
-},{}],124:[function(require,module,exports){
+},{"to-px":144}],96:[function(require,module,exports){
 /**
  * @module mumath/lerp
  */
@@ -11200,16 +9794,16 @@ module.exports = function(a, min, max){
 module.exports = function (x, y, a) {
 	return x * (1.0 - a) + y * a;
 };
-},{}],125:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 /** @module negative-index */
 var isNeg = require('is-negative-zero');
 
 module.exports = function negIdx (idx, length) {
 	return isNeg(idx) ? length : idx <= -length ? 0 : idx < 0 ? (length + (idx % length)) : Math.min(length, idx);
 }
-},{"is-negative-zero":102}],126:[function(require,module,exports){
+},{"is-negative-zero":75}],98:[function(require,module,exports){
 module.exports=[["#69d2e7","#a7dbd8","#e0e4cc","#f38630","#fa6900"],["#fe4365","#fc9d9a","#f9cdad","#c8c8a9","#83af9b"],["#ecd078","#d95b43","#c02942","#542437","#53777a"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#fe4365","#fc9d9a","#f9cdad","#c8c8a9","#83af9b"],["#ecd078","#d95b43","#c02942","#542437","#53777a"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ecd078","#d95b43","#c02942","#542437","#53777a"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ffe181","#eee9e5","#fad3b2","#ffba7f","#ff9c97"],["#556270","#4ecdc4","#c7f464","#ff6b6b","#c44d58"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ffe181","#eee9e5","#fad3b2","#ffba7f","#ff9c97"],["#7e5686","#a5aad9","#e8f9a2","#f8a13f","#ba3c3d"],["#774f38","#e08e79","#f1d4af","#ece5ce","#c5e0dc"],["#e8ddcb","#cdb380","#036564","#033649","#031634"],["#490a3d","#bd1550","#e97f02","#f8ca00","#8a9b0f"],["#594f4f","#547980","#45ada8","#9de0ad","#e5fcc2"],["#00a0b0","#6a4a3c","#cc333f","#eb6841","#edc951"],["#e94e77","#d68189","#c6a49a","#c6e5d9","#f4ead5"],["#3fb8af","#7fc7af","#dad8a7","#ff9e9d","#ff3d7f"],["#d9ceb2","#948c75","#d5ded9","#7a6a53","#99b2b7"],["#ffffff","#cbe86b","#f2e9e1","#1c140d","#cbe86b"],["#efffcd","#dce9be","#555152","#2e2633","#99173c"],["#343838","#005f6b","#008c9e","#00b4cc","#00dffc"],["#413e4a","#73626e","#b38184","#f0b49e","#f7e4be"],["#99b898","#fecea8","#ff847c","#e84a5f","#2a363b"],["#ff4e50","#fc913a","#f9d423","#ede574","#e1f5c4"],["#655643","#80bca3","#f6f7bd","#e6ac27","#bf4d28"],["#351330","#424254","#64908a","#e8caa4","#cc2a41"],["#00a8c6","#40c0cb","#f9f2e7","#aee239","#8fbe00"],["#554236","#f77825","#d3ce3d","#f1efa5","#60b99a"],["#ff9900","#424242","#e9e9e9","#bcbcbc","#3299bb"],["#8c2318","#5e8c6a","#88a65e","#bfb35a","#f2c45a"],["#fad089","#ff9c5b","#f5634a","#ed303c","#3b8183"],["#5d4157","#838689","#a8caba","#cad7b2","#ebe3aa"],["#ff4242","#f4fad2","#d4ee5e","#e1edb9","#f0f2eb"],["#d1e751","#ffffff","#000000","#4dbce9","#26ade4"],["#f8b195","#f67280","#c06c84","#6c5b7b","#355c7d"],["#bcbdac","#cfbe27","#f27435","#f02475","#3b2d38"],["#5e412f","#fcebb6","#78c0a8","#f07818","#f0a830"],["#1b676b","#519548","#88c425","#bef202","#eafde6"],["#eee6ab","#c5bc8e","#696758","#45484b","#36393b"],["#452632","#91204d","#e4844a","#e8bf56","#e2f7ce"],["#f0d8a8","#3d1c00","#86b8b1","#f2d694","#fa2a00"],["#f04155","#ff823a","#f2f26f","#fff7bd","#95cfb7"],["#2a044a","#0b2e59","#0d6759","#7ab317","#a0c55f"],["#bbbb88","#ccc68d","#eedd99","#eec290","#eeaa88"],["#b9d7d9","#668284","#2a2829","#493736","#7b3b3b"],["#67917a","#170409","#b8af03","#ccbf82","#e33258"],["#a3a948","#edb92e","#f85931","#ce1836","#009989"],["#b3cc57","#ecf081","#ffbe40","#ef746f","#ab3e5b"],["#e8d5b7","#0e2430","#fc3a51","#f5b349","#e8d5b9"],["#ab526b","#bca297","#c5ceae","#f0e2a4","#f4ebc3"],["#607848","#789048","#c0d860","#f0f0d8","#604848"],["#aab3ab","#c4cbb7","#ebefc9","#eee0b7","#e8caaf"],["#300030","#480048","#601848","#c04848","#f07241"],["#a8e6ce","#dcedc2","#ffd3b5","#ffaaa6","#ff8c94"],["#3e4147","#fffedf","#dfba69","#5a2e2e","#2a2c31"],["#515151","#ffffff","#00b4ff","#eeeeee"],["#fc354c","#29221f","#13747d","#0abfbc","#fcf7c5"],["#1c2130","#028f76","#b3e099","#ffeaad","#d14334"],["#b6d8c0","#c8d9bf","#dadabd","#ecdbbc","#fedcba"],["#edebe6","#d6e1c7","#94c7b6","#403b33","#d3643b"],["#fdf1cc","#c6d6b8","#987f69","#e3ad40","#fcd036"],["#cc0c39","#e6781e","#c8cf02","#f8fcc1","#1693a7"],["#5c323e","#a82743","#e15e32","#c0d23e","#e5f04c"],["#dad6ca","#1bb0ce","#4f8699","#6a5e72","#563444"],["#230f2b","#f21d41","#ebebbc","#bce3c5","#82b3ae"],["#b9d3b0","#81bda4","#b28774","#f88f79","#f6aa93"],["#3a111c","#574951","#83988e","#bcdea5","#e6f9bc"],["#a7c5bd","#e5ddcb","#eb7b59","#cf4647","#524656"],["#5e3929","#cd8c52","#b7d1a3","#dee8be","#fcf7d3"],["#1c0113","#6b0103","#a30006","#c21a01","#f03c02"],["#8dccad","#988864","#fea6a2","#f9d6ac","#ffe9af"],["#c1b398","#605951","#fbeec2","#61a6ab","#accec0"],["#382f32","#ffeaf2","#fcd9e5","#fbc5d8","#f1396d"],["#e3dfba","#c8d6bf","#93ccc6","#6cbdb5","#1a1f1e"],["#5e9fa3","#dcd1b4","#fab87f","#f87e7b","#b05574"],["#4e395d","#827085","#8ebe94","#ccfc8e","#dc5b3e"],["#000000","#9f111b","#b11623","#292c37","#cccccc"],["#cfffdd","#b4dec1","#5c5863","#a85163","#ff1f4c"],["#9dc9ac","#fffec7","#f56218","#ff9d2e","#919167"],["#413d3d","#040004","#c8ff00","#fa023c","#4b000f"],["#951f2b","#f5f4d7","#e0dfb1","#a5a36c","#535233"],["#1b325f","#9cc4e4","#e9f2f9","#3a89c9","#f26c4f"],["#a8a7a7","#cc527a","#e8175d","#474747","#363636"],["#eff3cd","#b2d5ba","#61ada0","#248f8d","#605063"],["#2d2d29","#215a6d","#3ca2a2","#92c7a3","#dfece6"],["#ffedbf","#f7803c","#f54828","#2e0d23","#f8e4c1"],["#9d7e79","#ccac95","#9a947c","#748b83","#5b756c"],["#f6f6f6","#e8e8e8","#333333","#990100","#b90504"],["#0ca5b0","#4e3f30","#fefeeb","#f8f4e4","#a5b3aa"],["#edf6ee","#d1c089","#b3204d","#412e28","#151101"],["#d1313d","#e5625c","#f9bf76","#8eb2c5","#615375"],["#fffbb7","#a6f6af","#66b6ab","#5b7c8d","#4f2958"],["#4e4d4a","#353432","#94ba65","#2790b0","#2b4e72"],["#f38a8a","#55443d","#a0cab5","#cde9ca","#f1edd0"],["#a70267","#f10c49","#fb6b41","#f6d86b","#339194"],["#fcfef5","#e9ffe1","#cdcfb7","#d6e6c3","#fafbe3"],["#4d3b3b","#de6262","#ffb88c","#ffd0b3","#f5e0d3"],["#c2412d","#d1aa34","#a7a844","#a46583","#5a1e4a"],["#046d8b","#309292","#2fb8ac","#93a42a","#ecbe13"],["#f8edd1","#d88a8a","#474843","#9d9d93","#c5cfc6"],["#9cddc8","#bfd8ad","#ddd9ab","#f7af63","#633d2e"],["#ffefd3","#fffee4","#d0ecea","#9fd6d2","#8b7a5e"],["#30261c","#403831","#36544f","#1f5f61","#0b8185"],["#75616b","#bfcff7","#dce4f7","#f8f3bf","#d34017"],["#a1dbb2","#fee5ad","#faca66","#f7a541","#f45d4c"],["#ff003c","#ff8a00","#fabe28","#88c100","#00c176"],["#aaff00","#ffaa00","#ff00aa","#aa00ff","#00aaff"],["#ffe181","#eee9e5","#fad3b2","#ffba7f","#ff9c97"],["#7e5686","#a5aad9","#e8f9a2","#f8a13f","#ba3c3d"],["#379f7a","#78ae62","#bbb749","#e0fbac","#1f1c0d"]]
-},{}],127:[function(require,module,exports){
+},{}],99:[function(require,module,exports){
 'use strict';
 var numberIsFinite = require('is-finite');
 
@@ -11217,13 +9811,13 @@ module.exports = Number.isInteger || function (x) {
 	return numberIsFinite(x) && Math.floor(x) === x;
 };
 
-},{"is-finite":98}],128:[function(require,module,exports){
+},{"is-finite":71}],100:[function(require,module,exports){
 'use strict';
 module.exports = Number.isNaN || function (x) {
 	return x !== x;
 };
 
-},{}],129:[function(require,module,exports){
+},{}],101:[function(require,module,exports){
 'use strict';
 /* eslint-disable no-unused-vars */
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -11310,7 +9904,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],130:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 /**
  * @module  pan-zoom
  *
@@ -11398,7 +9992,7 @@ function panzoom (target, cb) {
 		});
 	});
 }
-},{"impetus":90,"mouse-wheel":121,"touch-pinch":172,"touch-position":173}],131:[function(require,module,exports){
+},{"impetus":62,"mouse-wheel":95,"touch-pinch":146,"touch-position":147}],103:[function(require,module,exports){
 var sentenceCase = require('sentence-case')
 
 /**
@@ -11412,7 +10006,39 @@ module.exports = function (string, locale) {
   return sentenceCase(string, locale, '-')
 }
 
-},{"sentence-case":140}],132:[function(require,module,exports){
+},{"sentence-case":113}],104:[function(require,module,exports){
+var trim = require('trim')
+  , forEach = require('for-each')
+  , isArray = function(arg) {
+      return Object.prototype.toString.call(arg) === '[object Array]';
+    }
+
+module.exports = function (headers) {
+  if (!headers)
+    return {}
+
+  var result = {}
+
+  forEach(
+      trim(headers).split('\n')
+    , function (row) {
+        var index = row.indexOf(':')
+          , key = trim(row.slice(0, index)).toLowerCase()
+          , value = trim(row.slice(index + 1))
+
+        if (typeof(result[key]) === 'undefined') {
+          result[key] = value
+        } else if (isArray(result[key])) {
+          result[key].push(value)
+        } else {
+          result[key] = [ result[key], value ]
+        }
+      }
+  )
+
+  return result
+}
+},{"for-each":49,"trim":148}],105:[function(require,module,exports){
 module.exports = function parseUnit(str, out) {
     if (!out)
         out = [ 0, '' ]
@@ -11423,7 +10049,7 @@ module.exports = function parseUnit(str, out) {
     out[1] = str.match(/[\d.\-\+]*\s*(.*)/)[1] || ''
     return out
 }
-},{}],133:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
 (function (process){
 // Generated by CoffeeScript 1.7.1
 (function() {
@@ -11459,7 +10085,7 @@ module.exports = function parseUnit(str, out) {
 }).call(this);
 
 }).call(this,require('_process'))
-},{"_process":6}],134:[function(require,module,exports){
+},{"_process":6}],107:[function(require,module,exports){
 var div = null
 var prefixes = [ 'Webkit', 'Moz', 'O', 'ms' ]
 
@@ -11491,14 +10117,14 @@ module.exports = function prefixStyle (prop) {
   return false
 }
 
-},{}],135:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 function identity(x) { return x; }
 
 module.exports = identity;
 module.exports.dash = identity;
 module.exports.dash = identity;
 
-},{}],136:[function(require,module,exports){
+},{}],109:[function(require,module,exports){
 var inherits = require('inherits')
 var EventEmitter = require('events').EventEmitter
 var now = require('right-now')
@@ -11543,7 +10169,7 @@ Engine.prototype.tick = function() {
     this.emit('tick', dt)
     this.last = time
 }
-},{"events":3,"inherits":91,"raf":137,"right-now":138}],137:[function(require,module,exports){
+},{"events":3,"inherits":63,"raf":110,"right-now":111}],110:[function(require,module,exports){
 (function (global){
 var now = require('performance-now')
   , root = typeof window === 'undefined' ? global : window
@@ -11619,7 +10245,7 @@ module.exports.polyfill = function() {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"performance-now":133}],138:[function(require,module,exports){
+},{"performance-now":106}],111:[function(require,module,exports){
 (function (global){
 module.exports =
   global.performance &&
@@ -11630,7 +10256,7 @@ module.exports =
   }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],139:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 module.exports = scope;
 scope.replace = replace;
 
@@ -11662,7 +10288,7 @@ function replace (css, replacer) {
 
 	return css.replace(/([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g, replacer);
 }
-},{}],140:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 var lowerCase = require('lower-case')
 
 var NON_WORD_REGEXP = require('./vendor/non-word-regexp')
@@ -11704,16 +10330,16 @@ module.exports = function (str, locale, replacement) {
   return lowerCase(str, locale)
 }
 
-},{"./vendor/camel-case-regexp":141,"./vendor/non-word-regexp":142,"./vendor/trailing-digit-regexp":143,"lower-case":119}],141:[function(require,module,exports){
+},{"./vendor/camel-case-regexp":114,"./vendor/non-word-regexp":115,"./vendor/trailing-digit-regexp":116,"lower-case":93}],114:[function(require,module,exports){
 module.exports = /([\u0061-\u007A\u00B5\u00DF-\u00F6\u00F8-\u00FF\u0101\u0103\u0105\u0107\u0109\u010B\u010D\u010F\u0111\u0113\u0115\u0117\u0119\u011B\u011D\u011F\u0121\u0123\u0125\u0127\u0129\u012B\u012D\u012F\u0131\u0133\u0135\u0137\u0138\u013A\u013C\u013E\u0140\u0142\u0144\u0146\u0148\u0149\u014B\u014D\u014F\u0151\u0153\u0155\u0157\u0159\u015B\u015D\u015F\u0161\u0163\u0165\u0167\u0169\u016B\u016D\u016F\u0171\u0173\u0175\u0177\u017A\u017C\u017E-\u0180\u0183\u0185\u0188\u018C\u018D\u0192\u0195\u0199-\u019B\u019E\u01A1\u01A3\u01A5\u01A8\u01AA\u01AB\u01AD\u01B0\u01B4\u01B6\u01B9\u01BA\u01BD-\u01BF\u01C6\u01C9\u01CC\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC\u01DD\u01DF\u01E1\u01E3\u01E5\u01E7\u01E9\u01EB\u01ED\u01EF\u01F0\u01F3\u01F5\u01F9\u01FB\u01FD\u01FF\u0201\u0203\u0205\u0207\u0209\u020B\u020D\u020F\u0211\u0213\u0215\u0217\u0219\u021B\u021D\u021F\u0221\u0223\u0225\u0227\u0229\u022B\u022D\u022F\u0231\u0233-\u0239\u023C\u023F\u0240\u0242\u0247\u0249\u024B\u024D\u024F-\u0293\u0295-\u02AF\u0371\u0373\u0377\u037B-\u037D\u0390\u03AC-\u03CE\u03D0\u03D1\u03D5-\u03D7\u03D9\u03DB\u03DD\u03DF\u03E1\u03E3\u03E5\u03E7\u03E9\u03EB\u03ED\u03EF-\u03F3\u03F5\u03F8\u03FB\u03FC\u0430-\u045F\u0461\u0463\u0465\u0467\u0469\u046B\u046D\u046F\u0471\u0473\u0475\u0477\u0479\u047B\u047D\u047F\u0481\u048B\u048D\u048F\u0491\u0493\u0495\u0497\u0499\u049B\u049D\u049F\u04A1\u04A3\u04A5\u04A7\u04A9\u04AB\u04AD\u04AF\u04B1\u04B3\u04B5\u04B7\u04B9\u04BB\u04BD\u04BF\u04C2\u04C4\u04C6\u04C8\u04CA\u04CC\u04CE\u04CF\u04D1\u04D3\u04D5\u04D7\u04D9\u04DB\u04DD\u04DF\u04E1\u04E3\u04E5\u04E7\u04E9\u04EB\u04ED\u04EF\u04F1\u04F3\u04F5\u04F7\u04F9\u04FB\u04FD\u04FF\u0501\u0503\u0505\u0507\u0509\u050B\u050D\u050F\u0511\u0513\u0515\u0517\u0519\u051B\u051D\u051F\u0521\u0523\u0525\u0527\u0561-\u0587\u1D00-\u1D2B\u1D6B-\u1D77\u1D79-\u1D9A\u1E01\u1E03\u1E05\u1E07\u1E09\u1E0B\u1E0D\u1E0F\u1E11\u1E13\u1E15\u1E17\u1E19\u1E1B\u1E1D\u1E1F\u1E21\u1E23\u1E25\u1E27\u1E29\u1E2B\u1E2D\u1E2F\u1E31\u1E33\u1E35\u1E37\u1E39\u1E3B\u1E3D\u1E3F\u1E41\u1E43\u1E45\u1E47\u1E49\u1E4B\u1E4D\u1E4F\u1E51\u1E53\u1E55\u1E57\u1E59\u1E5B\u1E5D\u1E5F\u1E61\u1E63\u1E65\u1E67\u1E69\u1E6B\u1E6D\u1E6F\u1E71\u1E73\u1E75\u1E77\u1E79\u1E7B\u1E7D\u1E7F\u1E81\u1E83\u1E85\u1E87\u1E89\u1E8B\u1E8D\u1E8F\u1E91\u1E93\u1E95-\u1E9D\u1E9F\u1EA1\u1EA3\u1EA5\u1EA7\u1EA9\u1EAB\u1EAD\u1EAF\u1EB1\u1EB3\u1EB5\u1EB7\u1EB9\u1EBB\u1EBD\u1EBF\u1EC1\u1EC3\u1EC5\u1EC7\u1EC9\u1ECB\u1ECD\u1ECF\u1ED1\u1ED3\u1ED5\u1ED7\u1ED9\u1EDB\u1EDD\u1EDF\u1EE1\u1EE3\u1EE5\u1EE7\u1EE9\u1EEB\u1EED\u1EEF\u1EF1\u1EF3\u1EF5\u1EF7\u1EF9\u1EFB\u1EFD\u1EFF-\u1F07\u1F10-\u1F15\u1F20-\u1F27\u1F30-\u1F37\u1F40-\u1F45\u1F50-\u1F57\u1F60-\u1F67\u1F70-\u1F7D\u1F80-\u1F87\u1F90-\u1F97\u1FA0-\u1FA7\u1FB0-\u1FB4\u1FB6\u1FB7\u1FBE\u1FC2-\u1FC4\u1FC6\u1FC7\u1FD0-\u1FD3\u1FD6\u1FD7\u1FE0-\u1FE7\u1FF2-\u1FF4\u1FF6\u1FF7\u210A\u210E\u210F\u2113\u212F\u2134\u2139\u213C\u213D\u2146-\u2149\u214E\u2184\u2C30-\u2C5E\u2C61\u2C65\u2C66\u2C68\u2C6A\u2C6C\u2C71\u2C73\u2C74\u2C76-\u2C7B\u2C81\u2C83\u2C85\u2C87\u2C89\u2C8B\u2C8D\u2C8F\u2C91\u2C93\u2C95\u2C97\u2C99\u2C9B\u2C9D\u2C9F\u2CA1\u2CA3\u2CA5\u2CA7\u2CA9\u2CAB\u2CAD\u2CAF\u2CB1\u2CB3\u2CB5\u2CB7\u2CB9\u2CBB\u2CBD\u2CBF\u2CC1\u2CC3\u2CC5\u2CC7\u2CC9\u2CCB\u2CCD\u2CCF\u2CD1\u2CD3\u2CD5\u2CD7\u2CD9\u2CDB\u2CDD\u2CDF\u2CE1\u2CE3\u2CE4\u2CEC\u2CEE\u2CF3\u2D00-\u2D25\u2D27\u2D2D\uA641\uA643\uA645\uA647\uA649\uA64B\uA64D\uA64F\uA651\uA653\uA655\uA657\uA659\uA65B\uA65D\uA65F\uA661\uA663\uA665\uA667\uA669\uA66B\uA66D\uA681\uA683\uA685\uA687\uA689\uA68B\uA68D\uA68F\uA691\uA693\uA695\uA697\uA723\uA725\uA727\uA729\uA72B\uA72D\uA72F-\uA731\uA733\uA735\uA737\uA739\uA73B\uA73D\uA73F\uA741\uA743\uA745\uA747\uA749\uA74B\uA74D\uA74F\uA751\uA753\uA755\uA757\uA759\uA75B\uA75D\uA75F\uA761\uA763\uA765\uA767\uA769\uA76B\uA76D\uA76F\uA771-\uA778\uA77A\uA77C\uA77F\uA781\uA783\uA785\uA787\uA78C\uA78E\uA791\uA793\uA7A1\uA7A3\uA7A5\uA7A7\uA7A9\uA7FA\uFB00-\uFB06\uFB13-\uFB17\uFF41-\uFF5A])([\u0041-\u005A\u00C0-\u00D6\u00D8-\u00DE\u0100\u0102\u0104\u0106\u0108\u010A\u010C\u010E\u0110\u0112\u0114\u0116\u0118\u011A\u011C\u011E\u0120\u0122\u0124\u0126\u0128\u012A\u012C\u012E\u0130\u0132\u0134\u0136\u0139\u013B\u013D\u013F\u0141\u0143\u0145\u0147\u014A\u014C\u014E\u0150\u0152\u0154\u0156\u0158\u015A\u015C\u015E\u0160\u0162\u0164\u0166\u0168\u016A\u016C\u016E\u0170\u0172\u0174\u0176\u0178\u0179\u017B\u017D\u0181\u0182\u0184\u0186\u0187\u0189-\u018B\u018E-\u0191\u0193\u0194\u0196-\u0198\u019C\u019D\u019F\u01A0\u01A2\u01A4\u01A6\u01A7\u01A9\u01AC\u01AE\u01AF\u01B1-\u01B3\u01B5\u01B7\u01B8\u01BC\u01C4\u01C7\u01CA\u01CD\u01CF\u01D1\u01D3\u01D5\u01D7\u01D9\u01DB\u01DE\u01E0\u01E2\u01E4\u01E6\u01E8\u01EA\u01EC\u01EE\u01F1\u01F4\u01F6-\u01F8\u01FA\u01FC\u01FE\u0200\u0202\u0204\u0206\u0208\u020A\u020C\u020E\u0210\u0212\u0214\u0216\u0218\u021A\u021C\u021E\u0220\u0222\u0224\u0226\u0228\u022A\u022C\u022E\u0230\u0232\u023A\u023B\u023D\u023E\u0241\u0243-\u0246\u0248\u024A\u024C\u024E\u0370\u0372\u0376\u0386\u0388-\u038A\u038C\u038E\u038F\u0391-\u03A1\u03A3-\u03AB\u03CF\u03D2-\u03D4\u03D8\u03DA\u03DC\u03DE\u03E0\u03E2\u03E4\u03E6\u03E8\u03EA\u03EC\u03EE\u03F4\u03F7\u03F9\u03FA\u03FD-\u042F\u0460\u0462\u0464\u0466\u0468\u046A\u046C\u046E\u0470\u0472\u0474\u0476\u0478\u047A\u047C\u047E\u0480\u048A\u048C\u048E\u0490\u0492\u0494\u0496\u0498\u049A\u049C\u049E\u04A0\u04A2\u04A4\u04A6\u04A8\u04AA\u04AC\u04AE\u04B0\u04B2\u04B4\u04B6\u04B8\u04BA\u04BC\u04BE\u04C0\u04C1\u04C3\u04C5\u04C7\u04C9\u04CB\u04CD\u04D0\u04D2\u04D4\u04D6\u04D8\u04DA\u04DC\u04DE\u04E0\u04E2\u04E4\u04E6\u04E8\u04EA\u04EC\u04EE\u04F0\u04F2\u04F4\u04F6\u04F8\u04FA\u04FC\u04FE\u0500\u0502\u0504\u0506\u0508\u050A\u050C\u050E\u0510\u0512\u0514\u0516\u0518\u051A\u051C\u051E\u0520\u0522\u0524\u0526\u0531-\u0556\u10A0-\u10C5\u10C7\u10CD\u1E00\u1E02\u1E04\u1E06\u1E08\u1E0A\u1E0C\u1E0E\u1E10\u1E12\u1E14\u1E16\u1E18\u1E1A\u1E1C\u1E1E\u1E20\u1E22\u1E24\u1E26\u1E28\u1E2A\u1E2C\u1E2E\u1E30\u1E32\u1E34\u1E36\u1E38\u1E3A\u1E3C\u1E3E\u1E40\u1E42\u1E44\u1E46\u1E48\u1E4A\u1E4C\u1E4E\u1E50\u1E52\u1E54\u1E56\u1E58\u1E5A\u1E5C\u1E5E\u1E60\u1E62\u1E64\u1E66\u1E68\u1E6A\u1E6C\u1E6E\u1E70\u1E72\u1E74\u1E76\u1E78\u1E7A\u1E7C\u1E7E\u1E80\u1E82\u1E84\u1E86\u1E88\u1E8A\u1E8C\u1E8E\u1E90\u1E92\u1E94\u1E9E\u1EA0\u1EA2\u1EA4\u1EA6\u1EA8\u1EAA\u1EAC\u1EAE\u1EB0\u1EB2\u1EB4\u1EB6\u1EB8\u1EBA\u1EBC\u1EBE\u1EC0\u1EC2\u1EC4\u1EC6\u1EC8\u1ECA\u1ECC\u1ECE\u1ED0\u1ED2\u1ED4\u1ED6\u1ED8\u1EDA\u1EDC\u1EDE\u1EE0\u1EE2\u1EE4\u1EE6\u1EE8\u1EEA\u1EEC\u1EEE\u1EF0\u1EF2\u1EF4\u1EF6\u1EF8\u1EFA\u1EFC\u1EFE\u1F08-\u1F0F\u1F18-\u1F1D\u1F28-\u1F2F\u1F38-\u1F3F\u1F48-\u1F4D\u1F59\u1F5B\u1F5D\u1F5F\u1F68-\u1F6F\u1FB8-\u1FBB\u1FC8-\u1FCB\u1FD8-\u1FDB\u1FE8-\u1FEC\u1FF8-\u1FFB\u2102\u2107\u210B-\u210D\u2110-\u2112\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u2130-\u2133\u213E\u213F\u2145\u2183\u2C00-\u2C2E\u2C60\u2C62-\u2C64\u2C67\u2C69\u2C6B\u2C6D-\u2C70\u2C72\u2C75\u2C7E-\u2C80\u2C82\u2C84\u2C86\u2C88\u2C8A\u2C8C\u2C8E\u2C90\u2C92\u2C94\u2C96\u2C98\u2C9A\u2C9C\u2C9E\u2CA0\u2CA2\u2CA4\u2CA6\u2CA8\u2CAA\u2CAC\u2CAE\u2CB0\u2CB2\u2CB4\u2CB6\u2CB8\u2CBA\u2CBC\u2CBE\u2CC0\u2CC2\u2CC4\u2CC6\u2CC8\u2CCA\u2CCC\u2CCE\u2CD0\u2CD2\u2CD4\u2CD6\u2CD8\u2CDA\u2CDC\u2CDE\u2CE0\u2CE2\u2CEB\u2CED\u2CF2\uA640\uA642\uA644\uA646\uA648\uA64A\uA64C\uA64E\uA650\uA652\uA654\uA656\uA658\uA65A\uA65C\uA65E\uA660\uA662\uA664\uA666\uA668\uA66A\uA66C\uA680\uA682\uA684\uA686\uA688\uA68A\uA68C\uA68E\uA690\uA692\uA694\uA696\uA722\uA724\uA726\uA728\uA72A\uA72C\uA72E\uA732\uA734\uA736\uA738\uA73A\uA73C\uA73E\uA740\uA742\uA744\uA746\uA748\uA74A\uA74C\uA74E\uA750\uA752\uA754\uA756\uA758\uA75A\uA75C\uA75E\uA760\uA762\uA764\uA766\uA768\uA76A\uA76C\uA76E\uA779\uA77B\uA77D\uA77E\uA780\uA782\uA784\uA786\uA78B\uA78D\uA790\uA792\uA7A0\uA7A2\uA7A4\uA7A6\uA7A8\uA7AA\uFF21-\uFF3A\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])/g
 
-},{}],142:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 module.exports = /[^\u0041-\u005A\u0061-\u007A\u00AA\u00B5\u00BA\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u0527\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u08A0\u08A2-\u08AC\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0977\u0979-\u097F\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C33\u0C35-\u0C39\u0C3D\u0C58\u0C59\u0C60\u0C61\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D60\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F4\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191C\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19C1-\u19C7\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2183\u2184\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005\u3006\u3031-\u3035\u303B\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312D\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FCC\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA697\uA6A0-\uA6E5\uA717-\uA71F\uA722-\uA788\uA78B-\uA78E\uA790-\uA793\uA7A0-\uA7AA\uA7F8-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA80-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uABC0-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19]+/g
 
-},{}],143:[function(require,module,exports){
+},{}],116:[function(require,module,exports){
 module.exports = /([\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])([^\u0030-\u0039\u00B2\u00B3\u00B9\u00BC-\u00BE\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u09F4-\u09F9\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0B72-\u0B77\u0BE6-\u0BF2\u0C66-\u0C6F\u0C78-\u0C7E\u0CE6-\u0CEF\u0D66-\u0D75\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F33\u1040-\u1049\u1090-\u1099\u1369-\u137C\u16EE-\u16F0\u17E0-\u17E9\u17F0-\u17F9\u1810-\u1819\u1946-\u194F\u19D0-\u19DA\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\u2070\u2074-\u2079\u2080-\u2089\u2150-\u2182\u2185-\u2189\u2460-\u249B\u24EA-\u24FF\u2776-\u2793\u2CFD\u3007\u3021-\u3029\u3038-\u303A\u3192-\u3195\u3220-\u3229\u3248-\u324F\u3251-\u325F\u3280-\u3289\u32B1-\u32BF\uA620-\uA629\uA6E6-\uA6EF\uA830-\uA835\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19])/g
 
-},{}],144:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 /**
  * @module settings-panel
  */
@@ -12175,7 +10801,7 @@ Panel.prototype.orientation = 'left';
 
 /** Display collapse button */
 Panel.prototype.collapsible = false;
-},{"./src/button":148,"./src/checkbox":149,"./src/color":150,"./src/custom":151,"./src/interval":152,"./src/range":153,"./src/select":154,"./src/switch":155,"./src/text":156,"./src/textarea":157,"./theme/none":160,"add-px-to-style":44,"dom-css":70,"events":3,"get-uid":83,"inherits":91,"insert-styles":97,"is-plain-obj":104,"just-extend":105,"param-case":131,"scope-css":139}],145:[function(require,module,exports){
+},{"./src/button":121,"./src/checkbox":122,"./src/color":123,"./src/custom":124,"./src/interval":125,"./src/range":126,"./src/select":127,"./src/switch":128,"./src/text":129,"./src/textarea":130,"./theme/none":133,"add-px-to-style":8,"dom-css":39,"events":3,"get-uid":53,"inherits":63,"insert-styles":69,"is-plain-obj":77,"just-extend":79,"param-case":103,"scope-css":112}],118:[function(require,module,exports){
 /**
  * Clamp value.
  * Detects proper clamp min/max.
@@ -12190,7 +10816,7 @@ Panel.prototype.collapsible = false;
 module.exports = require('./wrap')(function(a, min, max){
 	return max > min ? Math.max(Math.min(a,max),min) : Math.max(Math.min(a,min),max);
 });
-},{"./wrap":147}],146:[function(require,module,exports){
+},{"./wrap":120}],119:[function(require,module,exports){
 /**
  * @module  mumath/precision
  *
@@ -12210,7 +10836,7 @@ module.exports = require('./wrap')(function(n){
 
 	return !d ? 0 : s.length - d;
 });
-},{"./wrap":147}],147:[function(require,module,exports){
+},{"./wrap":120}],120:[function(require,module,exports){
 /**
  * Get fn wrapped with array/object attrs recognition
  *
@@ -12252,7 +10878,7 @@ module.exports = function(fn){
 		}
 	};
 };
-},{}],148:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -12285,7 +10911,7 @@ Button.prototype.update = function (opts) {
 };
 
 Button.prototype.label = false;
-},{"events":3,"inherits":91}],149:[function(require,module,exports){
+},{"events":3,"inherits":63}],122:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -12403,7 +11029,7 @@ Checkbox.prototype.update = function (opts) {
 
 	return this;
 }
-},{"events":3,"inherits":91,"just-extend":105,"param-case":131}],150:[function(require,module,exports){
+},{"events":3,"inherits":63,"just-extend":79,"param-case":103}],123:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -12508,7 +11134,7 @@ Color.prototype.update = function (opts) {
 
 	return this;
 }
-},{"dom-css":70,"events":3,"inherits":91,"input-number":92,"param-case":131,"simple-color-picker":161,"tinycolor2":167}],151:[function(require,module,exports){
+},{"dom-css":39,"events":3,"inherits":63,"input-number":64,"param-case":103,"simple-color-picker":134,"tinycolor2":141}],124:[function(require,module,exports){
 /**
  * @module  settings-panel/src/custom
  *
@@ -12563,7 +11189,7 @@ Custom.prototype.update = function (opts) {
 		// throw Error('`content` should be a function returning html element or string');
 	}
 };
-},{"events":3,"inherits":91,"just-extend":105}],152:[function(require,module,exports){
+},{"events":3,"inherits":63,"just-extend":79}],125:[function(require,module,exports){
 'use strict';
 
 var isNumeric = require('is-numeric')
@@ -12833,7 +11459,7 @@ Range.prototype.update = function (opts) {
 
 	return this;
 }
-},{"./value":158,"dom-css":70,"events":3,"inherits":91,"is-mobile":101,"is-numeric":103,"mumath/clamp":145,"mumath/precision":146,"param-case":131}],153:[function(require,module,exports){
+},{"./value":131,"dom-css":39,"events":3,"inherits":63,"is-mobile":74,"is-numeric":76,"mumath/clamp":118,"mumath/precision":119,"param-case":103}],126:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -13010,7 +11636,7 @@ Range.prototype.update = function (opts) {
 
 	return this;
 }
-},{"./value":158,"dom-css":70,"events":3,"inherits":91,"is-numeric":103,"mumath/precision":146,"param-case":131}],154:[function(require,module,exports){
+},{"./value":131,"dom-css":39,"events":3,"inherits":63,"is-numeric":76,"mumath/precision":119,"param-case":103}],127:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -13083,7 +11709,7 @@ Select.prototype.update = function (opts) {
 
 	return this;
 }
-},{"events":3,"inherits":91,"param-case":131}],155:[function(require,module,exports){
+},{"events":3,"inherits":63,"param-case":103}],128:[function(require,module,exports){
 'use strict';
 
 var inherits = require('inherits');
@@ -13146,7 +11772,7 @@ function Switch (opts) {
 Switch.prototype.update = function (opts) {
 	return this;
 }
-},{"events":3,"inherits":91,"just-extend":105,"param-case":131}],156:[function(require,module,exports){
+},{"events":3,"inherits":63,"just-extend":79,"param-case":103}],129:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -13193,7 +11819,7 @@ Text.prototype.update = function (opts) {
 	this.element.disabled = !!this.disabled;
 	return this;
 }
-},{"dom-css":70,"events":3,"inherits":91,"input-number":92,"just-extend":105}],157:[function(require,module,exports){
+},{"dom-css":39,"events":3,"inherits":63,"input-number":64,"just-extend":79}],130:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('events').EventEmitter
@@ -13248,7 +11874,7 @@ Textarea.prototype.update = function (opts) {
 
 	return this;
 }
-},{"autosize":46,"dom-css":70,"events":3,"inherits":91,"just-extend":105}],158:[function(require,module,exports){
+},{"autosize":15,"dom-css":39,"events":3,"inherits":63,"just-extend":79}],131:[function(require,module,exports){
 'use strict';
 
 var num = require('input-number');
@@ -13289,7 +11915,7 @@ module.exports = function (opts) {
 
   return value
 }
-},{"input-number":92}],159:[function(require,module,exports){
+},{"input-number":64}],132:[function(require,module,exports){
 /**
  * @module prama/theme/flat
  *
@@ -13356,7 +11982,7 @@ function flat (opts) {
 function alpha (c, value) {
 	return color(c).setAlpha(value).toString();
 }
-},{"./none":160,"add-px-to-style":44,"color-interpolate":56,"google-fonts":89,"scope-css":139,"tinycolor2":167}],160:[function(require,module,exports){
+},{"./none":133,"add-px-to-style":8,"color-interpolate":27,"google-fonts":61,"scope-css":112,"tinycolor2":141}],133:[function(require,module,exports){
 /**
  * @module  settings-panel/theme/none
  */
@@ -13389,7 +12015,7 @@ function none (opts) {
 	//just size part
 	return ("\n\t\t:host {\n\t\t\tbackground: " + white + ";\n\t\t\tcolor: " + black + ";\n\t\t\tfont-family: " + font + ";\n\t\t\tfont-size: " + (px('font-size', fs)) + ";\n\t\t\tpadding: " + (h*2.5*padding) + "em;\n\t\t}\n\n\t\t.settings-panel-title {\n\t\t\tmin-height: " + h + "em;\n\t\t\tline-height: 1.5;\n\t\t\ttext-align: left;\n\t\t\tfont-size: " + (px('font-size',fs*1.333)) + ";\n\t\t\tpadding: " + (h * 2 * padding / 1.333) + "em " + (h * padding / 1.333) + "em;\n\t\t\tmin-height: " + (h/1.333) + "em;\n\t\t\tmargin: 0;\n\t\t}\n\n\t\t.settings-panel-field {\n\t\t\tpadding: " + (h * padding) + "em;\n\t\t}\n\n\t\t:host.settings-panel-orientation-left .settings-panel-label,\n\t\t:host .settings-panel-orientation-left .settings-panel-label,\n\t\t:host.settings-panel-orientation-right .settings-panel-label,\n\t\t:host .settings-panel-orientation-right .settings-panel-label {\n\t\t\twidth: " + (px('width', labelWidth)) + ";\n\t\t}\n\t\t:host.settings-panel-orientation-bottom .settings-panel-label {\n\t\t\tborder-top-width: " + h + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-bottom .settings-panel-label + .settings-panel-input {\n\t\t\ttop: " + (h/8) + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-left .settings-panel-label {\n\t\t\tpadding-right: " + (h/2) + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-right .settings-panel-label {\n\t\t\tpadding-left: " + (h/2) + "em;\n\t\t}\n\t\t:host.settings-panel-orientation-right .settings-panel-label + .settings-panel-input {\n\t\t\twidth: calc(100% - " + labelWidth + ");\n\t\t}\n\n\t\t.settings-panel-text,\n\t\t.settings-panel-textarea,\n\t\t.settings-panel-range,\n\t\t.settings-panel-interval,\n\t\t.settings-panel-select,\n\t\t.settings-panel-color,\n\t\t.settings-panel-color-value,\n\t\t.settings-panel-value {\n\t\t\theight: " + h + "em;\n\t\t}\n\n\t\t.settings-panel-button,\n\t\t.settings-panel-input,\n\t\t.settings-panel-switch,\n\t\t.settings-panel-checkbox-group,\n\t\t.settings-panel-switch-label {\n\t\t\tmin-height: " + h + "em;\n\t\t}\n\t\t.settings-panel-input,\n\t\t.settings-panel-switch,\n\t\t.settings-panel-select,\n\t\t.settings-panel-checkbox-group,\n\t\t.settings-panel-switch-label {\n\t\t\tline-height: " + h + "em;\n\t\t}\n\n\t\t.settings-panel-switch-label,\n\t\t.settings-panel-checkbox,\n\t\t.settings-panel-checkbox-label,\n\t\t.settings-panel-button {\n\t\t\tcursor: pointer;\n\t\t}\n\n\t\t.settings-panel-range::-webkit-slider-thumb {\n\t\t\tcursor: ew-resize;\n\t\t}\n\t\t.settings-panel-range::-moz-range-thumb {\n\t\t\tcursor: ew-resize;\n\t\t}\n\t\t.settings-panel-range::-ms-track {\n\t\t\tcursor: ew-resize;\n\t\t}\n\t\t.settings-panel-range::-ms-thumb {\n\t\t\tcursor: ew-resize;\n\t\t}\n\n\t\t/* Default triangle styles are from control theme, just set display: block */\n\t\t.settings-panel-select-triangle {\n\t\t\tdisplay: none;\n\t\t\tposition: absolute;\n\t\t\tborder-right: .3em solid transparent;\n\t\t\tborder-left: .3em solid transparent;\n\t\t\tline-height: " + h + "em;\n\t\t\tright: 2.5%;\n\t\t\theight: 0;\n\t\t\tz-index: 1;\n\t\t\tpointer-events: none;\n\t\t}\n\t\t.settings-panel-select-triangle--up {\n\t\t\ttop: " + (h/2) + "em;\n\t\t\tmargin-top: -" + (h/4 + h/24) + "em;\n\t\t\tborder-bottom: " + (h/4) + "em solid;\n\t\t\tborder-top: 0px transparent;\n\t\t}\n\t\t.settings-panel-select-triangle--down {\n\t\t\ttop: " + (h/2) + "em;\n\t\t\tmargin-top: " + (h/24) + "em;\n\t\t\tborder-top: " + (h/4) + "em solid;\n\t\t\tborder-bottom: .0 transparent;\n\t\t}\n\n\t\t:host hr {\n\t\t\topacity: .5;\n\n\t\t\tcolor: " + black + "\n\t\t}\n\t");
 }
-},{"add-px-to-style":44}],161:[function(require,module,exports){
+},{"add-px-to-style":8}],134:[function(require,module,exports){
 'use strict';
 
 var bindAll = require('lodash.bindall');
@@ -13752,7 +12378,7 @@ SimpleColorPicker.prototype._onHueMouseUp = function() {
 
 module.exports = SimpleColorPicker;
 
-},{"./src/utils/maths/clamp":163,"component-emitter":67,"dom-transform":71,"is-number":162,"lodash.bindall":112,"tinycolor2":167}],162:[function(require,module,exports){
+},{"./src/utils/maths/clamp":136,"component-emitter":38,"dom-transform":40,"is-number":135,"lodash.bindall":86,"tinycolor2":141}],135:[function(require,module,exports){
 /*!
  * is-number <https://github.com/jonschlinkert/is-number>
  *
@@ -13768,13 +12394,70 @@ module.exports = function isNumber(n) {
     || n === 0;
 };
 
-},{}],163:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 'use strict';
 
 module.exports = function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 };
-},{}],164:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
+var isDom = require('is-dom')
+var lookup = require('browser-media-mime-type')
+
+module.exports.video = simpleMediaElement.bind(null, 'video')
+module.exports.audio = simpleMediaElement.bind(null, 'audio')
+
+function simpleMediaElement (elementName, sources, opt) {
+  opt = opt || {}
+
+  if (!Array.isArray(sources)) {
+    sources = [ sources ]
+  }
+
+  var media = opt.element || document.createElement(elementName)
+
+  if (opt.loop) media.setAttribute('loop', 'loop')
+  if (opt.muted) media.setAttribute('muted', 'muted')
+  if (opt.autoplay) media.setAttribute('autoplay', 'autoplay')
+  if (opt.controls) media.setAttribute('controls', 'controls')
+  if (opt.crossOrigin) media.setAttribute('crossorigin', opt.crossOrigin)
+  if (opt.preload) media.setAttribute('preload', opt.preload)
+  if (opt.poster) media.setAttribute('poster', opt.poster)
+  if (typeof opt.volume !== 'undefined') media.setAttribute('volume', opt.volume)
+
+  sources = sources.filter(Boolean)
+  sources.forEach(function (source) {
+    media.appendChild(createSourceElement(source))
+  })
+
+  return media
+}
+
+function createSourceElement (data) {
+  if (isDom(data)) return data
+  if (typeof data === 'string') {
+    data = { src: data }
+    if (data.src) {
+      var ext = extension(data.src)
+      if (ext) data.type = lookup(ext)
+    }
+  }
+
+  var source = document.createElement('source')
+  if (data.src) source.setAttribute('src', data.src)
+  if (data.type) source.setAttribute('type', data.type)
+  return source
+}
+
+function extension (data) {
+  var extIdx = data.lastIndexOf('.')
+  if (extIdx <= 0 || extIdx === data.length - 1) {
+    return null
+  }
+  return data.substring(extIdx + 1)
+}
+
+},{"browser-media-mime-type":16,"is-dom":70}],138:[function(require,module,exports){
 var has = require('has');
 
 module.exports = function (name, attr) {
@@ -13790,7 +12473,7 @@ module.exports = function (name, attr) {
     return elem;
 }
 
-},{"has":165}],165:[function(require,module,exports){
+},{"has":139}],139:[function(require,module,exports){
 var hasOwn = Object.prototype.hasOwnProperty;
 
 
@@ -13798,7 +12481,7 @@ module.exports = function has(obj, property) {
   return hasOwn.call(obj, property);
 };
 
-},{}],166:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 module.exports = tapToStart
 
 var domify = require('domify')
@@ -13907,7 +12590,7 @@ function tapToStart (options, done) {
   }
 }
 
-},{"domify":74,"eases/circ-out":76,"eases/expo-in-out":77,"raf":137,"svg-create-element":164}],167:[function(require,module,exports){
+},{"domify":43,"eases/circ-out":45,"eases/expo-in-out":46,"raf":110,"svg-create-element":138}],141:[function(require,module,exports){
 // TinyColor v1.4.1
 // https://github.com/bgrins/TinyColor
 // Brian Grinstead, MIT License
@@ -15104,7 +13787,7 @@ else {
 
 })(Math);
 
-},{}],168:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 
 var space = require('to-space-case')
 
@@ -15127,7 +13810,7 @@ function toCamelCase(string) {
   })
 }
 
-},{"to-space-case":171}],169:[function(require,module,exports){
+},{"to-space-case":145}],143:[function(require,module,exports){
 
 /**
  * Export.
@@ -15196,7 +13879,7 @@ function uncamelize(string) {
   })
 }
 
-},{}],170:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 'use strict'
 
 var parseUnit = require('parse-unit')
@@ -15257,7 +13940,7 @@ function toPX(str, element) {
   }
   return 1
 }
-},{"parse-unit":132}],171:[function(require,module,exports){
+},{"parse-unit":105}],145:[function(require,module,exports){
 
 var clean = require('to-no-case')
 
@@ -15280,7 +13963,7 @@ function toSpaceCase(string) {
   }).trim()
 }
 
-},{"to-no-case":169}],172:[function(require,module,exports){
+},{"to-no-case":143}],146:[function(require,module,exports){
 var getDistance = require('gl-vec2/distance')
 var EventEmitter = require('events').EventEmitter
 var dprop = require('dprop')
@@ -15430,7 +14113,7 @@ function Finger () {
   this.touch = null
 }
 
-},{"dprop":75,"events":3,"gl-vec2/distance":88,"mouse-event-offset":120}],173:[function(require,module,exports){
+},{"dprop":44,"events":3,"gl-vec2/distance":58,"mouse-event-offset":94}],147:[function(require,module,exports){
 var offset = require('mouse-event-offset');
 var EventEmitter = require('events').EventEmitter;
 
@@ -15479,7 +14162,7 @@ module.exports.emitter = function (opt) {
   return attach(opt);
 };
 
-},{"events":3,"mouse-event-offset":120}],174:[function(require,module,exports){
+},{"events":3,"mouse-event-offset":94}],148:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -15495,7 +14178,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],175:[function(require,module,exports){
+},{}],149:[function(require,module,exports){
 
 /**
  * @module typedarray-polyfill
@@ -15563,14 +14246,496 @@ if (typeof TypedArray !== 'undefined') {
         if (!TypedArray.prototype[method]) TypedArray.prototype[method] = Array.prototype[method];
     }
 }
-},{}],176:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
+var buffer = require('./lib/buffer-source')
+var media = require('./lib/media-source')
+
+module.exports = webAudioPlayer
+function webAudioPlayer (src, opt) {
+  if (!src) throw new TypeError('must specify a src parameter')
+  opt = opt || {}
+  if (opt.buffer) return buffer(src, opt)
+  else return media(src, opt)
+}
+
+},{"./lib/buffer-source":152,"./lib/media-source":155}],151:[function(require,module,exports){
+module.exports = createAudioContext
+function createAudioContext () {
+  var AudioCtor = window.AudioContext || window.webkitAudioContext
+  return new AudioCtor()
+}
+
+},{}],152:[function(require,module,exports){
+(function (process){
+var canPlaySrc = require('./can-play-src')
+var createAudioContext = require('./audio-context')
+var xhrAudio = require('./xhr-audio')
+var EventEmitter = require('events').EventEmitter
+var rightNow = require('right-now')
+var resume = require('./resume-context')
+
+module.exports = createBufferSource
+function createBufferSource (src, opt) {
+  opt = opt || {}
+  var emitter = new EventEmitter()
+  var audioContext = opt.context || createAudioContext()
+
+  // a pass-through node so user just needs to
+  // connect() once
+  var bufferNode, buffer, duration
+  var node = audioContext.createGain()
+  var audioStartTime = null
+  var audioPauseTime = null
+  var audioCurrentTime = 0
+  var playing = false
+  var loop = opt.loop
+
+  emitter.play = function () {
+    if (playing) return
+    playing = true
+
+    if (opt.autoResume !== false) resume(emitter.context)
+    disposeBuffer()
+    bufferNode = audioContext.createBufferSource()
+    bufferNode.connect(emitter.node)
+    bufferNode.onended = ended
+    if (buffer) {
+      // Might be null undefined if we are still loading
+      bufferNode.buffer = buffer
+    }
+    if (loop) {
+      bufferNode.loop = true
+      if (typeof opt.loopStart === 'number') bufferNode.loopStart = opt.loopStart
+      if (typeof opt.loopEnd === 'number') bufferNode.loopEnd = opt.loopEnd
+    }
+
+    if (duration && audioCurrentTime > duration) {
+      // for when it loops...
+      audioCurrentTime = audioCurrentTime % duration
+    }
+    var nextTime = audioCurrentTime
+
+    bufferNode.start(0, nextTime)
+    audioStartTime = rightNow()
+  }
+
+  emitter.pause = function () {
+    if (!playing) return
+    playing = false
+    // Don't let the "end" event
+    // get triggered on manual pause.
+    bufferNode.onended = null
+    bufferNode.stop(0)
+    audioPauseTime = rightNow()
+    audioCurrentTime += (audioPauseTime - audioStartTime) / 1000
+  }
+
+  emitter.stop = function () {
+    emitter.pause()
+    ended()
+  }
+
+  emitter.dispose = function () {
+    disposeBuffer()
+    buffer = null
+  }
+
+  emitter.node = node
+  emitter.context = audioContext
+
+  Object.defineProperties(emitter, {
+    duration: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return duration
+      }
+    },
+    playing: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return playing
+      }
+    },
+    buffer: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return buffer
+      }
+    },
+    volume: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return node.gain.value
+      },
+      set: function (n) {
+        node.gain.value = n
+      }
+    }
+  })
+
+  // set initial volume
+  if (typeof opt.volume === 'number') {
+    emitter.volume = opt.volume
+  }
+
+  // filter down to a list of playable sources
+  var sources = Array.isArray(src) ? src : [ src ]
+  sources = sources.filter(Boolean)
+  var playable = sources.some(canPlaySrc)
+  if (playable) {
+    var source = sources.filter(canPlaySrc)[0]
+    // Support the same source types as in
+    // MediaElement mode...
+    if (typeof source.getAttribute === 'function') {
+      source = source.getAttribute('src')
+    } else if (typeof source.src === 'string') {
+      source = source.src
+    }
+    // We have at least one playable source.
+    // For now just play the first,
+    // ideally this module could attempt each one.
+    startLoad(source)
+  } else {
+    // no sources can be played...
+    process.nextTick(function () {
+      emitter.emit('error', canPlaySrc.createError(sources))
+    })
+  }
+  return emitter
+
+  function startLoad (src) {
+    xhrAudio(audioContext, src, function audioDecoded (err, decoded) {
+      if (err) return emitter.emit('error', err)
+      buffer = decoded // store for later use
+      if (bufferNode) {
+        // if play() was called early
+        bufferNode.buffer = buffer
+      }
+      duration = buffer.duration
+      node.buffer = buffer
+      emitter.emit('load')
+    }, function audioProgress (amount, total) {
+      emitter.emit('progress', amount, total)
+    }, function audioDecoding () {
+      emitter.emit('decoding')
+    })
+  }
+
+  function ended () {
+    emitter.emit('end')
+    playing = false
+    audioCurrentTime = 0
+  }
+
+  function disposeBuffer () {
+    if (bufferNode) bufferNode.disconnect()
+  }
+}
+
+}).call(this,require('_process'))
+},{"./audio-context":151,"./can-play-src":153,"./resume-context":156,"./xhr-audio":157,"_process":6,"events":3,"right-now":111}],153:[function(require,module,exports){
+var lookup = require('browser-media-mime-type')
+var audio
+
+module.exports = isSrcPlayable
+function isSrcPlayable (src) {
+  if (!src) throw new TypeError('src cannot be empty')
+  var type
+  if (typeof src.getAttribute === 'function') {
+    // <source> element
+    type = src.getAttribute('type')
+  } else if (typeof src === 'string') {
+    // 'foo.mp3' string
+    var ext = extension(src)
+    if (ext) type = lookup(ext)
+  } else {
+    // { src: 'foo.mp3', type: 'audio/mpeg; codecs..'}
+    type = src.type
+  }
+
+  // We have an unknown file extension or
+  // a <source> tag without an explicit type,
+  // just let the browser handle it!
+  if (!type) return true
+
+  // handle "no" edge case with super legacy browsers...
+  // https://groups.google.com/forum/#!topic/google-web-toolkit-contributors/a8Uy0bXq1Ho
+  if (!audio) audio = new window.Audio()
+  var canplay = audio.canPlayType(type).replace(/no/, '')
+  return Boolean(canplay)
+}
+
+module.exports.createError = createError
+function createError (sources) {
+  // All sources are unplayable
+  var err = new Error('This browser does not support any of the following sources:\n    ' +
+      sources.join(', ') + '\n' +
+      'Try using an array of OGG, MP3 and WAV.')
+  err.type = 'AUDIO_FORMAT'
+  return err
+}
+
+function extension (data) {
+  var extIdx = data.lastIndexOf('.')
+  if (extIdx <= 0 || extIdx === data.length - 1) {
+    return undefined
+  }
+  return data.substring(extIdx + 1)
+}
+
+},{"browser-media-mime-type":16}],154:[function(require,module,exports){
+module.exports = addOnce
+function addOnce (element, event, fn) {
+  function tmp (ev) {
+    element.removeEventListener(event, tmp, false)
+    fn(ev, element)
+  }
+  element.addEventListener(event, tmp, false)
+}
+},{}],155:[function(require,module,exports){
+(function (process){
+var EventEmitter = require('events').EventEmitter
+var createAudio = require('simple-media-element').audio
+var assign = require('object-assign')
+
+var resume = require('./resume-context')
+var createAudioContext = require('./audio-context')
+var canPlaySrc = require('./can-play-src')
+var addOnce = require('./event-add-once')
+
+module.exports = createMediaSource
+function createMediaSource (src, opt) {
+  opt = assign({}, opt)
+  var emitter = new EventEmitter()
+
+  // Default to Audio instead of HTMLAudioElement
+  // There is not much difference except in the following:
+  //    x instanceof Audio
+  //    x instanceof HTMLAudioElement
+  // And in my experience Audio has better support on various
+  // platforms like CocoonJS.
+  // Please open an issue if there is a concern with this.
+  if (!opt.element) opt.element = new window.Audio()
+
+  var desiredVolume = opt.volume
+  delete opt.volume // make sure <audio> tag receives full volume
+  var audio = createAudio(src, opt)
+  var audioContext = opt.context || createAudioContext()
+  var node = audioContext.createGain()
+  var mediaNode = audioContext.createMediaElementSource(audio)
+  mediaNode.connect(node)
+
+  audio.addEventListener('ended', function () {
+    emitter.emit('end')
+  })
+  audio.addEventListener('play', function () {
+    console.log("PLAY")
+  })
+
+  var loopStart = opt.loopStart
+  var loopEnd = opt.loopEnd
+  var hasLoopStart = typeof loopStart === 'number' && isFinite(loopStart)
+  var hasLoopEnd = typeof loopEnd === 'number' && isFinite(loopEnd)
+  var isLoopReady = false
+  if (hasLoopStart || hasLoopEnd) {
+    window.requestAnimationFrame(function update () {
+      // audio hasn't been loaded yet...
+      if (typeof audio.duration !== 'number') return
+      var currentTime = audio.currentTime
+
+      // where to end the buffer
+      var endTime = hasLoopEnd ? Math.min(audio.duration, loopEnd) : audio.duration
+
+      if (currentTime > (loopStart || 0)) {
+        isLoopReady = true
+      }
+
+      // jump ahead to loop start point
+      if (hasLoopStart && isLoopReady && currentTime < loopStart) {
+        audio.currentTime = loopStart
+      }
+
+      // if we've hit the end of the buffer
+      if (currentTime >= endTime) {
+        // if there is no loop end point, let native looping take over
+        // if we have a loop end point, jump back to start point or zero
+        if (hasLoopEnd) {
+          audio.currentTime = hasLoopStart ? loopStart : 0
+        }
+      }
+      window.requestAnimationFrame(update)
+    });
+  }
+
+  emitter.element = audio
+  emitter.context = audioContext
+  emitter.node = node
+  emitter.pause = audio.pause.bind(audio)
+  emitter.play = function () {
+    if (opt.autoResume !== false) resume(emitter.context)
+    return audio.play()
+  }
+
+  // This exists currently for parity with Buffer source
+  // Open to suggestions for what this should dispose...
+  emitter.dispose = function () {}
+
+  emitter.stop = function () {
+    var wasPlaying = emitter.playing
+    audio.pause()
+    audio.currentTime = 0
+    isLoopReady = false
+    if (wasPlaying) {
+      emitter.emit('end')
+    }
+  }
+
+  Object.defineProperties(emitter, {
+    duration: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return audio.duration
+      }
+    },
+    currentTime: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return audio.currentTime
+      }
+    },
+    playing: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return !audio.paused
+      }
+    },
+    volume: {
+      enumerable: true, configurable: true,
+      get: function () {
+        return node.gain.value
+      },
+      set: function (n) {
+        node.gain.value = n
+      }
+    }
+  })
+
+  // Set initial volume
+  if (typeof desiredVolume === 'number') {
+    emitter.volume = desiredVolume
+  }
+
+  // Check if all sources are unplayable,
+  // if so we emit an error since the browser
+  // might not.
+  var sources = Array.isArray(src) ? src : [ src ]
+  sources = sources.filter(Boolean)
+  var playable = sources.some(canPlaySrc)
+  if (playable) {
+    // At least one source is probably/maybe playable
+    startLoad()
+  } else {
+    // emit error on next tick so user can catch it
+    process.nextTick(function () {
+      emitter.emit('error', canPlaySrc.createError(sources))
+    })
+  }
+
+  return emitter
+
+  function startLoad () {
+    // The file errors (like decoding / 404s) appear on <source>
+    var srcElements = Array.prototype.slice.call(audio.children)
+    var remainingSrcErrors = srcElements.length
+    var hasErrored = false
+    var sourceError = function (err, el) {
+      if (hasErrored) return
+      remainingSrcErrors--
+      console.warn('Error loading source: ' + el.getAttribute('src'))
+      if (remainingSrcErrors <= 0) {
+        hasErrored = true
+        srcElements.forEach(function (el) {
+          el.removeEventListener('error', sourceError, false)
+        })
+        emitter.emit('error', new Error('Could not play any of the supplied sources'))
+      }
+    }
+
+    var done = function () {
+      emitter.emit('load')
+    }
+
+    if (audio.readyState >= audio.HAVE_ENOUGH_DATA) {
+      process.nextTick(done)
+    } else {
+      addOnce(audio, 'canplay', done)
+      addOnce(audio, 'error', function (ev) {
+        emitter.emit(new Error('Unknown error while loading <audio>'))
+      })
+      srcElements.forEach(function (el) {
+        addOnce(el, 'error', sourceError)
+      })
+    }
+
+    // On most browsers the loading begins
+    // immediately. However, on iOS 9.2 Safari,
+    // you need to call load() for events
+    // to be triggered.
+    audio.load()
+  }
+}
+
+}).call(this,require('_process'))
+},{"./audio-context":151,"./can-play-src":153,"./event-add-once":154,"./resume-context":156,"_process":6,"events":3,"object-assign":101,"simple-media-element":137}],156:[function(require,module,exports){
+module.exports = function (audioContext) {
+  if (audioContext.state === 'suspended' &&
+      typeof audioContext.resume === 'function') {
+    audioContext.resume()
+  }
+}
+
+},{}],157:[function(require,module,exports){
+var xhr = require('xhr')
+var xhrProgress = require('xhr-progress')
+
+module.exports = xhrAudio
+function xhrAudio (audioContext, src, cb, progress, decoding) {
+  var xhrObject = xhr({
+    uri: src,
+    responseType: 'arraybuffer'
+  }, function (err, resp, arrayBuf) {
+    if (!/^2/.test(resp.statusCode)) {
+      err = new Error('status code ' + resp.statusCode + ' requesting ' + src)
+    }
+    if (err) return cb(err)
+    decode(arrayBuf)
+  })
+
+  xhrProgress(xhrObject)
+    .on('data', function (amount, total) {
+      progress(amount, total)
+    })
+
+  function decode (arrayBuf) {
+    decoding()
+    audioContext.decodeAudioData(arrayBuf, function (decoded) {
+      cb(null, decoded)
+    }, function () {
+      var err = new Error('Error decoding audio data')
+      err.type = 'DECODE_AUDIO_DATA'
+      cb(err)
+    })
+  }
+}
+
+},{"xhr":161,"xhr-progress":160}],158:[function(require,module,exports){
 var getContext = require('get-canvas-context')
 
 module.exports = function getWebGLContext (opt) {
   return getContext('webgl', opt)
 }
 
-},{"get-canvas-context":81}],177:[function(require,module,exports){
+},{"get-canvas-context":51}],159:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -15639,7 +14804,318 @@ module.exports = function (fn, options) {
     return worker;
 };
 
-},{}],178:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
+var EventEmitter = require('events').EventEmitter
+
+module.exports = progress
+
+function progress(xhr) {
+  var emitter = new EventEmitter
+  var finished = false
+
+  if (xhr.attachEvent) {
+    xhr.attachEvent('onreadystatechange', done)
+    return emitter
+  }
+
+  xhr.addEventListener('load', done, false)
+  xhr.addEventListener('progress', progress, false)
+  function progress(event) {
+    var value = event.lengthComputable
+      ? event.loaded / event.total
+      : 0
+
+    if (!finished) emitter.emit('data'
+      , value
+      , event.total || null
+    )
+
+    finished = value === 1
+  }
+
+  function done(event) {
+    if (event.type !== 'load' && !/^(ready|complete)$/g.test(
+      (event.currentTarget || event.srcElement).readyState
+    )) return
+
+    if (finished) return
+    if (xhr.removeEventListener) {
+      xhr.removeEventListener('load', done, false)
+      xhr.removeEventListener('progress', progress, false)
+    } else
+    if (xhr.detatchEvent) {
+      xhr.detatchEvent('onreadystatechange', done)
+    }
+
+    emitter.emit('data', 1, event.total || null)
+    emitter.emit('done')
+    finished = true
+  }
+
+  return emitter
+}
+
+},{"events":3}],161:[function(require,module,exports){
+"use strict";
+var window = require("global/window")
+var isFunction = require("is-function")
+var parseHeaders = require("parse-headers")
+var xtend = require("xtend")
+
+module.exports = createXHR
+createXHR.XMLHttpRequest = window.XMLHttpRequest || noop
+createXHR.XDomainRequest = "withCredentials" in (new createXHR.XMLHttpRequest()) ? createXHR.XMLHttpRequest : window.XDomainRequest
+
+forEachArray(["get", "put", "post", "patch", "head", "delete"], function(method) {
+    createXHR[method === "delete" ? "del" : method] = function(uri, options, callback) {
+        options = initParams(uri, options, callback)
+        options.method = method.toUpperCase()
+        return _createXHR(options)
+    }
+})
+
+function forEachArray(array, iterator) {
+    for (var i = 0; i < array.length; i++) {
+        iterator(array[i])
+    }
+}
+
+function isEmpty(obj){
+    for(var i in obj){
+        if(obj.hasOwnProperty(i)) return false
+    }
+    return true
+}
+
+function initParams(uri, options, callback) {
+    var params = uri
+
+    if (isFunction(options)) {
+        callback = options
+        if (typeof uri === "string") {
+            params = {uri:uri}
+        }
+    } else {
+        params = xtend(options, {uri: uri})
+    }
+
+    params.callback = callback
+    return params
+}
+
+function createXHR(uri, options, callback) {
+    options = initParams(uri, options, callback)
+    return _createXHR(options)
+}
+
+function _createXHR(options) {
+    if(typeof options.callback === "undefined"){
+        throw new Error("callback argument missing")
+    }
+
+    var called = false
+    var callback = function cbOnce(err, response, body){
+        if(!called){
+            called = true
+            options.callback(err, response, body)
+        }
+    }
+
+    function readystatechange() {
+        if (xhr.readyState === 4) {
+            loadFunc()
+        }
+    }
+
+    function getBody() {
+        // Chrome with requestType=blob throws errors arround when even testing access to responseText
+        var body = undefined
+
+        if (xhr.response) {
+            body = xhr.response
+        } else {
+            body = xhr.responseText || getXml(xhr)
+        }
+
+        if (isJson) {
+            try {
+                body = JSON.parse(body)
+            } catch (e) {}
+        }
+
+        return body
+    }
+
+    var failureResponse = {
+                body: undefined,
+                headers: {},
+                statusCode: 0,
+                method: method,
+                url: uri,
+                rawRequest: xhr
+            }
+
+    function errorFunc(evt) {
+        clearTimeout(timeoutTimer)
+        if(!(evt instanceof Error)){
+            evt = new Error("" + (evt || "Unknown XMLHttpRequest Error") )
+        }
+        evt.statusCode = 0
+        return callback(evt, failureResponse)
+    }
+
+    // will load the data & process the response in a special response object
+    function loadFunc() {
+        if (aborted) return
+        var status
+        clearTimeout(timeoutTimer)
+        if(options.useXDR && xhr.status===undefined) {
+            //IE8 CORS GET successful response doesn't have a status field, but body is fine
+            status = 200
+        } else {
+            status = (xhr.status === 1223 ? 204 : xhr.status)
+        }
+        var response = failureResponse
+        var err = null
+
+        if (status !== 0){
+            response = {
+                body: getBody(),
+                statusCode: status,
+                method: method,
+                headers: {},
+                url: uri,
+                rawRequest: xhr
+            }
+            if(xhr.getAllResponseHeaders){ //remember xhr can in fact be XDR for CORS in IE
+                response.headers = parseHeaders(xhr.getAllResponseHeaders())
+            }
+        } else {
+            err = new Error("Internal XMLHttpRequest Error")
+        }
+        return callback(err, response, response.body)
+    }
+
+    var xhr = options.xhr || null
+
+    if (!xhr) {
+        if (options.cors || options.useXDR) {
+            xhr = new createXHR.XDomainRequest()
+        }else{
+            xhr = new createXHR.XMLHttpRequest()
+        }
+    }
+
+    var key
+    var aborted
+    var uri = xhr.url = options.uri || options.url
+    var method = xhr.method = options.method || "GET"
+    var body = options.body || options.data || null
+    var headers = xhr.headers = options.headers || {}
+    var sync = !!options.sync
+    var isJson = false
+    var timeoutTimer
+
+    if ("json" in options) {
+        isJson = true
+        headers["accept"] || headers["Accept"] || (headers["Accept"] = "application/json") //Don't override existing accept header declared by user
+        if (method !== "GET" && method !== "HEAD") {
+            headers["content-type"] || headers["Content-Type"] || (headers["Content-Type"] = "application/json") //Don't override existing accept header declared by user
+            body = JSON.stringify(options.json)
+        }
+    }
+
+    xhr.onreadystatechange = readystatechange
+    xhr.onload = loadFunc
+    xhr.onerror = errorFunc
+    // IE9 must have onprogress be set to a unique function.
+    xhr.onprogress = function () {
+        // IE must die
+    }
+    xhr.ontimeout = errorFunc
+    xhr.open(method, uri, !sync, options.username, options.password)
+    //has to be after open
+    if(!sync) {
+        xhr.withCredentials = !!options.withCredentials
+    }
+    // Cannot set timeout with sync request
+    // not setting timeout on the xhr object, because of old webkits etc. not handling that correctly
+    // both npm's request and jquery 1.x use this kind of timeout, so this is being consistent
+    if (!sync && options.timeout > 0 ) {
+        timeoutTimer = setTimeout(function(){
+            aborted=true//IE9 may still call readystatechange
+            xhr.abort("timeout")
+            var e = new Error("XMLHttpRequest timeout")
+            e.code = "ETIMEDOUT"
+            errorFunc(e)
+        }, options.timeout )
+    }
+
+    if (xhr.setRequestHeader) {
+        for(key in headers){
+            if(headers.hasOwnProperty(key)){
+                xhr.setRequestHeader(key, headers[key])
+            }
+        }
+    } else if (options.headers && !isEmpty(options.headers)) {
+        throw new Error("Headers cannot be set on an XDomainRequest object")
+    }
+
+    if ("responseType" in options) {
+        xhr.responseType = options.responseType
+    }
+
+    if ("beforeSend" in options &&
+        typeof options.beforeSend === "function"
+    ) {
+        options.beforeSend(xhr)
+    }
+
+    xhr.send(body)
+
+    return xhr
+
+
+}
+
+function getXml(xhr) {
+    if (xhr.responseType === "document") {
+        return xhr.responseXML
+    }
+    var firefoxBugTakenEffect = xhr.status === 204 && xhr.responseXML && xhr.responseXML.documentElement.nodeName === "parsererror"
+    if (xhr.responseType === "" && !firefoxBugTakenEffect) {
+        return xhr.responseXML
+    }
+
+    return null
+}
+
+function noop() {}
+
+},{"global/window":59,"is-function":73,"parse-headers":104,"xtend":162}],162:[function(require,module,exports){
+module.exports = extend
+
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+
+function extend() {
+    var arguments$1 = arguments;
+
+    var target = {}
+
+    for (var i = 0; i < arguments.length; i++) {
+        var source = arguments$1[i]
+
+        for (var key in source) {
+            if (hasOwnProperty.call(source, key)) {
+                target[key] = source[key]
+            }
+        }
+    }
+
+    return target
+}
+
+},{}],163:[function(require,module,exports){
 /**
  * @module  gl-waveform
  */
@@ -15649,12 +15125,9 @@ var extend = require('just-extend')
 var inherits = require('inherits')
 var Emitter = require('events')
 var inter = require('color-interpolate')
-var fromDb = require('decibels/to-gain')
-var toDb = require('decibels/from-gain')
 var createStorage = require('./create-storage')
 var alpha = require('color-alpha')
 var panzoom = require('pan-zoom')
-var rgba = require('color-rgba')
 var getContext = require('gl-util/context')
 var createLoop = require('canvas-loop')
 
@@ -15743,8 +15216,6 @@ Waveform.prototype.bufferSize = 44100 * 20;
 Waveform.prototype.init = function init () {
 	var this$1 = this;
 
-	var that = this;
-
 	this.storage = createStorage({worker: this.worker, bufferSize: this.bufferSize});
 
 	this.data = {count: 0, max: [], min: [], average: [], variance: []}
@@ -15757,84 +15228,86 @@ Waveform.prototype.init = function init () {
 			this$1.zoom && e.dz && zoom.call(this$1, e.dz, e.dz, e.x, e.y);
 			this$1.update();
 		});
+	}
+}
 
-		function pan (dx, dy, x, y) {
-			if (!this.pan) return;
+function pan (dx, dy, x, y) {
+	if (!this.pan) return;
 
-			var width = this.canvas.width;
+	var width = this.canvas.width;
 
-			//if drag left from the end - fix offset
-			if (dx > 0 && this.offset == null) {
-				this.offset = this.data.count - width*this.scale;
-			}
+	//if drag left from the end - fix offset
+	if (dx > 0 && this.offset == null) {
+		this.offset = this.data.count - width*this.scale;
+	}
 
-			if (this.offset != null) {
-				this.offset -= this.scale*dx;
-				this.offset = Math.max(this.offset, 0);
-			}
+	if (this.offset != null) {
+		this.offset -= this.scale*dx;
+		this.offset = Math.max(this.offset, 0);
+	}
 
-			//if panned to the end - reset offset to null
-			if (this.offset + width*this.scale > this.data.count) {
-				this.offset = null;
-			}
+	//if panned to the end - reset offset to null
+	if (this.offset + width*this.scale > this.data.count) {
+		this.offset = null;
+	}
 
-		}
+}
 
-		function zoom (dx, dy, x, y) {
-			if (!this.zoom) return;
+function zoom (dx, dy, x, y) {
+	if (!this.zoom) return;
 
-			var ref = this.canvas;
-			var width = ref.width;
-			var height = ref.height;
+	var ref = this.canvas;
+	var width = ref.width;
+	var height = ref.height;
 
-			// if (x==null) x = left + width/2;
-			var count = Math.min(this.bufferSize, this.data.count);
+	// if (x==null) x = left + width/2;
+	var count = Math.min(this.bufferSize, this.data.count);
 
-			//shift start
-			var tx = x/width;
+	//shift start
+	var tx = x/width;
 
-			var prevScale = this.scale;
-			var minScale = 2/44100;
+	var prevScale = this.scale;
+	var minScale = 2/44100;
 
-			this.scale *= (1 + dy / height);
-			this.scale = Math.max(this.scale, minScale);
+	this.scale *= (1 + dy / height);
+	this.scale = Math.max(this.scale, minScale);
 
-			if (this.offset == null) {
-				if (x*this.scale < count && (this.offset + width*this.scale < count)) {
-					//if zoomed in - set specific offset
-					if (this.scale < prevScale && tx < .8) {
-						this.offset = Math.max(count - width*this.scale, 0);
-					}
-				}
-			}
-			else {
-				this.offset -= width*(this.scale - prevScale)*tx;
-				this.offset = Math.max(this.offset, 0);
-
-				//if tail became visible - set offset to null, means all possib data
-				if (this.scale > prevScale) {
-					//zoom in area more than the data
-					if (x*this.scale > count) {
-						this.offset = null;
-					}
-				}
-
-				if (this.offset + width*this.scale > count) {
-					this.offset = null;
-				}
+	//null offset means tail
+	if (this.offset == null) {
+		//hovered on data and
+		if (x*this.scale < count) {
+			//if zoomed in before the end of the signal - set specific offset
+			if (this.scale < prevScale && tx < .8 && prevScale * width < count) {
+				this.offset = Math.max(count - width*this.scale, 0);
 			}
 		}
 	}
-};
+	else {
+		this.offset -= width*(this.scale - prevScale)*tx;
+		this.offset = Math.max(this.offset, 0);
+
+		//if tail became visible - set offset to null, means all possib data
+		if (this.scale > prevScale) {
+			//zoom in area more than the data
+			if (x*this.scale > count) {
+				this.offset = null;
+			}
+		}
+
+		if (this.offset + width*this.scale > count) {
+			this.offset = null;
+		}
+	}
+}
 
 
-//push new data to cache
-Waveform.prototype.push = function (data, cb) {
+//push new data to waveform
+Waveform.prototype.push = function push (data, cb) {
 	var this$1 = this;
 
 	if (!data) return this;
 
-	this.storage.push(data, function (err, len) {
+	this.storage.push(data, function (err, resp) {
 		if (err) throw err;
 		this$1.fetch();
 		cb && cb(null, resp);
@@ -15842,13 +15315,37 @@ Waveform.prototype.push = function (data, cb) {
 	this.emit('push', data);
 
 	return this;
-};
+}
+
+//set new data
+Waveform.prototype.set = function set (data, cb) {
+	var this$1 = this;
+
+	if (!data) return this;
+
+	this.storage.set(data, function (err, resp) {
+		if (err) throw err;
+		this$1.fetch();
+		cb && cb(null, resp);
+	});
+	this.emit('set', data);
+
+	return this;
+}
 
 //update view with new options
 Waveform.prototype.update = function update (opts, cb) {
 	var this$1 = this;
 
 	extend(this, opts);
+
+	if (!Array.isArray(this.palette)) {
+		this.palette = [this.palette];
+	}
+	if (this.palette.length === 1) {
+		// this.palette = [alpha(this.palette[0], 0), this.palette[0]];
+		this.palette = ['rgba(0,0,0,0)', this.palette[0]];
+	}
 
 	//generate palette function
 	this.getColor = inter(this.palette);
@@ -15863,21 +15360,14 @@ Waveform.prototype.update = function update (opts, cb) {
 	this.background = this.getColor(0);
 	// this.timeGrid.update();
 
-
-	var offset = this.offset;
-
-	if (offset == null) {
-		offset = -this.canvas.width * this.scale;
-	}
-
 	this.storage.update({
 		scale: this.scale,
-		offset: offset,
+		offset: this.offset,
 		number: this.canvas.width,
 		log: this.log,
 		minDb: this.minDb,
 		maxDb: this.maxDb
-	}, function (err, len) {
+	}, function (err, resp) {
 		if (err) throw err;
 		this$1.fetch();
 		cb && cb(null, resp);
@@ -15886,8 +15376,7 @@ Waveform.prototype.update = function update (opts, cb) {
 	this.emit('update', opts);
 
 	return this;
-};
-
+}
 
 //fetch latest data from the storage
 Waveform.prototype.fetch = function () {
@@ -15899,9 +15388,10 @@ Waveform.prototype.fetch = function () {
 		this$1.isAwait = false;
 		this$1.data = data;
 		this$1.emit('data', data);
+		if (!this$1.autostart) this$1.render();
 	})
 }
-},{"./create-storage":179,"canvas-loop":49,"color-alpha":55,"color-interpolate":56,"color-rgba":60,"decibels/from-gain":68,"decibels/to-gain":69,"events":3,"gl-util/context":85,"inherits":91,"just-extend":105,"pan-zoom":130}],179:[function(require,module,exports){
+},{"./create-storage":164,"canvas-loop":19,"color-alpha":26,"color-interpolate":27,"events":3,"gl-util/context":55,"inherits":63,"just-extend":79,"pan-zoom":102}],164:[function(require,module,exports){
 /**
  * @module  gl-waveform/src/worker-storage
  *
@@ -15913,7 +15403,7 @@ var Storage = require('./storage');
 
 var isWorkerAvailable = window.Worker;
 
-var workify, worker;
+var workify;
 if (isWorkerAvailable) {
 	workify = require('webworkify');
 }
@@ -15940,7 +15430,9 @@ function createStorage (opts) {
 	worker.addEventListener('message', function (e) {
 		var action = e.data.action;
 		var data = e.data.data;
+		var err = e.data.error;
 		if (!cbs[action]) throw Error('Unknown action ' + action);
+		if (err) throw err;
 		var cb = cbs[action].shift();
 		cb && cb(null, data);
 	});
@@ -15954,9 +15446,9 @@ function createStorage (opts) {
 			cbs.push.push(cb);
 			worker.postMessage({action: 'push', args: [data] });
 		},
-		set: function (data, offset, cb) {
+		set: function (data, cb) {
 			cbs.set.push(cb);
-			worker.postMessage({action: 'set', args: [offset, data] });
+			worker.postMessage({action: 'set', args: [data] });
 		},
 		get: function (opts, cb) {
 			cbs.get.push(cb);
@@ -15968,7 +15460,7 @@ function createStorage (opts) {
 		}
 	};
 }
-},{"./storage":180,"./worker":181,"webworkify":177}],180:[function(require,module,exports){
+},{"./storage":165,"./worker":166,"webworkify":159}],165:[function(require,module,exports){
 /**
  * @module  gl-waveform/src/storage
  *
@@ -15979,48 +15471,27 @@ function createStorage (opts) {
  */
 'use strict';
 
-var clamp = require('mumath/clamp')
-var fromDb = require('decibels/to-gain')
-var toDb = require('decibels/from-gain')
-var Scales = require('multiscale-array')
-var bits = require('bit-twiddle')
 var nidx = require('negative-index')
-var isInt = require('is-integer')
 var extend = require('object-assign')
 var lerp = require('mumath/lerp')
-// const colorSpectrum = require('color-spectrum');
-// const ft = require('fourier-transform');
 
 
 module.exports = createStorage;
 
+
 function createStorage (opts) {
-	opts = opts || {};
+	opts = opts || {}
 
 	//max size of the buffer
-	var bufferSize = opts.bufferSize || Math.pow(2, 16)*60;
+	var bufferSize = opts.bufferSize || Math.pow(2, 16) * 60
 
 	//pointer to the last sample (relative) and absolute number of items
-	var last = 0, count = 0;
+	var lastPtr = 0, count = 0
+	var lastAvg = 0, lastDev = 0
 
-	//samples and samples squared holder
-	var xBuffer = Array(bufferSize);
-
-	//disregard scales more than 8192 items
-	var maxScale = opts.maxScale || Math.pow(2, 13);
-
-	var mins = Scales(xBuffer, {
-		reduce: function (a, b) { return Math.min(a, b); },
-		maxScale: maxScale
-	});
-	var maxes = Scales(xBuffer, {
-		reduce: function (a, b) { return Math.max(a, b); },
-		maxScale: maxScale
-	});
-	var averages = Scales(xBuffer, {
-		reduce: function (a, b) { return a*.5 + b*.5; },
-		maxScale: maxScale
-	});
+	//accumulator and accumulator of squares
+	var accum = Array(bufferSize)
+	var accum2 = Array(bufferSize)
 
 	//inner state
 	var params = {
@@ -16037,7 +15508,7 @@ function createStorage (opts) {
 		set: set,
 		get: get,
 		update: update
-	};
+	}
 
 
 	function update (opts, cb) {
@@ -16051,44 +15522,26 @@ function createStorage (opts) {
 
 		if (typeof chunk === 'number') chunk = [chunk];
 
-		//put new samples, update their scales
+		//put new samples, calc accumulators
 		for (var i = 0; i < chunk.length; i++) {
-			xBuffer[(last + i) % bufferSize] = chunk[i];
+			var ptr = (lastPtr + i) % bufferSize
+			accum[ptr] = lastAvg + chunk[i];
+			accum2[ptr] = lastDev + chunk[i]*chunk[i];
+			lastAvg = accum[ptr]
+			lastDev = accum2[ptr]
 		}
-
-		var prev = last;
 
 		//rotate last pointer
 		count += chunk.length;
-		last = count % bufferSize;
-
-		cb && cb(last);
-
-		//defer recalc, saves ~0.2ms
-		mins.update(prev, prev + chunk.length);
-		maxes.update(prev, prev + chunk.length);
-		averages.update(prev, prev + chunk.length);
-
-		//last starts rotating to the beginning
-		if (last - chunk.length < 0) {
-			mins.update(0, last);
-			maxes.update(0, last);
-			averages.update(0, last);
-		}
+		lastPtr = count % bufferSize;
+		cb && cb(null, lastPtr);
 	}
 
-	function set (data, offset, cb) {
-		// this.samples = Array.prototype.slice.call(data);
+	function set (chunk, cb) {
+		lastPtr = 0; count = 0;
+		lastAvg = 0; lastDev = 0;
 
-		// //get the data, if not explicitly passed
-		// this.amplitudes = getData(this.samples, this.getRenderOptions());
-
-		// this.render(this.amplitudes);
-
-		// //reset some things for push
-		// this.lastLen = this.samples.length;
-
-		// cb && cb(null, [mins, maxes]);
+		push(chunk, cb)
 
 		return this;
 	}
@@ -16096,118 +15549,101 @@ function createStorage (opts) {
 	function get (opts, cb) {
 		if (opts) extend(params, opts);
 
+		//scale is group size, offset is in sample terms, number is number of groups
 		var scale = params.scale;
 		var offset = params.offset;
 		var number = params.number;
-		var log = params.log;
-		var minDb = params.minDb;
-		var maxDb = params.maxDb;
 
-		if (offset==null || number==null) throw Error('offset and number arguments should be passed');
+		if (number==null) {
+			throw Error('`number` is not defined');
+		}
+
+		//if offset is null use backward counting to preserve push offsets
+		var isNullOffset = false
+		if (offset == null) {
+			isNullOffset = true
+			offset = -number * scale
+		}
 
 		//do not render not existing data
 		var maxNumber = Math.floor(number);
 		maxNumber = Math.min(maxNumber, Math.floor(count/scale));
 		maxNumber = Math.min(maxNumber, Math.floor(bufferSize/scale));
 
-		var isNegativeOffset = offset < 0;
-
-		if (isNegativeOffset) {
-			offset = Math.max(offset, -Math.floor(maxNumber*scale));
-		}
 		offset = nidx(offset, count);
 
 		//if offset is ahead of known data
 		if (offset > count) {
-			var data$1 = {min: [], max: [], average: [], variance: [], count: count};
+			var data$1 = {average: [], variance: [], count: count};
 			cb && cb(null, data$1);
 			return data$1;
 		}
 
-		var srcScale = Math.min(bits.nextPow2(Math.ceil(scale)), maxScale);
-		var srcIdx = bits.log2(srcScale);
-		var srcMins = mins[srcIdx],
-			srcMaxes = maxes[srcIdx],
-			srcAvgs = averages[srcIdx]
-
-		//round to the closest scale block
-		if (isNegativeOffset) {
-			//hack to avoid wiggling
-			var shift = 0;
-			if (number*scale < count) {
-				var srcNum = Math.floor(count/srcScale)*srcScale;
-				var resNum = Math.floor(count/scale)*scale;
-				shift = srcNum - resNum;
-			}
-			offset = Math.floor(offset/srcScale)*srcScale - shift;
-		}
-
 		//rotate offset
-		//FIXME: missed buffer is invisible
 		if (count > bufferSize) {
+			if (isNullOffset) {
+				offset = Math.max(offset, count - bufferSize)
+			}
 			offset = offset % bufferSize
 		}
 
-		//if offset is far from the ready data
-		var data = {
-			min: Array(maxNumber),
-			max: Array(maxNumber),
-			average: Array(maxNumber),
-			count: count
-		};
+		//round offset to scale block
+		offset = Math.floor(offset / scale) * scale
 
-		var lastVariance = 0, smoothness = .9;
+		var averages = Array(maxNumber),
+			variances = Array(maxNumber)
+
 		for (var i = 0; i < maxNumber; i++) {
-			var ratio = (i + .5) / (number);
-			var dataIdx = (offset + number*scale*ratio) % bufferSize;
+			var idx = (offset + scale * i) % bufferSize;
 
-			//interpolate value
-			var idx = dataIdx / srcScale,
-				lIdx = Math.floor( idx ),
-				rIdx = Math.ceil( idx );
-			var t = idx - lIdx;
-			var min = lerp(srcMins[lIdx], srcMins[rIdx], t);
-			var max = lerp(srcMaxes[lIdx], srcMaxes[rIdx], t);
-			var avg = lerp(srcAvgs[lIdx], srcAvgs[rIdx], t);
+			idx = Math.max(Math.min(idx, count - 1))
 
-			//TODO: move db scaling to vertex shader
-			min = f(min, log, minDb, maxDb);
-			max = f(max, log, minDb, maxDb);
-			avg = f(avg, log, minDb, maxDb);
+			//interpolate value for lower scales
+			if (scale <= 1) {
+				var lIdx = Math.floor( idx ),
+					rIdx = Math.ceil( idx );
 
-			data.max[i] = max;
-			data.min[i] = min;
-			data.average[i] = avg;
+				if (lIdx === rIdx) {
+					averages[i] = accum[lIdx]
+				}
+				else {
+					var t = idx - lIdx;
+					var left = accum[lIdx] - (accum[(!lIdx ? accum.length : lIdx) - 1] || 0)
+					var right = accum[rIdx] - accum[lIdx]
+
+					averages[i] = lerp(left, right, t)
+				}
+
+				variances[i] = 0
+			}
+
+			//take fast avg for larger scales
+			else {
+				var lIdx$1 = Math.max(0, idx - scale);
+
+				var lt = lIdx$1 - Math.floor(lIdx$1),
+					rt = idx - Math.floor(idx)
+
+				var left$1 = lerp(accum[Math.floor(lIdx$1)], accum[Math.ceil(lIdx$1)], lt)
+				var right$1 = lerp(accum[Math.floor(idx)], accum[Math.ceil(idx)], rt)
+				var leftVar = lerp(accum2[Math.floor(lIdx$1)], accum2[Math.ceil(lIdx$1)], lt)
+				var rightVar = lerp(accum2[Math.floor(idx)], accum2[Math.ceil(idx)], rt)
+
+				var avg = (right$1 - left$1) / scale
+
+				averages[i] = avg
+				variances[i] = (rightVar - leftVar) / scale - avg*avg
+			}
 		}
 
-		cb && cb(null, data);
+		var data = {average: averages, variance: variances, count: count}
 
-		return data;
+		cb && cb(null, data)
+
+		return data
 	}
 }
-
-
-function f(ratio, log, min, max) {
-	if (log) {
-		var db = toDb(Math.abs(ratio));
-		db = clamp(db, min, max);
-
-		var dbRatio = (db - min) / (max - min);
-
-		ratio = ratio < 0 ? -dbRatio : dbRatio;
-	}
-	else {
-		min = fromDb(min);
-		max = fromDb(max);
-		var v = clamp(Math.abs(ratio), min, max);
-
-		v = (v - min) / (max - min);
-		ratio = ratio < 0 ? -v : v;
-	}
-
-	return clamp(ratio, -1, 1);
-}
-},{"bit-twiddle":47,"decibels/from-gain":68,"decibels/to-gain":69,"is-integer":100,"multiscale-array":122,"mumath/clamp":123,"mumath/lerp":124,"negative-index":125,"object-assign":129}],181:[function(require,module,exports){
+},{"mumath/lerp":96,"negative-index":97,"object-assign":101}],166:[function(require,module,exports){
 /**
  * @module  gl-waveform/src/worker
  *
@@ -16233,19 +15669,19 @@ module.exports = function (self) {
 
 		//forward method call
 		else {
-			args.push(function (err, data) {
-				postMessage({action: action, data: data});
+			args.push(function (error, data) {
+				postMessage({action: action, data: data, error: error});
 			});
 			storage[action].apply(storage, args);
 		}
 	});
 }
-},{"./storage":180}],182:[function(require,module,exports){
+},{"./storage":165}],167:[function(require,module,exports){
 
 require('enable-mobile');
 var createSettings = require('settings-panel');
 var createWaveform = require('./gl');
-var createAudio = require('../app-audio');
+var createAudio = require('app-audio');
 var createFps = require('fps-indicator');
 var insertCss =  require('insert-styles');
 var Color = require('tinycolor2');
@@ -16299,29 +15735,16 @@ fps.element.style.marginRight = '1rem';
 
 //hook up waveform
 var waveform = createWaveform({
-	worker: true,
-	// autostart: true,
-	offset: null,
+	// worker: false,
+	autostart: false,
+	// offset: null,
+	// offset: 0,
 	palette: theme.palette.slice().reverse(),
-	scale: 4,
+	scale: 2,
 	log: false
+	// bufferSize: 44100*10
 });
 
-// setInterval(() => {
-// 	waveform.render();
-// }, 100);
-
-// let start = Date.now();
-// let f = 440;
-// let t = 0;
-// setInterval(() => {
-// 	let data = [];
-// 	for (let i = t; i < t + 50; i++) {
-// 		data.push(Math.sin(i/10))
-// 	}
-// 	waveform.push(data);
-// 	t += 50;
-// }, 400);
 
 
 
@@ -16335,11 +15758,30 @@ isMobile ? tap({
 
 
 function init () {
+	// let start = Date.now();
+	// let f = 440;
+	// let t = 0;
+	// let iid = setInterval(() => {
+	// 	let data = [];
+	// 	for (let i = t; i < t + 1000; i++) {
+	// 		data.push(Math.sin(i/10))
+	// 	}
+	// 	waveform.push(data);
+	// 	t += 1000;
+	// }, 50);
+
+	// setTimeout(() => {
+	// 	clearInterval(iid)
+	// }, 1000)
+
+
+
 	//create audio source
 	var audio = createAudio({
 		color: theme.palette[0],
 		// autoplay: false,
-		source: isMobile ? 'sine' : 'https://soundcloud.com/clone-nl/kink-valentines-groove-clone-royal-oak-032'
+		// source: 'saw'
+		source: isMobile ? 'sine' : 'https://soundcloud.com/vanilla/swept-away'
 	}).on('load', function (node) {
 		var scriptNode = audio.context.createScriptProcessor(512, 2, 2);
 
@@ -16452,6 +15894,6 @@ function init () {
 	});
 
 }
-},{"../app-audio":7,"./gl":43,"colormap":66,"colormap/colorScales":65,"enable-mobile":79,"fps-indicator":80,"insert-styles":97,"is-mobile":101,"nice-color-palettes/500":126,"settings-panel":144,"settings-panel/theme/flat":159,"tap-to-start":166,"tinycolor2":167}]},{},[182]);
+},{"./gl":7,"app-audio":9,"colormap":37,"colormap/colorScales":36,"enable-mobile":48,"fps-indicator":50,"insert-styles":69,"is-mobile":74,"nice-color-palettes/500":98,"settings-panel":117,"settings-panel/theme/flat":132,"tap-to-start":140,"tinycolor2":141}]},{},[167]);
 </script>
 </html>

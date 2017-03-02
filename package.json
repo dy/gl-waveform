@@ -1,6 +1,6 @@
 {
   "name": "gl-waveform",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Draw waveform in webgl or canvas2d",
   "main": "gl.js",
   "scripts": {
@@ -10,7 +10,9 @@
     "build": "browserify test.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
   },
   "browserify": {
-    "transform": ["glslify"]
+    "transform": [
+      "glslify"
+    ]
   },
   "repository": {
     "type": "git",

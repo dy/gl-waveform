@@ -1,6 +1,6 @@
 {
   "name": "gl-waveform",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "description": "Draw waveform in webgl or canvas2d",
   "main": "gl.js",
   "scripts": {

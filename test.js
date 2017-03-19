@@ -2,7 +2,7 @@
 require('enable-mobile');
 const createSettings = require('settings-panel');
 const createWaveform = require('./gl');
-const createAudio = require('app-audio');
+const createAudio = require('../app-audio');
 const createFps = require('fps-indicator');
 const insertCss =  require('insert-styles');
 const Color = require('tinycolor2');
@@ -70,8 +70,8 @@ let waveform = createWaveform({
 	// offset: 0,
 	palette: theme.palette.slice().reverse(),
 	scale: 2,
-	log: false
-	// bufferSize: 44100*10
+	log: false,
+	bufferSize: 44100*5
 });
 
 

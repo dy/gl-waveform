@@ -45,19 +45,12 @@ WaveformGl.prototype.preserveDrawingBuffer = false;
 WaveformGl.prototype.depth = false;
 
 
-WaveformGl.prototype.update = function (opts) {
-	Waveform.prototype.update.call(this, opts);
+WaveformGl.prototype.update = function (opts, cb) {
+	Waveform.prototype.update.call(this, opts, cb);
 
 	this._color = rgba(this.color)
 	this._background = rgba(this.background)
 	this._infoColor = rgba(this.infoColor)
-
-	if (this.gl) {
-		program(this.gl, this.program)
-		uniform(this.gl, 'minDb', this.minDb, this.program)
-		uniform(this.gl, 'maxDb', this.maxDb, this.program)
-		uniform(this.gl, 'logarithmic', this.log ? 1 : 0, this.program)
-	}
 
 	// if (this.alpha && this.background) {
 	// 	this.canvas.style.background = this.background;
@@ -73,6 +66,7 @@ Waveform.prototype.render = function () {
 		this.gl.clearColor(...bg);
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 	}
+
 	this.emit('render')
 	this.draw()
 
@@ -84,7 +78,7 @@ WaveformGl.prototype.draw = function (data) {
 	let gl = this.gl;
 
 	let {width} = this.canvas
-	let pixelRatio = this.pixelRatio || 1
+
 	program(this.gl, this.program)
 
 	//draw info line
@@ -92,10 +86,16 @@ WaveformGl.prototype.draw = function (data) {
 	uniform(this.gl, 'color', this._infoColor, this.program);
 	gl.drawArrays(gl.LINES, 0, 2);
 
-
 	//draw waveform
 	if (!data) data = this.data;
 	if (!data) return this;
+
+	let pixelRatio = this.pixelRatio || 1
+
+	//bind uniforms
+	uniform(this.gl, 'minDb', this.minDb, this.program)
+	uniform(this.gl, 'maxDb', this.maxDb, this.program)
+	uniform(this.gl, 'logarithmic', this.log ? 1 : 0, this.program)
 
 	let avgs = data.average, vars = data.variance, count = data.count;
 	if (!avgs || !avgs.length) return;
@@ -104,6 +104,7 @@ WaveformGl.prototype.draw = function (data) {
 
 	//draw average line
 	let position = Array(width*4);
+
 	for (let i = 0, j = 0, l = Math.min(count, width); i < l; i++, j+=2) {
 		position[j] = (i + .5)/width;
 		position[j+1] = avgs[i];

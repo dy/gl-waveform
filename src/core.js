@@ -48,9 +48,11 @@ function Waveform (options) {
 
 	this.init();
 	this.update();
-
 	this.autostart && this.loop.start();
-	this.autostart && setTimeout(() => this.render());
+	this.autostart && setTimeout(() => {
+		// this.update()
+		this.render()
+	});
 }
 
 //enable pan/zoom
@@ -96,7 +98,7 @@ Waveform.prototype.bufferSize = 44100 * 20;
 Waveform.prototype.init = function init () {
 	this.storage = createStorage({worker: this.worker, bufferSize: this.bufferSize});
 
-	this.data = {count: 0, max: [], min: [], average: [], variance: []}
+	this.data = {count: 0, average: [], variance: []}
 
 	//init pan/zoom
 	if (this.pan || this.zoom) {
@@ -128,7 +130,6 @@ function pan (dx, dy, x, y) {
 	if (this.offset + width*this.scale > this.data.count) {
 		this.offset = null;
 	}
-
 }
 
 function zoom (dx, dy, x, y) {
@@ -220,16 +221,11 @@ Waveform.prototype.update = function update (opts, cb) {
 	//generate palette function
 	this.getColor = inter(this.palette);
 
-	// this.topGrid.element.style.color = this.getColor(1);
-	// this.bottomGrid.element.style.color = this.getColor(1);
-
 	//lines color
 	this.color = this.getColor(1);
 	this.infoColor = alpha(this.getColor(.5), .4);
 
 	this.background = this.getColor(0);
-	// this.timeGrid.update();
-
 	this.storage.update({
 		scale: this.scale,
 		offset: this.offset,
@@ -249,13 +245,16 @@ Waveform.prototype.update = function update (opts, cb) {
 }
 
 //fetch latest data from the storage
-Waveform.prototype.fetch = function () {
-	if (this.isAwait) return;
+Waveform.prototype.fetch = function (cb) {
+	if (this.isAwait) {
+		return this;
+	}
 	this.isAwait = true;
 	this.storage.get(null, (err, data) => {
 		this.isAwait = false;
 		this.data = data;
 		this.emit('data', data);
 		if (!this.autostart) this.render();
+		cb && cb(null, data)
 	})
 }

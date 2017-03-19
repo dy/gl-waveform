@@ -119,27 +119,30 @@ function createStorage (opts) {
 			if (isNullOffset) {
 				offset = Math.max(offset, count - bufferSize)
 			}
-			offset = offset % bufferSize
 		}
 
 		//round offset to scale block
+		let shift = 0;
+		if (count > bufferSize) {
+			shift = lastPtr
+		}
 		offset = Math.floor(offset / scale) * scale
 
 		let averages = Array(maxNumber),
 			variances = Array(maxNumber)
 
 		for (let i = 0; i < maxNumber; i++) {
-			let idx = (offset + scale * i) % bufferSize;
+			let idx = offset + scale * i;
 
 			idx = Math.max(Math.min(idx, count - 1))
 
 			//interpolate value for lower scales
 			if (scale <= 1) {
-				let lIdx = Math.floor( idx ),
-					rIdx = Math.ceil( idx );
+				let lIdx = (Math.floor( idx ) + shift) % bufferSize,
+					rIdx = (Math.ceil( idx ) + shift) % bufferSize;
 
 				if (lIdx === rIdx) {
-					averages[i] = accum[lIdx]
+					averages[i] = accum[rIdx] - (accum[(!lIdx ? accum.length : lIdx) - 1] || 0)
 				}
 				else {
 					let t = idx - lIdx;
@@ -148,21 +151,25 @@ function createStorage (opts) {
 
 					averages[i] = lerp(left, right, t)
 				}
+				// if (i === 0 || i == maxNumber-1) {
+				// 	console.log(left, right)
+				// }
 
 				variances[i] = 0
 			}
 
 			//take fast avg for larger scales
 			else {
-				let lIdx = Math.max(0, idx - scale);
+				let lIdx = (Math.max(0, idx - scale) + shift ) % bufferSize;
+				let rIdx = (idx + shift ) % bufferSize
 
 				let lt = lIdx - Math.floor(lIdx),
-					rt = idx - Math.floor(idx)
+					rt = rIdx - Math.floor(rIdx)
 
 				let left = lerp(accum[Math.floor(lIdx)], accum[Math.ceil(lIdx)], lt)
-				let right = lerp(accum[Math.floor(idx)], accum[Math.ceil(idx)], rt)
+				let right = lerp(accum[Math.floor(rIdx)], accum[Math.ceil(rIdx)], rt)
 				let leftVar = lerp(accum2[Math.floor(lIdx)], accum2[Math.ceil(lIdx)], lt)
-				let rightVar = lerp(accum2[Math.floor(idx)], accum2[Math.ceil(idx)], rt)
+				let rightVar = lerp(accum2[Math.floor(rIdx)], accum2[Math.ceil(rIdx)], rt)
 
 				let avg = (right - left) / scale
 

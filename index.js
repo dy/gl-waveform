@@ -1,5 +1,6 @@
 'use strict'
 
+
 import pick from 'pick-by-alias'
 import extend from 'object-assign'
 import glsl from 'glslify'
@@ -7,33 +8,59 @@ import nidx from 'negative-index'
 import WeakMap from 'es6-weak-map'
 import createRegl from 'regl'
 import parseRect from 'parse-rect'
-import GlComponent from '@a-vis/gl-component'
+import createGl from 'gl-util/context'
+import isObj from 'is-plain-obj'
+import pool from 'typedarray-pool'
 
 
-class Waveform extends GlComponent {
-	constructor (options) {
-		super(options)
+let shaderCache = new WeakMap()
 
-		const txtH = 1024
 
-		let gl = regl._gl,
-			drawLine, drawFill,
-			colorTexture, idBuffer, dataTextures = [],
-			state = {
-				total: 0,
-				sum: 0,
-				sum2: 0,
-				pxStep: 1
-			}, defaults = {
-				log: false,
-				color: 'black',
-				thickness: 2,
-				viewport: null,
-				range: null,
-				samples: null
-			}
+class Waveform {
+	constructor (o) {
+		if (isRegl(o)) {
+			o = {regl: o}
+			this.gl = o.regl._gl
+		}
+		else {
+			this.gl = createGl(o)
+		}
 
-		idBuffer = regl.buffer({
+		this.shader = shaderCache.get(this.gl)
+		if (!this.shader) {
+			this.shader = this.createShader(o)
+			shaderCache.set(this.gl, this.shader)
+		}
+
+		// total number of samples
+		this.total = 0
+
+		// last sum value
+		this.sum = 0
+
+		// last sum2 value
+		this.sum2 = 0
+
+		// pixels step per sample
+		this.step = 1
+
+
+		this.render = shader.draw.bind(this)
+		this.regl = shader.regl
+		this.canvas = this.gl.canvas
+		this.shader = shader
+
+		// stack of textures with samples
+		this.textures = []
+
+		this.update(isPlainObj(o) ? o : {})
+	}
+
+	// create waveform shader, called once per gl context
+	createShader (o) {
+		let regl = o.regl || createRegl({ gl: this.gl })
+
+		let idBuffer = regl.buffer({
 			usage: 'static',
 			type: 'int16',
 			data: (N => {
@@ -48,26 +75,7 @@ class Waveform extends GlComponent {
 			})(4096)
 		})
 
-		// colorTexture = regl.texture({
-		// 	width: 256,
-		// 	height: 1,
-		// 	type: 'uint8',
-		// 	format: 'rgba',
-		// 	mag: 'linear',
-		// 	min: 'linear'
-		// })
-
-		let shaderOptions
-
-		update(extend({}, defaults, options))
-
-		return waveform
-	}
-
-
-	// called once per regl instance
-	createShader (opts) {
-		drawLine = createRegl({
+		let draw = regl({
 			// primitive: 'points',
 			// primitive: 'line strip',
 			primitive: 'triangle strip',
@@ -77,7 +85,7 @@ class Waveform extends GlComponent {
 			vert: glsl('./line-vert.glsl'),
 
 			count: (ctx, prop) => {
-				return 2 * Math.ceil(ctx.viewportWidth / prop.pxStep)
+				return 2 * Math.ceil(ctx.viewportWidth / prop.step)
 			},
 
 			uniforms: {
@@ -86,7 +94,7 @@ class Waveform extends GlComponent {
 					return dataTextures[id]
 				},
 				dataShape: [txtH, txtH],
-				pxStep: regl.prop('pxStep'),
+				step: regl.prop('step'),
 				minDb: regl.prop('minDb'),
 				maxDb: regl.prop('maxDb'),
 				logarithmic: regl.prop('log'),
@@ -136,25 +144,27 @@ class Waveform extends GlComponent {
 			viewport: regl.prop('viewport'),
 			stencil: false
 		})
+
+		return { draw, regl, idBuffer}
 	}
 
 	update (o) {
-		// init opacity, color[s], viewport
-		super.update(o)
-
 		o = pick(o, {
+			color: 'color colour colors colours',
+			viewport: 'vp viewport viewBox viewbox viewPort',
+			opacity: 'opacity alpha transparency visible visibility opaque',
 			data: 'samples data amplitudes values',
-			append: 'add append push insert concat',
+			push: 'add append push insert concat',
 			range: 'range dataRange dataBox dataBounds limits',
 			color: 'color colour colors colours fill fillColor fill-color',
-			thickness: 'thickness linewidth lineWidth line-width width'
+			thickness: 'thickness width linewidth lineWidth line-width'
 		})
 
 		if (o.thickness != null) {
 			this.thickness = parseFloat(o.thickness)
 
 			// make sure we do not create line creases
-			this.pxStep = Math.max(this.thickness, this.pxStep)
+			this.step = Math.max(this.thickness, this.step)
 		}
 
 		// custom/default visible data window
@@ -201,161 +211,139 @@ class Waveform extends GlComponent {
 			}
 		}
 
-		//reset sample textures if new samples data passed
+		// reset sample textures if new samples data passed
 		if (o.data) {
-			this.samplesTexture.dispose()
+			this.sampleTexture.dispose()
 			this.total = 0
 			this.push(s)
 		}
 
-		return waveform
+		// call push method
+		if (o.push) {
+			this.push(o.push)
+		}
 	}
 
-
+	// put new samples into texture
 	push (samples) {
 		if (!samples || !samples.length) return update
 
-		// we decrease texture width by 2 in order to provide first and last column to keep interpolation on the edgest
-		let offset = state.total % txtLen
-		let id = Math.floor(state.total / txtLen)
+		// we use subarrays later, as well as data is anyways always
+		if (Array.isArray(samples)) {
+			let floatSamples = pool.mallocFloat(samples.length)
+			floatSamples.set(samples)
+			samples = floatSamples
+		}
+
+		let [txtW, txtH] = Waveform.textureSize
+		let txtLen = txtW * txtH
+
+		let offset = this.total % txtLen
+		let id = Math.floor(this.total / txtLen)
 		let y = Math.floor(offset / txtW)
+		let x = offset % txtW
 		let tillEndOfTxt = txtLen - offset
 
-		//calc sum, sum2 and form data for the samples
+		// calc sum, sum2 and form data for the samples
 		let dataLen = Math.min(tillEndOfTxt, samples.length)
-		let data = new Float32Array(dataLen * 3)
-		let lastSum = state.sum, lastSum2 = state.sum2
+		let data = pool.mallocFloat(dataLen * 3)
+		let lastSum = this.sum, lastSum2 = this.sum2
 		for (let i = 0, l = dataLen; i < l; i++) {
 			data[i * 3] = samples[i]
 			data[i * 3 + 1] = lastSum += samples[i]
 			data[i * 3 + 2] = lastSum2 += samples[i] * samples[i]
 		}
-		state.sum = lastSum, state.sum2 = lastSum2, state.total += dataLen
+		this.sum = lastSum, this.sum2 = lastSum2, this.total += dataLen
 
-		//get current texture
-		let txt = dataTextures[id]
+		// get current texture
+		let txt = this.textures[id]
 		if (!txt) {
-			txt = dataTextures[id] = createTexture()
-		}
-
-		//fullfill last row
-		let rowOffset = offset % txtW
-		let rowWidth = 0
-		if (rowOffset) {
-			rowWidth = Math.min(txtW - rowOffset, dataLen)
-			txt.subimage({
-				width: rowWidth,
-				height: 1,
-				data: data.subarray(0, rowWidth * 3)
-			}, rowOffset + 1, y)
-
-			//if data is shorter than the texture row - skip the rest
-			if (rowOffset + samples.length <= txtW) return update
-
-			y++
-
-			//put the first interpolation pixel to the next row
-			txt.subimage({
-				width: 1, height: 1,
-				data: data.subarray((rowWidth - 1) * 3, rowWidth * 3)
-			}, 0, y)
-
-			//shortcut next texture block
-			if (y === txtH) return push(samples.slice(rowWidth))
-
-			offset += rowWidth
-		}
-
-		//put rect with data
-		let h = Math.ceil((dataLen - rowWidth) / txtW)
-		let block = new Float32Array(txtW * h * 3)
-		block.set(data.slice(rowWidth * 3, dataLen * 3))
-		txt.subimage({
-			width: txtW,
-			height: h,
-			data: block
-		}, 1, y)
-
-		//put left/right columns for interpolation
-		let rightCol = new Float32Array(h * 3)
-		for (let i = 0; i < h; i++) {
-			let firstId = i * txtW
-			rightCol[i * 3] = block[firstId * 3]
-			rightCol[i * 3 + 1] = block[firstId * 3 + 1]
-			rightCol[i * 3 + 2] = block[firstId * 3 + 2]
-		}
-		if (!y) {
-			if (h > 1) {
-				txt.subimage({
-					width: 1, height: h - 1,
-					data: rightCol.subarray(3)},
-				txtW + 1, 0)
-			}
-			//put prev txt last pixel
-			if (id) {
-				let prevTxt = dataTextures[id-1]
-				prevTxt.subimage({
-					width: 1, height: 1,
-					data: rightCol.subarray(0, 3)},
-				txtW + 1, txtH - 1)
-			}
-		}
-		else {
-			txt.subimage({width: 1, height: h, data: rightCol}, txtW + 1, y-1)
-		}
-		let leftCol = new Float32Array(h * 3)
-		for (let i = 0; i < h; i++) {
-			let lastId = (txtW - 1 + txtW * i)
-			leftCol[i * 3] = block[lastId * 3]
-			leftCol[i * 3 + 1] = block[lastId * 3 + 1]
-			leftCol[i * 3 + 2] = block[lastId * 3 + 2]
-		}
-		if (y + h === txtH) {
-			txt.subimage({
-				width: 1, height: h - 1,
-				data: leftCol.subarray(0, -3)},
-			0, y + 1)
-			//put first px of the next texture
-			let nextTxt = dataTextures[id + 1] = createTexture()
-			nextTxt.subimage({
-				width: 1, height: 1,
-				data: leftCol.subarray(-3)},
-			0, 0)
-		}
-		else {
-			txt.subimage({width: 1, height: h, data: leftCol}, 0, y + 1)
-		}
-
-
-		//shorten block till the end of texture
-		if (tillEndOfTxt < samples.length) {
-			return push(samples.slice(tillEndOfTxt))
-		}
-
-		return update
-
-		function createTexture() {
-			return regl.texture({
-				shape: [txtH, txtH, 3],
+			txt = this.textures[id] = regl.texture({
+				shape: Waveform.textureSize,
+				channels: 3,
 				type: 'float',
 				min: 'nearest',
 				mag: 'nearest',
 				wrap: ['clamp', 'clamp']
 			})
 		}
+
+		// fullfill last unfinished row
+		let firstRowWidth = 0
+		if (x) {
+			firstRowWidth = Math.min(txtW - x, dataLen)
+			txt.subimage({
+				width: firstRowWidth,
+				height: 1,
+				data: data.subarray(0, firstRowWidth * 3)
+			}, x, y)
+
+			// if data is shorter than the texture row - skip the rest
+			if (x + samples.length <= txtW) {
+				pool.freeFloat(samples)
+				pool.freeFloat(data)
+				return
+			}
+
+			y++
+
+			// shortcut next texture block
+			if (y === txtH) {
+				pool.freeFloat(data)
+				this.push(samples.subarray(firstRowWidth))
+				pool.freeFloat(samples)
+				return
+			}
+
+			offset += firstRowWidth
+		}
+
+		// put rect with data
+		let h = Math.floor((dataLen - firstRowWidth) / txtW)
+		let blockLen = 0
+		if (h) {
+			blockLen = h * txtW
+			txt.subimage({
+				width: txtW,
+				height: h,
+				data: data.subarray(firstRowWidth * 3, (firstRowWidth + blockLen) * 3)
+			}, 0, y)
+			y += h
+		}
+
+		// put last row
+		let lastRowWidth = dataLen - firstRowWidth - blockLen
+		if (lastRowWidth) {
+			txt.subimage({
+				width: lastRowWidth
+				height: 1,
+				data: data.subarray(-lastRowWidth * 3)
+			}, 0, y)
+
+		}
+
+		// shorten block till the end of texture
+		if (tillEndOfTxt < samples.length) {
+			pool.freeFloat(samples)
+			pool.freeFloat(data)
+			return this.push(samples.subarray(tillEndOfTxt))
+		}
 	}
 
-
 	destroy () {
-		idBuffer.dispose()
-		colorTexture.dispose()
-		dataTextures.forEach(txt => txt.dispose())
-		dataTextures.length = 0
-		positionBuffer.destroy()
+		this.sampleTexture.dispose()
 	}
 }
 
 
-Waveform.cache = new WeakMap()
+Waveform.prototype.log = false
+Waveform.prototype.color = 'black'
+Waveform.prototype.thickness = 2
+Waveform.prototype.viewport = null
+Waveform.prototype.range = null
 
 
+Waveform.textureSize = [1024, 1024]
+
+
+module.exports = Waveform

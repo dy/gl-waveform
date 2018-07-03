@@ -1,25 +1,29 @@
-# waveform
+# gl-waveform [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges)
 
 Display time-domain samples with highest performance.
 
-[![npm i @a-vis/waveform](https://nodei.co/npm/@a-vis/waveform.png?mini=true)](https://npmjs.org/package/@a-vis/waveform/)
+[![npm i gl-waveform](https://nodei.co/npm/gl-waveform.png?mini=true)](https://npmjs.org/package/gl-waveform/)
 
 ```js
-let wf = require('@a-vis/waveform')()
+const Waveform = require('gl-waveform')
+let wf = new Waveform()
 
-wf.render({
-	data: fetch('./src'),
+waveform.update({
+	data: [0, .5, 1, .5, 0, -.5, -1, ...],
 	color: 'gray',
-	amplitude: [-1.2, 1.2],
 	range: [0, 44100]
 })
 
-wf.render({
+waveform.render()
+
+waveform.update({
 	append: newData
 })
+
+waveform.render()
 ```
 
 
 ### See also
 
-* [audio-waveform](https://github.com/a-vis/audio-waveform) − audio signals specific waveform renderer.
+* [audio-waveform](https://github.com/a-vis/audio-waveform) − extended waveform renderer for audio.

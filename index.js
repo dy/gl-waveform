@@ -3,7 +3,6 @@
 
 import pick from 'pick-by-alias'
 import extend from 'object-assign'
-import glsl from 'glslify'
 import nidx from 'negative-index'
 import WeakMap from 'es6-weak-map'
 import createRegl from 'regl'
@@ -11,6 +10,9 @@ import parseRect from 'parse-rect'
 import createGl from 'gl-util/context'
 import isObj from 'is-plain-obj'
 import pool from 'typedarray-pool'
+// import glsl from 'glslify'
+
+let glsl = require('glslify')
 
 
 let shaderCache = new WeakMap()
@@ -44,21 +46,22 @@ class Waveform {
 		// pixels step per sample
 		this.step = 1
 
-
-		this.render = shader.draw.bind(this)
-		this.regl = shader.regl
+		this.render = this.shader.draw.bind(this)
+		this.regl = this.shader.regl
 		this.canvas = this.gl.canvas
-		this.shader = shader
 
 		// stack of textures with samples
 		this.textures = []
 
-		this.update(isPlainObj(o) ? o : {})
+		this.update(isObj(o) ? o : {})
 	}
 
 	// create waveform shader, called once per gl context
 	createShader (o) {
-		let regl = o.regl || createRegl({ gl: this.gl })
+		let regl = o.regl || createRegl({
+			gl: this.gl,
+			extensions: 'oes_texture_float'
+		})
 
 		let idBuffer = regl.buffer({
 			usage: 'static',
@@ -76,33 +79,37 @@ class Waveform {
 		})
 
 		let draw = regl({
-			// primitive: 'points',
+			primitive: 'points',
 			// primitive: 'line strip',
-			primitive: 'triangle strip',
+			// primitive: 'triangle strip',
 			offset: 0,
 
-			frag: glsl('./line-frag.glsl'),
 			vert: glsl('./line-vert.glsl'),
+			frag: glsl('./line-frag.glsl'),
 
-			count: (ctx, prop) => {
-				return 2 * Math.ceil(ctx.viewportWidth / prop.step)
+			count: function (ctx) {
+				return 2 * Math.ceil(ctx.viewportWidth / this.step)
 			},
 
 			uniforms: {
-				data: (ctx, prop) => {
+				data: function (ctx) {
 					let id = 0//Math.floor(prop.range[0] / txtLen)
-					return dataTextures[id]
+					return this.textures[id]
 				},
-				dataShape: [txtH, txtH],
-				step: regl.prop('step'),
-				minDb: regl.prop('minDb'),
-				maxDb: regl.prop('maxDb'),
-				logarithmic: regl.prop('log'),
-				// color: colorTexture,
-				opacity: regl.prop('opacity'),
-				count: (ctx, prop) => prop.range[1] - prop.range[0],
-				offset: (ctx, prop) => nidx(prop.range[0], prop.total),
-				viewport: (ctx, prop) => [prop.viewport.x, prop.viewport.y, ctx.viewportWidth, ctx.viewportHeight]
+				dataShape: Waveform.textureSize,
+				step: regl.this('step'),
+				opacity: regl.this('opacity'),
+				count: function (ctx) {
+					return this.range[1] - this.range[0]
+				},
+				offset: function (ctx) {
+					return nidx(this.range[0], this.total)
+				},
+				viewport: function (ctx) {
+					if (!this.viewport) return [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
+
+					return [this.viewport.x, this.viewport.y, ctx.viewportWidth, ctx.viewportHeight]
+				}
 			},
 
 			attributes: {
@@ -111,7 +118,7 @@ class Waveform {
 					stride: 4,
 					offset: 0
 				},
-				ampSign: {
+				sign: {
 					buffer: idBuffer,
 					stride: 4,
 					offset: 2
@@ -139,9 +146,9 @@ class Waveform {
 
 			scissor: {
 				enable: true,
-				box: regl.prop('viewport')
+				box: regl.this('viewport')
 			},
-			viewport: regl.prop('viewport'),
+			viewport: regl.this('viewport'),
 			stencil: false
 		})
 
@@ -150,14 +157,13 @@ class Waveform {
 
 	update (o) {
 		o = pick(o, {
-			color: 'color colour colors colours',
-			viewport: 'vp viewport viewBox viewbox viewPort',
-			opacity: 'opacity alpha transparency visible visibility opaque',
-			data: 'samples data amplitudes values',
+			data: 'data value values amp amplitude amplitudes sample samples',
 			push: 'add append push insert concat',
 			range: 'range dataRange dataBox dataBounds limits',
+			thickness: 'thickness width linewidth lineWidth line-width',
 			color: 'color colour colors colours fill fillColor fill-color',
-			thickness: 'thickness width linewidth lineWidth line-width'
+			viewport: 'vp viewport viewBox viewbox viewPort',
+			opacity: 'opacity alpha transparency visible visibility opaque'
 		})
 
 		if (o.thickness != null) {
@@ -167,22 +173,31 @@ class Waveform {
 			this.step = Math.max(this.thickness, this.step)
 		}
 
+		if (o.opacity != null) {
+			this.opacity = parseFloat(o.opacity)
+		}
+
+		if (o.viewport != null) {
+			this.viewport = parseRect(o.viewport)
+		}
+		if (!this.viewport) {
+			this.viewport = [0, 0, this.canvas.width, this.canvas.height]
+		}
+
 		// custom/default visible data window
 		if (o.range != null) {
 			if (o.range.length === 2) {
 				this.range = [o.range[0], -1, o.range[1], 1]
 			}
 			else if (o.range.length === 4) {
-				this.range = o.range
+				this.range = o.range.slice()
 			}
 			else if (typeof o.range === 'number') {
 				this.range = [-o.range, -1, 0, 1]
 			}
 		}
-		else {
-			this.range = null
-		}
 		if (!this.range) this.range = [-this.viewport.width, -1, 0, 1]
+
 
 		// flatten colors to a single uint8 array
 		if (o.color != null) {
@@ -195,16 +210,18 @@ class Waveform {
 			// flat array
 			else if (typeof o.color[0] === 'number') {
 				let l = o.color.length
-				this.color = new Uint8Array(l)
+				pool.freeUint8(this.color)
+				this.color = pool.mallocUint8(l)
 				let sub = (o.color.subarray || o.color.slice).bind(o.color)
-				for (let i = 0; i < l; i++) {
-					this.color.set(rgba(sub(i * 4, i * 4 + 4), 'uint8'), i * 4)
+				for (let i = 0; i < l; i += 4) {
+					this.color.set(rgba(sub(i, i + 4), 'uint8'), i)
 				}
 			}
 			// nested array
 			else {
 				let l = o.color.length
-				this.color = new Uint8Array(l * 4)
+				pool.freeUint8(this.color)
+				this.color = pool.mallocUint8(l * 4)
 				for (let i = 0; i < l; i++) {
 					this.color.set(rgba(o.color[i], 'uint8'), i * 4)
 				}
@@ -213,9 +230,11 @@ class Waveform {
 
 		// reset sample textures if new samples data passed
 		if (o.data) {
-			this.sampleTexture.dispose()
+			this.textures.forEach(txt => txt.destroy())
 			this.total = 0
-			this.push(s)
+			this.sum = 0
+			this.sum2 = 0
+			this.push(o.data)
 		}
 
 		// call push method
@@ -258,8 +277,9 @@ class Waveform {
 		// get current texture
 		let txt = this.textures[id]
 		if (!txt) {
-			txt = this.textures[id] = regl.texture({
-				shape: Waveform.textureSize,
+			txt = this.textures[id] = this.regl.texture({
+				width: Waveform.textureSize[0],
+				height: Waveform.textureSize[1],
 				channels: 3,
 				type: 'float',
 				min: 'nearest',
@@ -315,11 +335,10 @@ class Waveform {
 		let lastRowWidth = dataLen - firstRowWidth - blockLen
 		if (lastRowWidth) {
 			txt.subimage({
-				width: lastRowWidth
+				width: lastRowWidth,
 				height: 1,
 				data: data.subarray(-lastRowWidth * 3)
 			}, 0, y)
-
 		}
 
 		// shorten block till the end of texture
@@ -331,7 +350,7 @@ class Waveform {
 	}
 
 	destroy () {
-		this.sampleTexture.dispose()
+		this.textures.forEach(txt => txt.destroy())
 	}
 }
 
@@ -344,6 +363,15 @@ Waveform.prototype.range = null
 
 
 Waveform.textureSize = [1024, 1024]
+
+
+function isRegl (o) {
+	return typeof o === 'function' &&
+	o._gl &&
+	o.prop &&
+	o.texture &&
+	o.buffer
+}
 
 
 module.exports = Waveform

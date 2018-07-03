@@ -9,7 +9,16 @@
   },
   "browserify": {
     "transform": [
-      "glslify"
+      "glslify",
+      [
+        "babelify",
+        {
+          "plugins": [
+            "import-to-require",
+            "transform-react-jsx"
+          ]
+        }
+      ]
     ]
   },
   "repository": {
@@ -31,8 +40,10 @@
   },
   "homepage": "https://github.com/a-vis/gl-waveform#readme",
   "dependencies": {
-    "gl-util": "^3.0.5",
+    "gl-util": "^3.0.8",
+    "glslify": "^6.2.1",
     "is-plain-obj": "^1.1.0",
+    "jsx-transform": "^2.4.0",
     "negative-index": "^1.0.2",
     "object-assign": "^4.1.1",
     "parse-rect": "^1.2.0",
@@ -41,6 +52,10 @@
     "typedarray-pool": "^1.1.0"
   },
   "devDependencies": {
-    "glslify": "^6.1.1"
+    "babel-core": "^6.26.3",
+    "babel-plugin-glslify": "^2.0.0",
+    "babel-plugin-import-to-require": "^1.0.0",
+    "babel-plugin-transform-react-jsx": "^6.24.1",
+    "babelify": "^8.0.0"
   }
 }

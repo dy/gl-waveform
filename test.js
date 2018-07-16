@@ -10,6 +10,8 @@ import Waveform from './'
 import h from '../../jsxify'
 import extend from 'object-assign'
 
+document.body.style.padding = 0
+
 let state = {
 	data: [0, .1, .2, .3, .4, .5],
 
@@ -47,9 +49,8 @@ let state = {
 	// 		</Panel>
 	// 	</Drawer>
 	// 	<Bar/>
-	<div container={document.body}>
-		<canvas id="main" />
-		<Waveform canvas="#main" data={state.data} push={o.push}/>
-	</div>
+	<document.body>
+		<Waveform data={state.data} push={o.push}/>
+	</document.body>
 	)
 })(state)

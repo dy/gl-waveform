@@ -10,9 +10,7 @@ import parseRect from 'parse-rect'
 import createGl from 'gl-util/context'
 import isObj from 'is-plain-obj'
 import pool from 'typedarray-pool'
-// import glsl from 'glslify'
-
-let glsl = require('glslify')
+import glsl from 'glslify'
 
 
 let shaderCache = new WeakMap()
@@ -46,7 +44,10 @@ class Waveform {
 		// pixels step per sample
 		this.step = 1
 
-		this.render = this.shader.draw.bind(this)
+		// this.render = this.shader.draw.bind(this)
+		this.render = function () {
+			this.shader.draw.call(this)
+		}
 		this.regl = this.shader.regl
 		this.canvas = this.gl.canvas
 
@@ -83,13 +84,28 @@ class Waveform {
 			// primitive: 'line strip',
 			// primitive: 'triangle strip',
 			offset: 0,
-
-			vert: glsl('./line-vert.glsl'),
-			frag: glsl('./line-frag.glsl'),
-
 			count: function (ctx) {
 				return 2 * Math.ceil(ctx.viewportWidth / this.step)
 			},
+
+			vert: glsl('./line-vert.glsl'),
+			// vert: `
+			// precision highp float;
+			// varying vec4 fragColor;
+			// void main() {
+			// 	gl_PointSize = 10.;
+			// 	gl_Position = vec4(0,0,0,1);
+			// 	fragColor = vec4(0,0,0,1);
+			// }
+			// `,
+			frag: `
+			precision highp float;
+			varying vec4 fragColor;
+			void main() {
+				gl_FragColor = fragColor;
+			}
+			`,
+
 
 			uniforms: {
 				data: function (ctx) {

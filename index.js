@@ -11,6 +11,7 @@ import createGl from 'gl-util/context'
 import isObj from 'is-plain-obj'
 import pool from 'typedarray-pool'
 import glsl from 'glslify'
+import rgba from 'color-normalize'
 
 
 let shaderCache = new WeakMap()
@@ -25,6 +26,7 @@ class Waveform {
 		else {
 			this.gl = createGl(o)
 		}
+		if (!o) o = {}
 
 		this.shader = shaderCache.get(this.gl)
 		if (!this.shader) {
@@ -54,7 +56,7 @@ class Waveform {
 		// stack of textures with samples
 		this.textures = []
 
-		this.update(isObj(o) ? o : {})
+		this.update(o)
 	}
 
 	// create waveform shader, called once per gl context
@@ -85,19 +87,39 @@ class Waveform {
 			// primitive: 'triangle strip',
 			offset: 0,
 			count: function (ctx) {
-				return 2 * Math.ceil(ctx.viewportWidth / this.step)
+				return 4 * Math.ceil(ctx.viewportWidth / this.step)
 			},
 
-			vert: glsl('./line-vert.glsl'),
-			// vert: `
-			// precision highp float;
-			// varying vec4 fragColor;
-			// void main() {
-			// 	gl_PointSize = 10.;
-			// 	gl_Position = vec4(0,0,0,1);
-			// 	fragColor = vec4(0,0,0,1);
-			// }
-			// `,
+			// vert: glsl('./line-vert.glsl'),
+			vert: `
+			precision highp float;
+
+			attribute float id, sign;
+
+			uniform sampler2D data;
+			uniform vec2 dataShape;
+			uniform float thickness, step, opacity;
+			uniform vec4 viewport, color;
+			uniform float count, offset;
+
+			varying vec4 fragColor;
+
+			void main() {
+				gl_PointSize = step / 10.;
+
+				vec4 currSample = texture2D(data, vec2(thickness * id / dataShape.x, 0.));
+				vec4 prevSample = texture2D(data, vec2(thickness * (id - 1.) / dataShape.x, 0.));
+				vec4 nextSample = texture2D(data, vec2(thickness * (id + 1.) / dataShape.x, 0.));
+
+				float x = thickness * id / viewport.z;
+				float y = currSample.x + sign * thickness / viewport.w;
+				gl_Position = vec4(x - 1., y, 0, 1);
+
+				fragColor = color / 255.;
+				fragColor.a *= opacity;
+			}
+			`,
+
 			frag: `
 			precision highp float;
 			varying vec4 fragColor;
@@ -105,7 +127,6 @@ class Waveform {
 				gl_FragColor = fragColor;
 			}
 			`,
-
 
 			uniforms: {
 				data: function (ctx) {
@@ -125,7 +146,9 @@ class Waveform {
 					if (!this.viewport) return [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
 
 					return [this.viewport.x, this.viewport.y, ctx.viewportWidth, ctx.viewportHeight]
-				}
+				},
+				color: regl.this('color'),
+				thickness: regl.this('thickness')
 			},
 
 			attributes: {
@@ -178,11 +201,29 @@ class Waveform {
 			range: 'range dataRange dataBox dataBounds limits',
 			thickness: 'thickness width linewidth lineWidth line-width',
 			color: 'color colour colors colours fill fillColor fill-color',
+			line: 'line line-style lineStyle linestyle',
 			viewport: 'vp viewport viewBox viewbox viewPort',
 			opacity: 'opacity alpha transparency visible visibility opaque'
 		})
 
+		// parse line style
+		if (o.line) {
+			let parts = o.line.split(/\s+/)
+
+			// 12px black
+			if (/0-9/.test(parts[0][0])) {
+				if (!o.thickness) o.thickness = parts[0]
+				if (!o.color && parts[1]) o.color = parts[1]
+			}
+			// black 12px
+			else {
+				if (!o.thickness && parts[1]) o.thickness = parts[1]
+				if (!o.color) o.color = parts[0]
+			}
+		}
+
 		if (o.thickness != null) {
+			// FIXME: parse non-px values
 			this.thickness = parseFloat(o.thickness)
 
 			// make sure we do not create line creases
@@ -261,7 +302,7 @@ class Waveform {
 
 	// put new samples into texture
 	push (samples) {
-		if (!samples || !samples.length) return update
+		if (!samples || !samples.length) return
 
 		// we use subarrays later, as well as data is anyways always
 		if (Array.isArray(samples)) {
@@ -371,9 +412,9 @@ class Waveform {
 }
 
 
-Waveform.prototype.log = false
-Waveform.prototype.color = 'black'
-Waveform.prototype.thickness = 2
+Waveform.prototype.color = new Uint8Array([0,0,0,255])
+Waveform.prototype.opacity = 1
+Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
 Waveform.prototype.range = null
 

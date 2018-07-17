@@ -40,6 +40,7 @@
   },
   "homepage": "https://github.com/a-vis/gl-waveform#readme",
   "dependencies": {
+    "color-normalize": "^1.1.0",
     "gl-util": "^3.0.8",
     "is-plain-obj": "^1.1.0",
     "negative-index": "^1.0.2",
@@ -53,7 +54,11 @@
     "babel-core": "^6.26.3",
     "babel-plugin-import-to-require": "^1.0.0",
     "babel-plugin-transform-react-jsx": "^6.24.1",
+    "babelify": "^8.0.0",
     "glslify": "^6.2.1",
-    "babelify": "^8.0.0"
+    "periodic-function": "^1.1.4",
+    "react": "^16.4.1",
+    "react-dom": "^16.4.1",
+    "react-powerplug": "^1.0.0-rc.1"
   }
 }

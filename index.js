@@ -43,9 +43,6 @@ class Waveform {
 		// last sum2 value
 		this.sum2 = 0
 
-		// pixels step per sample
-		this.step = 1
-
 		// this.render = this.shader.draw.bind(this)
 		this.render = function () {
 			this.shader.draw.call(this)
@@ -63,7 +60,7 @@ class Waveform {
 	createShader (o) {
 		let regl = o.regl || createRegl({
 			gl: this.gl,
-			extensions: 'oes_texture_float'
+			extensions: ['oes_texture_float', 'oes_texture_float_linear']
 		})
 
 		let idBuffer = regl.buffer({
@@ -82,43 +79,17 @@ class Waveform {
 		})
 
 		let draw = regl({
-			primitive: 'points',
+			// primitive: 'points',
 			// primitive: 'line strip',
-			// primitive: 'triangle strip',
+			primitive: 'triangle strip',
 			offset: 0,
+
 			count: function (ctx) {
-				return 4 * Math.ceil(ctx.viewportWidth / this.step)
+				let step = this.step || this.thickness
+				return 4 * Math.ceil(ctx.viewportWidth / step)
 			},
 
-			// vert: glsl('./line-vert.glsl'),
-			vert: `
-			precision highp float;
-
-			attribute float id, sign;
-
-			uniform sampler2D data;
-			uniform vec2 dataShape;
-			uniform float thickness, step, opacity;
-			uniform vec4 viewport, color;
-			uniform float count, offset;
-
-			varying vec4 fragColor;
-
-			void main() {
-				gl_PointSize = step / 10.;
-
-				vec4 currSample = texture2D(data, vec2(thickness * id / dataShape.x, 0.));
-				vec4 prevSample = texture2D(data, vec2(thickness * (id - 1.) / dataShape.x, 0.));
-				vec4 nextSample = texture2D(data, vec2(thickness * (id + 1.) / dataShape.x, 0.));
-
-				float x = thickness * id / viewport.z;
-				float y = currSample.x + sign * thickness / viewport.w;
-				gl_Position = vec4(x - 1., y, 0, 1);
-
-				fragColor = color / 255.;
-				fragColor.a *= opacity;
-			}
-			`,
+			vert: glsl('./line-vert.glsl'),
 
 			frag: `
 			precision highp float;
@@ -134,19 +105,18 @@ class Waveform {
 					return this.textures[id]
 				},
 				dataShape: Waveform.textureSize,
-				step: regl.this('step'),
+				step: function (ctx) {
+					if (this.step) return this.step
+					return this.thickness
+				},
 				opacity: regl.this('opacity'),
-				count: function (ctx) {
-					return this.range[1] - this.range[0]
-				},
-				offset: function (ctx) {
-					return nidx(this.range[0], this.total)
-				},
 				viewport: function (ctx) {
 					if (!this.viewport) return [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
 
 					return [this.viewport.x, this.viewport.y, ctx.viewportWidth, ctx.viewportHeight]
 				},
+				scale: regl.this('scale'),
+				translate: regl.this('translate'),
 				color: regl.this('color'),
 				thickness: regl.this('thickness')
 			},
@@ -200,6 +170,7 @@ class Waveform {
 			push: 'add append push insert concat',
 			range: 'range dataRange dataBox dataBounds limits',
 			thickness: 'thickness width linewidth lineWidth line-width',
+			step: 'step pxStep',
 			color: 'color colour colors colours fill fillColor fill-color',
 			line: 'line line-style lineStyle linestyle',
 			viewport: 'vp viewport viewBox viewbox viewPort',
@@ -225,9 +196,11 @@ class Waveform {
 		if (o.thickness != null) {
 			// FIXME: parse non-px values
 			this.thickness = parseFloat(o.thickness)
+		}
 
-			// make sure we do not create line creases
-			this.step = Math.max(this.thickness, this.step)
+		if (o.step != null) {
+			// FIXME: parse non-px values
+			this.step = parseFloat(o.step)
 		}
 
 		if (o.opacity != null) {
@@ -236,9 +209,14 @@ class Waveform {
 
 		if (o.viewport != null) {
 			this.viewport = parseRect(o.viewport)
+
 		}
-		if (!this.viewport) {
-			this.viewport = [0, 0, this.canvas.width, this.canvas.height]
+		if (this.viewport == null) {
+			this.viewport = {
+				x: 0, y: 0,
+				width: this.gl.drawingBufferWidth,
+				height: this.gl.drawingBufferHeight
+			}
 		}
 
 		// custom/default visible data window
@@ -253,7 +231,18 @@ class Waveform {
 				this.range = [-o.range, -1, 0, 1]
 			}
 		}
-		if (!this.range) this.range = [-this.viewport.width, -1, 0, 1]
+		if (!this.range) this.range = [0, -1, this.viewport.width, 1]
+
+		if (o.range) {
+			this.scale = [1 / (o.range[2] - o.range[0]), 1 / (o.range[3] - o.range[1])]
+			this.translate = [-o.range[0], -o.range[1]]
+		}
+		if (o.scale) this.scale = o.scale
+		if (o.translate) this.translate = o.translate
+
+		// default scale/translate
+		if (!this.scale) this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
+		if (!this.translate) this.translate = [0, 0]
 
 
 		// flatten colors to a single uint8 array
@@ -414,6 +403,7 @@ class Waveform {
 
 Waveform.prototype.color = new Uint8Array([0,0,0,255])
 Waveform.prototype.opacity = 1
+Waveform.prototype.step = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
 Waveform.prototype.range = null

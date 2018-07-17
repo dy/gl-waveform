@@ -106,8 +106,9 @@ class Waveform {
 				},
 				dataShape: Waveform.textureSize,
 				step: function (ctx) {
-					if (this.step) return this.step
-					return this.thickness
+					let step = this.step || this.thickness
+					let minStep = this.scale[0] * this.viewport.width
+					return Math.max(step, minStep)
 				},
 				opacity: regl.this('opacity'),
 				viewport: function (ctx) {
@@ -243,7 +244,6 @@ class Waveform {
 		// default scale/translate
 		if (!this.scale) this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
 		if (!this.translate) this.translate = [0, 0]
-			console.log((this.step || this.thickness) / (this.scale[0] * this.viewport.width))
 
 		// flatten colors to a single uint8 array
 		if (o.color != null) {
@@ -403,7 +403,6 @@ class Waveform {
 
 Waveform.prototype.color = new Uint8Array([0,0,0,255])
 Waveform.prototype.opacity = 1
-Waveform.prototype.step = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
 Waveform.prototype.range = null

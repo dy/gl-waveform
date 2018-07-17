@@ -19,9 +19,7 @@ let state = {
 		return arr
 	})(512 * 100),
 
-	thickness: 40,
-
-	step: 5,
+	thickness: 20,
 
 	line: '#abc',
 

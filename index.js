@@ -243,7 +243,7 @@ class Waveform {
 		// default scale/translate
 		if (!this.scale) this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
 		if (!this.translate) this.translate = [0, 0]
-
+			console.log((this.step || this.thickness) / (this.scale[0] * this.viewport.width))
 
 		// flatten colors to a single uint8 array
 		if (o.color != null) {

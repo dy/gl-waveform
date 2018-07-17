@@ -9,29 +9,47 @@ uniform vec4 viewport, color;
 
 varying vec4 fragColor;
 
-float lerp(float a, float b, float t) {
+vec4 lerp(vec4 a, vec4 b, float t) {
 	return t * b + (1. - t) * a;
+}
+
+// pick sample from the source texture
+vec4 pick(float offset) {
+	float offsetLeft = floor(offset);
+	float offsetRight = ceil(offset);
+	float t = offset - offsetLeft;
+	if (offsetLeft == offsetRight) {
+		offsetRight = ceil(offset + .5);
+		t = 0.;
+	}
+	vec2 uvLeft = vec2(offsetLeft, .5);
+	vec2 uvRight = vec2(offsetRight, .5);
+	vec4 left = texture2D(data, uvLeft / dataShape);
+	vec4 right = texture2D(data, uvRight / dataShape);
+	return lerp(left, right, t);
 }
 
 void main() {
 	gl_PointSize = 5.;
 
 	vec2 scaleRatio = scale * viewport.zw;
-
 	float pxOffset = step * id;
 
-	vec2 uv = vec2(( id * step - translate.x * 2.) * scale.x * viewport.z, .5);
+	float samplesPerStep = step / scaleRatio.x;
 
-	vec4 sample = texture2D(data, uv / dataShape);
+	vec4 sampleLeft = pick(id * samplesPerStep);
+	vec4 sampleRight = pick(id * samplesPerStep + samplesPerStep);
 
-	// vec4 right = texture2D(data, vec2(step * (id + 1.) / dataShape.x, 0.));
-	// float amp = lerp(nextSample.y, currSample);
+	// uvLeft.x = (uvLeft.x - translate.x * 2.) * scale.x * viewport.z;
+	// uvRight.x = (uvRight.x - translate.x * 2.) * scale.x * viewport.z;
 	// vec2 prevDiff = aCoord - prevCoord;
 	// vec2 currDiff = bCoord - aCoord;
 	// vec2 nextDiff = nextCoord - bCoord;
 	// vec2 prevNormal =
+	float avg = (sampleRight.y - sampleLeft.y) / samplesPerStep;
+	float sdev = (sampleRight.z - sampleLeft.z) - avg * avg;
 
-	float y = sample.x + sign * thickness / viewport.w;
+	float y = avg + sign * (thickness / viewport.w);
 	gl_Position = vec4(pxOffset / viewport.z - 1., y, 0, 1);
 
 	fragColor = color / 255.;

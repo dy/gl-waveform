@@ -14,16 +14,17 @@ let state = {
 	data: ((l) => {
 		let arr = Array(l)
 		for (let i = 0; i < l; i++) {
-			arr[i] = osc(i/l)
+			arr[i] = osc(i / 100)
 		}
 		return arr
-	})(512),
+	})(512 * 100),
 
 	thickness: 40,
 
-	step: 64,
+	step: 5,
 
-	line: '#888',
+	line: '#abc',
+
 	// bg: '#fff',
 
 	// rate: 12,

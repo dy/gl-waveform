@@ -2,8 +2,8 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform sampler2D data;
-uniform float opacity, thickness, step;
+uniform sampler2D data0, data1;
+uniform float opacity, thickness, step, txtOffset;
 uniform vec2 scale, translate, dataShape;
 uniform vec4 viewport, color;
 
@@ -16,19 +16,32 @@ vec4 lerp(vec4 a, vec4 b, float t) {
 	return t * b + (1. - t) * a;
 }
 
+vec4 pickSample (float offset) {
+	vec2 uv = vec2(mod(offset, dataShape.x) + .5, floor(offset / dataShape.x) + .5) / dataShape;
+
+	if (uv.y > 1.) {
+		uv.y = uv.y - 1.;
+		return texture2D(data1, uv);
+	}
+	else return texture2D(data0, uv);
+}
+
 // pick sample from the source texture
 vec4 pick(float offset) {
+	offset -= txtOffset;
+
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;
+
 	if (offsetLeft == offsetRight) {
 		offsetRight = ceil(offset + .5);
 		t = 0.;
 	}
-	vec2 uvLeft = vec2(offsetLeft, .5);
-	vec2 uvRight = vec2(offsetRight, .5);
-	vec4 left = texture2D(data, uvLeft / dataShape);
-	vec4 right = texture2D(data, uvRight / dataShape);
+
+	vec4 left = pickSample(offsetLeft);
+	vec4 right = pickSample(offsetRight);
+
 	return lerp(left, right, t);
 }
 
@@ -63,10 +76,6 @@ void main() {
 
 		vec2 join = normalize(normalLeft + normalRight);
 		float joinLength = abs(1. / dot(normalLeft, join));
-
-		// vec2 tangentA = vec2(.5, -.5);
-		// vec2 tangentB = normalize(diffB * scaleRatio);
-		// vec2 normalB = vec2(-tangentB.y, tangentB.x);
 
 		vec2 position = vec2(.5 * step * id / viewport.z, avgCurr * .5 + .5);
 		position += sign * joinLength * join * .5 * thickness / viewport.zw;

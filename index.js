@@ -43,9 +43,10 @@ class Waveform {
 		// last sum2 value
 		this.sum2 = 0
 
+		this.currTexture = 0
+
 		this.render = function () {
 			this.shader.draw.call(this)
-			this.shader.drawLine.call(this)
 		}
 		this.regl = this.shader.regl
 		this.canvas = this.gl.canvas
@@ -85,7 +86,7 @@ class Waveform {
 			offset: 0,
 
 			count: function (ctx) {
-				let step = this.step || this.thickness
+				let step = this.step || this.thickness * 2
 				return 4 * Math.ceil(ctx.viewportWidth / step)
 			},
 
@@ -100,13 +101,23 @@ class Waveform {
 			`,
 
 			uniforms: {
-				data: function (ctx) {
-					let id = 0//Math.floor(prop.range[0] / txtLen)
-					return this.textures[id]
+				// we provide only 2 textures
+				// in order to display texture join smoothly
+				// but min zoom level is limited so
+				// that only 2 textures can fit the screen
+				// zoom levels higher than that give artifacts
+				data0: function (ctx) {
+					return this.textures[this.currTexture] || this.shader.blankTexture
+				},
+				data1: function (ctx) {
+					return this.textures[this.currTexture + 1] || this.shader.blankTexture
+				},
+				txtOffset: function () {
+					return this.currTexture * Waveform.textureSize[0] * Waveform.textureSize[1]
 				},
 				dataShape: Waveform.textureSize,
 				step: function (ctx) {
-					let step = this.step || this.thickness
+					let step = this.step || this.thickness * 2
 					let minStep = this.scale[0] * this.viewport.width
 					return Math.max(step, minStep)
 				},
@@ -162,98 +173,17 @@ class Waveform {
 			stencil: false
 		})
 
-
-		// this.render = this.shader.draw.bind(this)
-		let drawLine = regl({
-			primitive: 'line strip',
-
-			vert: `
-			precision highp float;
-
-			attribute float id;
-
-			uniform sampler2D data;
-			uniform float step;
-			uniform vec2 scale, translate, dataShape;
-			uniform vec4 viewport;
-
-			varying vec4 fragColor;
-
-			const float lessThanThickness = 0.;
-
-			// linear interpolation
-			vec4 lerp(vec4 a, vec4 b, float t) {
-				return t * b + (1. - t) * a;
-			}
-
-			// pick sample from the source texture
-			vec4 pick(float offset) {
-				float offsetLeft = floor(offset);
-				float offsetRight = ceil(offset);
-				float t = offset - offsetLeft;
-				if (offsetLeft == offsetRight) {
-					offsetRight = ceil(offset + .5);
-					t = 0.;
-				}
-				vec2 uvLeft = vec2(offsetLeft, .5);
-				vec2 uvRight = vec2(offsetRight, .5);
-				vec4 left = texture2D(data, uvLeft / dataShape);
-				vec4 right = texture2D(data, uvRight / dataShape);
-				return lerp(left, right, t);
-			}
-
-			void main() {
-				vec2 scaleRatio = scale * viewport.zw;
-				float pxOffset = step * id;
-
-				float samplesPerStep = step / scaleRatio.x;
-
-				// calc average of curr..next sampling points
-				vec4 sampleA = pick(-translate.x * 2. + id * samplesPerStep);
-				vec4 sampleB = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep);
-				float avgA = (sampleB.y - sampleA.y) / samplesPerStep;
-				float sdev = (sampleB.z - sampleA.z) - avgA * avgA;
-
-				float y = avgA;
-				gl_Position = vec4(pxOffset / viewport.z - 1., y, id / 100., 1);
-			}
-			`,
-			frag: `void main(){ gl_FragColor = vec4(0,0,0,1);}`,
-			offset: 0,
-			count: function (ctx) {
-				let step = this.step || this.thickness
-				return 2 * Math.ceil(ctx.viewportWidth / step)
-			},
-			uniforms: {
-				data: function (ctx) {
-					let id = 0//Math.floor(prop.range[0] / txtLen)
-					return this.textures[id]
-				},
-				dataShape: Waveform.textureSize,
-				step: function (ctx) {
-					let step = this.step || this.thickness
-					let minStep = this.scale[0] * this.viewport.width
-					return Math.max(step, minStep)
-				},
-				viewport: function (ctx) {
-					if (!this.viewport) return [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
-
-					return [this.viewport.x, this.viewport.y, ctx.viewportWidth, ctx.viewportHeight]
-				},
-				scale: regl.this('scale'),
-				translate: regl.this('translate')
-			},
-
-			attributes: {
-				id: {
-					buffer: idBuffer,
-					stride: 8,
-					offset: 0
-				}
-			},
+		let blankTexture = regl.texture({
+			width: Waveform.textureSize[0],
+			height: Waveform.textureSize[1],
+			channels: 3,
+			type: 'float',
+			min: 'nearest',
+			mag: 'nearest',
+			wrap: ['clamp', 'clamp']
 		})
 
-		return { draw, drawLine, regl, idBuffer }
+		return { draw, regl, idBuffer, blankTexture }
 	}
 
 	update (o) {
@@ -331,6 +261,12 @@ class Waveform {
 		}
 		if (o.scale) this.scale = o.scale
 		if (o.translate) this.translate = o.translate
+
+		// update current texture
+		if (o.range || o.scale || o.translate) {
+			let txtLen = Waveform.textureSize[0] * Waveform.textureSize[1]
+			this.currTexture = Math.floor(-this.translate[0] / txtLen)
+		}
 
 		// default scale/translate
 		if (!this.scale) this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
@@ -499,7 +435,7 @@ Waveform.prototype.viewport = null
 Waveform.prototype.range = null
 
 
-Waveform.textureSize = [2048, 2048]
+Waveform.textureSize = [32, 32]
 
 
 function isRegl (o) {

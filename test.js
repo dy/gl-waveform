@@ -14,14 +14,15 @@ let state = {
 	data: ((l) => {
 		let arr = Array(l)
 		for (let i = 0; i < l; i++) {
-			arr[i] = osc(i / 100)
+			arr[i] = osc(i / 700)
 		}
 		return arr
 	})(512 * 100),
 
-	thickness: 20,
+	thickness: 40,
+	step: 80,
 
-	line: '#abc',
+	line: 'rgba(0,0,0,.45)',
 
 	// bg: '#fff',
 

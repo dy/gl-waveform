@@ -56,10 +56,12 @@ void main() {
 	vec4 sample0 = pick(-translate.x * 2. + id * samplesPerStep);
 	vec4 sample1 = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep);
 	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
-	float sdev = (sample1.z - sample0.z) - avgCurr * avgCurr;
+	float sdev = (sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr;
+
+	vec2 position = vec2(.5 * step * id / viewport.z, avgCurr * .5 + .5);
 
 	// less than thickness sdev works as simple normal line slope
-	if (lessThanThickness == 0.) {
+	if (lessThanThickness == 1.) {
 		vec4 sampleNext = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep * 2.);
 		vec4 samplePrev = pick(-translate.x * 2. + id * samplesPerStep - samplesPerStep);
 
@@ -77,10 +79,10 @@ void main() {
 		vec2 join = normalize(normalLeft + normalRight);
 		float joinLength = abs(1. / dot(normalLeft, join));
 
-		vec2 position = vec2(.5 * step * id / viewport.z, avgCurr * .5 + .5);
+		// position.y -= translate.y;
+		// position.y += .25;
 		position += sign * joinLength * join * .5 * thickness / viewport.zw;
 
-		gl_Position = vec4(position * 2. - 1., 0, 1);
 	}
 
 	// sdev more than normal but less than projected to vertical value rotates point towards
@@ -90,9 +92,10 @@ void main() {
 
 	// more than thickness sdev maps to vertical
 	else {
-		float y = avgCurr + sign * (thickness / viewport.w);
-		gl_Position = vec4(pxOffset / viewport.z - 1., y, id / 100., 1);
+		position.y += sign * .5 * thickness / viewport.w;
 	}
+
+	gl_Position = vec4(position * 2. - 1., 0, 1);
 
 	fragColor = color / 255.;
 	fragColor.a *= opacity;

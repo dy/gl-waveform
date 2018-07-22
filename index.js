@@ -195,6 +195,8 @@ class Waveform {
 			data: 'data value values amp amplitude amplitudes sample samples',
 			push: 'add append push insert concat',
 			range: 'range dataRange dataBox dataBounds limits',
+			max: 'max maxAmp maxAmplitude',
+			min: 'min minAmp minAmplitude',
 			thickness: 'thickness width linewidth lineWidth line-width',
 			step: 'step pxStep',
 			color: 'color colour colors colours fill fillColor fill-color',
@@ -245,6 +247,7 @@ class Waveform {
 			}
 		}
 
+
 		// custom/default visible data window
 		if (o.range != null) {
 			if (o.range.length === 2) {
@@ -257,12 +260,17 @@ class Waveform {
 				this.range = [-o.range, -1, 0, 1]
 			}
 		}
-		if (!this.range) this.range = [0, -1, this.viewport.width, 1]
 
+		if (!this.range && !o.range) o.range = [0, -1, this.viewport.width, 1]
 		if (o.range) {
 			this.scale = [1 / (o.range[2] - o.range[0]), 1 / (o.range[3] - o.range[1])]
 			this.translate = [-o.range[0], -o.range[1]]
 		}
+		if (!this.range) this.range = o.range
+		// if (o.min || o.max) {
+		// 	this.scale[1] = 1 / (( (o.max || o.range[3]) - (o.min || o.range[1]) ))
+		// 	this.translate[1] = [(o.min || -o.range[1])]
+		// }
 		if (o.scale) this.scale = o.scale
 		if (o.translate) this.translate = o.translate
 
@@ -446,7 +454,7 @@ Waveform.prototype.viewport = null
 Waveform.prototype.range = null
 
 
-Waveform.textureSize = [32, 32]
+Waveform.textureSize = [1024, 1024]
 
 
 function isRegl (o) {

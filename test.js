@@ -17,9 +17,11 @@ let state = {
 			arr[i] = osc(i / 700)
 		}
 		return arr
-	})(1024 * 3),
+	})(1024 * 10),
 
 	thickness: 10,
+	max: 5,
+	min: -5,
 
 	line: 'rgba(0,0,0,.45)',
 

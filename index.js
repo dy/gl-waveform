@@ -51,8 +51,24 @@ class Waveform {
 		this.regl = this.shader.regl
 		this.canvas = this.gl.canvas
 
-		// stack of textures with samples
+		// stack of textures with sample data
 		this.textures = []
+
+		// limiting textures
+		this.capTexture = [
+			this.regl.texture({
+				width: 1,
+				height: 1,
+				channels: 3,
+				type: 'float'
+			}),
+			this.regl.texture({
+				width: 1,
+				height: 1,
+				channels: 3,
+				type: 'float'
+			})
+		]
 
 		this.update(o)
 	}
@@ -107,14 +123,12 @@ class Waveform {
 				// that only 2 textures can fit the screen
 				// zoom levels higher than that give artifacts
 				data0: function (ctx) {
-					return this.textures[this.currTexture] || this.shader.blankTexture
+					return this.textures[this.currTexture] || this.capTexture[0]
 				},
 				data1: function (ctx) {
-					return this.textures[this.currTexture + 1] || this.shader.blankTexture
+					return this.textures[this.currTexture + 1] || this.capTexture[1]
 				},
-				txtOffset: function () {
-					return this.currTexture * Waveform.textureSize[0] * Waveform.textureSize[1]
-				},
+				textureId: regl.this('currTexture'),
 				dataShape: Waveform.textureSize,
 				step: function (ctx) {
 					let step = this.step || this.thickness * 2
@@ -173,17 +187,7 @@ class Waveform {
 			stencil: false
 		})
 
-		let blankTexture = regl.texture({
-			width: Waveform.textureSize[0],
-			height: Waveform.textureSize[1],
-			channels: 3,
-			type: 'float',
-			min: 'nearest',
-			mag: 'nearest',
-			wrap: ['clamp', 'clamp']
-		})
-
-		return { draw, regl, idBuffer, blankTexture }
+		return { draw, regl, idBuffer }
 	}
 
 	update (o) {
@@ -265,7 +269,7 @@ class Waveform {
 		// update current texture
 		if (o.range || o.scale || o.translate) {
 			let txtLen = Waveform.textureSize[0] * Waveform.textureSize[1]
-			this.currTexture = Math.floor(-this.translate[0] / txtLen)
+			this.currTexture = Math.floor(2. * -this.translate[0] / txtLen)
 		}
 
 		// default scale/translate
@@ -346,6 +350,13 @@ class Waveform {
 			data[i * 3 + 2] = lastSum2 += samples[i] * samples[i]
 		}
 		this.sum = lastSum, this.sum2 = lastSum2, this.total += dataLen
+
+		// make sure end texture contains proper data
+		this.capTexture[1].subimage({
+			width: 1,
+			height: 1,
+			data: [samples[samples.length - 1], lastSum, lastSum2]
+		}, 0, 0)
 
 		// get current texture
 		let txt = this.textures[id]

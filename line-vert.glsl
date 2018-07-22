@@ -3,7 +3,7 @@ precision highp float;
 attribute float id, sign;
 
 uniform sampler2D data0, data1;
-uniform float opacity, thickness, step, txtOffset;
+uniform float opacity, thickness, step, textureId;
 uniform vec2 scale, translate, dataShape;
 uniform vec4 viewport, color;
 
@@ -19,6 +19,8 @@ vec4 lerp(vec4 a, vec4 b, float t) {
 vec4 pickSample (float offset) {
 	vec2 uv = vec2(mod(offset, dataShape.x) + .5, floor(offset / dataShape.x) + .5) / dataShape;
 
+	uv.y -= textureId;
+
 	if (uv.y > 1.) {
 		uv.y = uv.y - 1.;
 		return texture2D(data1, uv);
@@ -28,8 +30,6 @@ vec4 pickSample (float offset) {
 
 // pick sample from the source texture
 vec4 pick(float offset) {
-	offset -= txtOffset;
-
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;

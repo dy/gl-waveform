@@ -17,6 +17,9 @@ const float lessThanThickness = 0.;
 vec4 lerp(vec4 a, vec4 b, float t) {
 	return t * b + (1. - t) * a;
 }
+vec2 lerp(vec2 a, vec2 b, float t) {
+	return t * b + (1. - t) * a;
+}
 
 vec4 pickSample (float offset) {
 	vec2 uv = vec2(mod(offset, dataShape.x) + .5, floor(offset / dataShape.x) + .5) / dataShape;
@@ -84,34 +87,40 @@ void main() {
 	) / viewport.zw);
 
 	vec2 bisec = normalize(normalLeft + normalRight);
-	vec2 vertical = vec2(0, 1);
-	float bisecLength = abs(1. / dot(normalLeft, bisec));
-	float vertLength = max(
-		abs(1. / dot(normalRight, vertical)),
-		abs(1. / dot(normalLeft, vertical))
-	);
+	vec2 vert = vec2(0, 1);
+	float bisecLen = abs(1. / dot(normalLeft, bisec));
+	float vertRightLen = abs(1. / dot(normalRight, vert));
+	float vertLeftLen = abs(1. / dot(normalLeft, vert));
+	float maxVertLen = max(vertLeftLen, vertRightLen);
+	float minVertLen = min(vertLeftLen, vertRightLen);
+	float vertSdev = 2. * sdev * viewport.w / thickness;
 
 	vec2 join;
-	float joinLength;
 
-	// less than projected to vertical thickness shows simple line
-	if (mode == 1. || 2. * sdev * viewport.w / thickness < vertLength) {
-		join = bisec;
-		joinLength = bisecLength;
+	if (mode == 1.) {
+		join = bisec * bisecLen;
 	}
 
-	// sdev more than normal but less than projected to vertical value rotates point towards
-	// else if () {
-
-	// }
-
-	// more than projected to vertical thickness modifies only y coord
 	else {
-		join = vertical;
-		joinLength = 2. * sdev * viewport.w / thickness;
+		// sdev less than projected to vertical shows simple line
+		if (vertSdev < maxVertLen) {
+			// sdev more than normal but less than vertical threshold
+			// rotates join towards vertical
+			if (vertSdev > minVertLen) {
+				float t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);
+				join = lerp(bisec * bisecLen, vert * maxVertLen, t);
+			}
+			else {
+				join = bisec * bisecLen;
+			}
+		}
+		// sdev more than projected to vertical modifies only y coord
+		else {
+			join = vert * vertSdev;
+		}
 	}
 
-	position += sign * joinLength * join * .5 * thickness / viewport.zw;
+	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 
 	fragColor = color / 255.;

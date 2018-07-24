@@ -46,7 +46,12 @@ class Waveform {
 		this.currTexture = 0
 
 		this.render = function () {
-			this.shader.draw.call(this)
+			// this.shader.draw.call(this, {mode: 1, color: [0,0,255,80],
+			// 	thickness: 20})
+			this.shader.draw.call(this, {mode: 0, color: [255,0,0,80],
+				thickness: 20})
+			// this.shader.draw.call(this, {mode: 1, color: [255,255,255,255],
+			// 	thickness: 1})
 		}
 		this.regl = this.shader.regl
 		this.canvas = this.gl.canvas
@@ -128,6 +133,7 @@ class Waveform {
 				data1: function (ctx) {
 					return this.textures[this.currTexture + 1] || this.capTexture[1]
 				},
+				mode: regl.prop('mode'),
 				textureId: regl.this('currTexture'),
 				dataShape: Waveform.textureSize,
 				step: function (ctx) {
@@ -143,8 +149,10 @@ class Waveform {
 				},
 				scale: regl.this('scale'),
 				translate: regl.this('translate'),
-				color: regl.this('color'),
-				thickness: regl.this('thickness')
+				// color: regl.this('color'),
+				color: regl.prop('color'),
+				// thickness: regl.this('thickness')
+				thickness: regl.prop('thickness')
 			},
 
 			attributes: {

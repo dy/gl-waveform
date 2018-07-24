@@ -14,12 +14,12 @@ let state = {
 	data: ((l) => {
 		let arr = Array(l)
 		for (let i = 0; i < l; i++) {
-			arr[i] = osc(i / 700)
+			arr[i] = osc(i / 600)
 		}
 		return arr
 	})(1024 * 10),
 
-	thickness: 10,
+	thickness: 20,
 	max: 5,
 	min: -5,
 

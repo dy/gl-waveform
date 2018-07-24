@@ -7,6 +7,8 @@ uniform float opacity, thickness, step, textureId;
 uniform vec2 scale, translate, dataShape;
 uniform vec4 viewport, color;
 
+uniform float mode;
+
 varying vec4 fragColor;
 
 const float lessThanThickness = 0.;
@@ -48,41 +50,54 @@ vec4 pick(float offset) {
 void main() {
 	gl_PointSize = 3.;
 
-	float pxOffset = step * id;
-
 	float samplesPerStep = step / scale.x / viewport.z;
 
 	// calc average of curr..next sampling points
 	vec4 sample0 = pick(-translate.x * 2. + id * samplesPerStep);
 	vec4 sample1 = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep);
 	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
-	float sdev = (sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr;
+
+	float variance = 0., sdev = 0.;
+
+	// only scales more than 1. skip steps
+	if (scale.x * viewport.z < 1.) {
+		variance = abs(
+			(sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
+		);
+		sdev = sqrt(variance);
+	}
 
 	vec2 position = vec2(.5 * step * id / viewport.z, avgCurr * .5 + .5);
 
-	// less than thickness sdev works as simple normal line slope
-	if (lessThanThickness == 1.) {
-		vec4 sampleNext = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep * 2.);
-		vec4 samplePrev = pick(-translate.x * 2. + id * samplesPerStep - samplesPerStep);
+	vec4 samplePrev = pick(-translate.x * 2. + id * samplesPerStep - samplesPerStep);
+	vec4 sampleNext = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep * 2.);
 
-		float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
-		float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
+	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
+	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
 
-		float x = .5 * step / viewport.z;
-		vec2 normalRight = normalize(vec2(
-			-(avgNext - avgCurr) * .5, x
-		) / viewport.zw);
-		vec2 normalLeft = normalize(vec2(
-			-(avgCurr - avgPrev) * .5, x
-		) / viewport.zw);
+	float x = .5 * step / viewport.z;
+	vec2 normalLeft = normalize(vec2(
+		-(avgCurr - avgPrev) * .5, x
+	) / viewport.zw);
+	vec2 normalRight = normalize(vec2(
+		-(avgNext - avgCurr) * .5, x
+	) / viewport.zw);
 
-		vec2 join = normalize(normalLeft + normalRight);
-		float joinLength = abs(1. / dot(normalLeft, join));
+	vec2 bisec = normalize(normalLeft + normalRight);
+	vec2 vertical = vec2(0, 1);
+	float bisecLength = abs(1. / dot(normalLeft, bisec));
+	float vertLength = max(
+		abs(1. / dot(normalRight, vertical)),
+		abs(1. / dot(normalLeft, vertical))
+	);
 
-		// position.y -= translate.y;
-		// position.y += .25;
-		position += sign * joinLength * join * .5 * thickness / viewport.zw;
+	vec2 join;
+	float joinLength;
 
+	// less than projected to vertical thickness shows simple line
+	if (mode == 1. || 2. * sdev * viewport.w / thickness < vertLength) {
+		join = bisec;
+		joinLength = bisecLength;
 	}
 
 	// sdev more than normal but less than projected to vertical value rotates point towards
@@ -90,11 +105,13 @@ void main() {
 
 	// }
 
-	// more than thickness sdev maps to vertical
+	// more than projected to vertical thickness modifies only y coord
 	else {
-		position.y += sign * .5 * thickness / viewport.w;
+		join = vertical;
+		joinLength = 2. * sdev * viewport.w / thickness;
 	}
 
+	position += sign * joinLength * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 
 	fragColor = color / 255.;

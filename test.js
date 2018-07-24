@@ -2,7 +2,7 @@
 
 import Waveform from './'
 import extend from 'object-assign'
-import osc from 'periodic-function/sine'
+import osc from 'periodic-function/sawtooth'
 import panzoom from 'pan-zoom'
 import FPS from 'fps-indicator'
 
@@ -19,11 +19,11 @@ let state = {
 		return arr
 	})(1024 * 10),
 
-	thickness: 20,
+	thickness: 3,
 	max: 5,
 	min: -5,
 
-	line: 'rgba(0,0,0,.45)',
+	line: 'rgba(255,0,0,.45)',
 
 	// bg: '#fff',
 

@@ -3,7 +3,7 @@ precision highp float;
 attribute float id, sign;
 
 uniform sampler2D data0, data1;
-uniform float opacity, thickness, step, textureId;
+uniform float opacity, thickness, step, textureId, total;
 uniform vec2 scale, translate, dataShape;
 uniform vec4 viewport, color;
 
@@ -35,6 +35,13 @@ vec4 pickSample (float offset) {
 
 // pick sample from the source texture
 vec4 pick(float offset) {
+
+	float samplesPerStep = step / scale.x / viewport.z;
+
+	// offset = floor(offset / samplesPerStep) * samplesPerStep;
+
+	offset = min(offset, total - 1.);
+
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;

@@ -60,22 +60,6 @@ class Waveform {
 		// stack of textures with sample data
 		this.textures = []
 
-		// limiting textures
-		this.capTexture = [
-			this.regl.texture({
-				width: 1,
-				height: 1,
-				channels: 3,
-				type: 'float'
-			}),
-			this.regl.texture({
-				width: 1,
-				height: 1,
-				channels: 3,
-				type: 'float'
-			})
-		]
-
 		this.update(o)
 	}
 
@@ -90,7 +74,7 @@ class Waveform {
 			usage: 'static',
 			type: 'int16',
 			data: (N => {
-				let x = Array(N*4)
+				let x = Array(N * 4)
 				for (let i = 0; i < N; i++) {
 					x[i * 4] = i
 					x[i * 4 + 1] = 1
@@ -129,10 +113,10 @@ class Waveform {
 				// that only 2 textures can fit the screen
 				// zoom levels higher than that give artifacts
 				data0: function (ctx) {
-					return this.textures[this.currTexture] || this.capTexture[0]
+					return this.textures[this.currTexture] || this.shader.blankTexture
 				},
 				data1: function (ctx) {
-					return this.textures[this.currTexture + 1] || this.capTexture[1]
+					return this.textures[this.currTexture + 1] || this.shader.blankTexture
 				},
 				// total number of samples
 				total: regl.this('total'),
@@ -198,10 +182,18 @@ class Waveform {
 			stencil: false
 		})
 
-		return { draw, regl, idBuffer }
+		let blankTexture = regl.texture({
+			width: 1,
+			height: 1,
+			channels: 3,
+			type: 'float'
+		})
+
+		return { draw, regl, idBuffer, blankTexture }
 	}
 
 	update (o) {
+		if (!o) return this
 		o = pick(o, {
 			data: 'data value values amp amplitude amplitudes sample samples',
 			push: 'add append push insert concat',
@@ -218,17 +210,22 @@ class Waveform {
 
 		// parse line style
 		if (o.line) {
-			let parts = o.line.split(/\s+/)
+			if (typeof o.line === 'string') {
+				let parts = o.line.split(/\s+/)
 
-			// 12px black
-			if (/0-9/.test(parts[0][0])) {
-				if (!o.thickness) o.thickness = parts[0]
-				if (!o.color && parts[1]) o.color = parts[1]
+				// 12px black
+				if (/0-9/.test(parts[0][0])) {
+					if (!o.thickness) o.thickness = parts[0]
+					if (!o.color && parts[1]) o.color = parts[1]
+				}
+				// black 12px
+				else {
+					if (!o.thickness && parts[1]) o.thickness = parts[1]
+					if (!o.color) o.color = parts[0]
+				}
 			}
-			// black 12px
 			else {
-				if (!o.thickness && parts[1]) o.thickness = parts[1]
-				if (!o.color) o.color = parts[0]
+				o.color = o.line
 			}
 		}
 
@@ -305,7 +302,7 @@ class Waveform {
 			}
 			// flat array
 			else if (typeof o.color[0] === 'number') {
-				let l = o.color.length
+				let l = Math.max(o.color.length, 4)
 				pool.freeUint8(this.color)
 				this.color = pool.mallocUint8(l)
 				let sub = (o.color.subarray || o.color.slice).bind(o.color)
@@ -369,13 +366,6 @@ class Waveform {
 			data[i * 3 + 2] = lastSum2 += samples[i] * samples[i]
 		}
 		this.sum = lastSum, this.sum2 = lastSum2, this.total += dataLen
-
-		// make sure end texture contains proper data
-		this.capTexture[1].subimage({
-			width: 1,
-			height: 1,
-			data: [samples[samples.length - 1], lastSum, lastSum2]
-		}, 0, 0)
 
 		// get current texture
 		let txt = this.textures[id]

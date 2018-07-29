@@ -5,7 +5,7 @@
   "scripts": {
     "test": "budo test.js",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
-    "build": "browserify test.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
+    "build": "browserify test.js -g bubleify | indexhtmlify | metadataify > index.html"
   },
   "browserify": {
     "transform": [
@@ -55,6 +55,7 @@
     "babel-plugin-import-to-require": "^1.0.0",
     "babel-plugin-transform-react-jsx": "^6.24.1",
     "babelify": "^8.0.0",
+    "bubleify": "^1.2.0",
     "controlkit": "^0.1.9",
     "fps-indicator": "^1.2.1",
     "glslify": "^6.2.1",

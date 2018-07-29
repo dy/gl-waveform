@@ -2,7 +2,7 @@
 
 import Waveform from './'
 import extend from 'object-assign'
-import osc from 'periodic-function/sine'
+import osc from 'periodic-function'
 import panzoom from 'pan-zoom'
 import FPS from 'fps-indicator'
 import ControlKit from 'controlkit'
@@ -17,7 +17,7 @@ let count = 0
 function oscillate (l) {
 	let arr = Array()
 	for (let i = 0; i < l; i++) {
-		arr[i] = osc((i + count) / 500)
+		arr[i] = osc[config.source]((i + count) / 500)
 	}
 	count += l
 	return arr
@@ -27,7 +27,7 @@ let config = {
 	thickness: 2,
 	thicknessRange: [1, 40],
 
-	color: [255, 0, 0],
+	color: [0, 0, 0],
 
 	size: 256,
 	sizeRange: [64, 8192],
@@ -35,8 +35,17 @@ let config = {
 	interval: 150,
 	intervalRange: [10, 3000],
 
-	source: 'Sine',
-	sourceOptions: ['Sine', 'Saw', 'Square', 'Noise', 'Mic', 'Url'],
+	source: 'sine',
+	sourceOptions: [
+		'noise',
+		'sine',
+		'triangle',
+		'sawtooth',
+		'square',
+		'pulse',
+		'clausen'
+		// mic, url
+	],
 	time: 0,
 
 	paused: false

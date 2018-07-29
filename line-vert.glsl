@@ -36,10 +36,6 @@ vec4 pickSample (float offset) {
 // pick sample from the source texture
 vec4 pick(float offset) {
 
-	float samplesPerStep = step / scale.x / viewport.z;
-
-	// offset = floor(offset / samplesPerStep) * samplesPerStep;
-
 	offset = min(offset, total - 1.);
 
 	float offsetLeft = floor(offset);
@@ -60,11 +56,11 @@ vec4 pick(float offset) {
 void main() {
 	gl_PointSize = 3.;
 
-	float samplesPerStep = step / scale.x / viewport.z;
+	float samplesPerStep = .5 * step / scale.x / viewport.z;
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = pick(-translate.x * 2. + id * samplesPerStep);
-	vec4 sample1 = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep);
+	vec4 sample0 = pick(-translate.x + id * samplesPerStep);
+	vec4 sample1 = pick(-translate.x + id * samplesPerStep + samplesPerStep);
 	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
 
 	float variance = 0., sdev = 0.;
@@ -79,8 +75,8 @@ void main() {
 
 	vec2 position = vec2(.5 * step * id / viewport.z, avgCurr * .5 + .5);
 
-	vec4 samplePrev = pick(-translate.x * 2. + id * samplesPerStep - samplesPerStep);
-	vec4 sampleNext = pick(-translate.x * 2. + id * samplesPerStep + samplesPerStep * 2.);
+	vec4 samplePrev = pick(-translate.x + id * samplesPerStep - samplesPerStep);
+	vec4 sampleNext = pick(-translate.x + id * samplesPerStep + samplesPerStep * 2.);
 
 	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
 	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;

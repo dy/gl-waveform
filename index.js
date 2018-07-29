@@ -12,6 +12,7 @@ import isObj from 'is-plain-obj'
 import pool from 'typedarray-pool'
 import glsl from 'glslify'
 import rgba from 'color-normalize'
+import nz from 'is-negative-zero'
 
 
 let shaderCache = new WeakMap()
@@ -46,12 +47,13 @@ class Waveform {
 		this.currTexture = 0
 
 		// this.render = function () {
-		// 	// this.shader.draw.call(this, {mode: 1, color: [0,0,255,80],
-		// 	// 	thickness: 20})
-		// 	this.shader.draw.call(this, {mode: 0, color: [255,0,0,80],
-		// 		thickness: 20})
-		// 	// this.shader.draw.call(this, {mode: 1, color: [255,255,255,255],
-		// 	// 	thickness: 1})
+		// 	this.shader.draw.call(this)
+			// this.shader.draw.call(this, {mode: 1, color: [0,0,255,80],
+			// 	thickness: 20})
+			// this.shader.draw.call(this, {mode: 0, color: [255,0,0,80],
+			// 	thickness: 20})
+			// this.shader.draw.call(this, {mode: 1, color: [255,255,255,255],
+			// 	thickness: 1})
 		// }
 		this.render = this.shader.draw.bind(this)
 		this.regl = this.shader.regl
@@ -125,7 +127,7 @@ class Waveform {
 				dataShape: Waveform.textureSize,
 				step: function (ctx) {
 					let step = this.step || this.thickness * 2
-					let minStep = this.scale[0] * this.viewport.width
+					let minStep = 2 * this.viewport.width / Math.abs(this.range[2] - this.range[0])
 					return Math.max(step, minStep)
 				},
 				opacity: regl.this('opacity'),
@@ -134,8 +136,25 @@ class Waveform {
 
 					return [this.viewport.x, this.viewport.y, ctx.viewportWidth, ctx.viewportHeight]
 				},
-				scale: regl.this('scale'),
-				translate: regl.this('translate'),
+				scale: function () {
+					let r = this.range
+
+					if (!r) return [1 / this.viewport.width, 1 / this.viewport.height]
+
+					return [
+						1 / (r[2] - r[0]),
+						1 / (r[3] - r[1])
+					]
+				},
+				translate: function () {
+					let r = this.range
+
+					if (!r) return [0, 0]
+
+					let start = r[0], end = r[2]
+
+					return [ -start, -end ]
+				},
 				color: regl.this('color'),
 				thickness: regl.this('thickness')
 				// color: regl.prop('color'),
@@ -269,28 +288,16 @@ class Waveform {
 			}
 		}
 
-		if (!this.range && !o.range) o.range = [0, -1, this.viewport.width, 1]
-		if (o.range) {
-			this.scale = [1 / (o.range[2] - o.range[0]), 1 / (o.range[3] - o.range[1])]
-			this.translate = [-o.range[0], -o.range[1]]
+		if (!this.range && !o.range) {
+			o.range = [0, -1, this.viewport.width, 1]
 		}
 		if (!this.range) this.range = o.range
-		// if (o.min || o.max) {
-		// 	this.scale[1] = 1 / (( (o.max || o.range[3]) - (o.min || o.range[1]) ))
-		// 	this.translate[1] = [(o.min || -o.range[1])]
-		// }
-		if (o.scale) this.scale = o.scale
-		if (o.translate) this.translate = o.translate
 
 		// update current texture
-		if (o.range || o.scale || o.translate) {
+		if (o.range) {
 			let txtLen = Waveform.textureSize[0] * Waveform.textureSize[1]
-			this.currTexture = Math.floor(2. * -this.translate[0] / txtLen)
+			this.currTexture = Math.floor(2. * this.range[0] / txtLen)
 		}
-
-		// default scale/translate
-		if (!this.scale) this.scale = [1 / this.viewport.width, 1 / this.viewport.height]
-		if (!this.translate) this.translate = [0, 0]
 
 		// flatten colors to a single uint8 array
 		if (o.color != null) {
@@ -468,3 +475,8 @@ function isRegl (o) {
 
 
 module.exports = Waveform
+
+
+function isNeg(v) {
+	return v < 0 || nz(v)
+}

@@ -7,6 +7,7 @@ import panzoom from 'pan-zoom'
 import FPS from 'fps-indicator'
 import ControlKit from 'controlkit'
 import raf from 'raf'
+import now from 'performance-now'
 
 FPS()
 
@@ -38,6 +39,8 @@ let config = {
 	sourceOptions: ['Sine', 'Saw', 'Square', 'Noise', 'Mic', 'Url'],
 	time: 0,
 
+	paused: false
+
 	// bg: '#fff',
 
 	// rate: 12,
@@ -49,9 +52,9 @@ let waveform = new Waveform()
 waveform.update(config)
 
 
-let controlKit = new ControlKit;
+let controlKit = new ControlKit
 
-controlKit.addPanel({ width: 280 })
+controlKit.addPanel({ label: 'Options', width: 280 })
 	.addGroup()
 		.addSubGroup({ label: 'Appearance' })
 			.addSlider(config, 'thickness', 'thicknessRange', {
@@ -71,7 +74,7 @@ controlKit.addPanel({ width: 280 })
 				},
 				colorMode: 'rgb'
 			})
-		.addSubGroup({ label: 'Data stream' })
+		.addSubGroup({ label: 'Data' })
 			.addSelect(config, 'sourceOptions', {
 				target: 'source',
 				label: 'signal',
@@ -93,21 +96,28 @@ controlKit.addPanel({ width: 280 })
 
 				}
 			})
-			.addValuePlotter(config, 'time', {
-				label: 'packet time',
-				height: 80,
-				resolution: 1,
-			})
 			.addNumberOutput(waveform, 'total')
+			.addButton('Pause / resume', () => {
+				config.paused = !config.paused
+
+				if (!config.paused) tick()
+			})
+			// .addValuePlotter(config, 'time', {
+			// 	label: 'packet time',
+			// 	height: 80,
+			// 	resolution: 1,
+			// })
 
 
 let moved = false, frame
 
-;(function tick() {
-	controlKit.update()
-
+function tick() {
 	let data = oscillate(config.size)
+
+	let start = now()
 	waveform.push(data)
+	let end = now()
+	config.time = end - start
 
 	// recalc range to show tail
 	if (!moved) {
@@ -119,11 +129,15 @@ let moved = false, frame
 		waveform.update({ range })
 	}
 
+	controlKit.update()
+
 	raf.cancel(frame)
 	frame = raf(() => waveform.render())
 
-	setTimeout(tick, config.interval)
-})()
+	!config.paused && setTimeout(tick, config.interval)
+}
+
+tick()
 
 
 panzoom(waveform.canvas, e => {

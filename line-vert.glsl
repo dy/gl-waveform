@@ -35,7 +35,6 @@ vec4 pickSample (float offset) {
 
 // pick sample from the source texture
 vec4 pick(float offset) {
-
 	offset = min(offset, total - 1.);
 
 	float offsetLeft = floor(offset);
@@ -57,6 +56,8 @@ void main() {
 	gl_PointSize = 3.;
 
 	float samplesPerStep = .5 * step / scale.x / viewport.z;
+
+	if (-translate.x + id * samplesPerStep >= total - 1.) return;
 
 	// calc average of curr..next sampling points
 	vec4 sample0 = pick(-translate.x + id * samplesPerStep);

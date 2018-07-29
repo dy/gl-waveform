@@ -28,21 +28,25 @@ let config = {
 
 	color: [255, 0, 0],
 
-	size: 512,
+	size: 256,
 	sizeRange: [64, 8192],
 
-	interval: 500,
+	interval: 150,
 	intervalRange: [10, 3000],
 
 	source: 'Sine',
 	sourceOptions: ['Sine', 'Saw', 'Square', 'Noise', 'Mic', 'Url'],
-	time: 0
+	time: 0,
+
 	// bg: '#fff',
 
 	// rate: 12,
 	// block: 1024
 }
 
+
+let waveform = new Waveform()
+waveform.update(config)
 
 
 let controlKit = new ControlKit;
@@ -94,33 +98,37 @@ controlKit.addPanel({ width: 280 })
 				height: 80,
 				resolution: 1,
 			})
+			.addNumberOutput(waveform, 'total')
 
 
-
-let waveform = new Waveform()
-
-waveform.update(config)
-
+let moved = false, frame
 
 ;(function tick() {
+	controlKit.update()
+
 	let data = oscillate(config.size)
 	waveform.push(data)
 
 	// recalc range to show tail
-	// let range = waveform.range.slice()
-	// let span = range[2] - range[0]
-	// range[0] = waveform.total - span
-	// range[2] = waveform.total
-	waveform.update({ range: [0, 512] })
+	if (!moved) {
+		let range = waveform.range.slice()
+		let span = range[2] - range[0]
+		range[0] = waveform.total - span
+		range[2] = waveform.total
 
-	// waveform.update({ range })
+		waveform.update({ range })
+	}
 
-	waveform.render()
+	raf.cancel(frame)
+	frame = raf(() => waveform.render())
 
-	// setTimeout(tick, config.interval)
+	setTimeout(tick, config.interval)
 })()
 
+
 panzoom(waveform.canvas, e => {
+	moved = true
+
 	let range = waveform.range
 	let canvas = waveform.canvas
 
@@ -153,5 +161,7 @@ panzoom(waveform.canvas, e => {
 	range[3] += yrange * e.dy / h
 
 	waveform.update({ range })
-	waveform.render()
+
+	raf.cancel(frame)
+	frame = raf(() => waveform.render())
 })

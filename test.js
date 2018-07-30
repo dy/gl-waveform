@@ -27,9 +27,9 @@ let config = {
 	thickness: 2,
 	thicknessRange: [1, 40],
 
-	color: [0, 0, 0],
+	color: [245, 166, 198],
 
-	size: 256,
+	size: 512,
 	sizeRange: [64, 8192],
 
 	interval: 150,

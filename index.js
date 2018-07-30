@@ -296,7 +296,7 @@ class Waveform {
 		// update current texture
 		if (o.range) {
 			let txtLen = Waveform.textureSize[0] * Waveform.textureSize[1]
-			this.currTexture = Math.floor(2. * this.range[0] / txtLen)
+			this.currTexture = Math.floor(this.range[0] / txtLen)
 		}
 
 		// flatten colors to a single uint8 array
@@ -462,6 +462,7 @@ Waveform.prototype.viewport = null
 Waveform.prototype.range = null
 
 
+// Changing texture size to the bigger makes creating new texture slower procedure
 Waveform.textureSize = [1024, 1024]
 
 

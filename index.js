@@ -50,7 +50,7 @@ function Waveform (o) {
 		else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
 		let step = this.step || this.thickness * this.thicknessStepRatio
-		let minStep = 2 * viewport[2] / Math.abs(this.range[2] - this.range[0])
+		let minStep = 2 * viewport[2] / Math.abs(r[2] - r[0])
 		step = Math.max(step, minStep)
 
 		let scale
@@ -283,20 +283,35 @@ Waveform.prototype.update = function (o) {
 	// custom/default visible data window
 	if (o.range != null) {
 		if (o.range.length === 2) {
-			this.range = [o.range[0], -1, o.range[1], 1]
+			o.range = [o.range[0], -1, o.range[1], 1]
 		}
 		else if (o.range.length === 4) {
-			this.range = o.range.slice()
+			o.range = o.range.slice()
 		}
 		else if (typeof o.range === 'number') {
-			this.range = [-o.range, -1, 0, 1]
+			o.range = [-o.range, -1, -0, 1]
 		}
+
+		// limit zoom level by 1 texture
+		if (o.range[2] - o.range[0] > Waveform.textureLength) {
+			if (!this.range) {
+				o.range[0] = -Waveform.textureLength
+				o.range[2] = -0
+			}
+			else {
+				// FIXME: check if this is ok way to limit zoom
+				o.range[0] = this.range[0]
+				o.range[2] = this.range[0] + Waveform.textureLength
+			}
+		}
+
+		this.range = o.range
 	}
 
 	if (!this.range && !o.range) {
-		o.range = [0, -1, this.viewport.width, 1]
+		this.range = [0, -1, Math.min(this.viewport.width, Waveform.textureLength), 1]
 	}
-	if (!this.range) this.range = o.range
+
 
 	// flatten colors to a single uint8 array
 	if (o.color != null) {

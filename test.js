@@ -152,7 +152,7 @@ tick()
 panzoom(waveform.canvas, e => {
 	moved = true
 
-	let range = waveform.range
+	let range = waveform.range.slice()
 	let canvas = waveform.canvas
 
 	let w = canvas.offsetWidth

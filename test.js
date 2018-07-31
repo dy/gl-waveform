@@ -29,7 +29,7 @@ let config = {
 
 	color: [245, 166, 198],
 
-	size: 512,
+	size: 512 * 1000,
 	sizeRange: [64, 8192],
 
 	interval: 150,
@@ -121,7 +121,7 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 let moved = false, frame
 
 function tick() {
-	let data = oscillate(config.size * 50)
+	let data = oscillate(config.size)
 
 	let start = now()
 	waveform.push(data)

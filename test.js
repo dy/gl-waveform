@@ -48,7 +48,7 @@ let config = {
 	],
 	time: 0,
 
-	paused: false
+	paused: true
 
 	// bg: '#fff',
 
@@ -121,7 +121,7 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 let moved = false, frame
 
 function tick() {
-	let data = oscillate(config.size)
+	let data = oscillate(config.size * 50)
 
 	let start = now()
 	waveform.push(data)
@@ -130,12 +130,12 @@ function tick() {
 
 	// recalc range to show tail
 	if (!moved) {
-		let range = waveform.range.slice()
-		let span = range[2] - range[0]
-		range[0] = waveform.total - span
-		range[2] = waveform.total
+		// let range = waveform.range.slice()
+		// let span = range[2] - range[0]
+		// range[0] = waveform.total - span
+		// range[2] = waveform.total
 
-		waveform.update({ range })
+		// waveform.update({ range })
 	}
 
 	controlKit.update()

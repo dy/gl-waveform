@@ -15,6 +15,8 @@ import rgba from 'color-normalize'
 import nz from 'is-negative-zero'
 
 
+// FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
+
 let shaderCache = new WeakMap()
 
 
@@ -38,24 +40,38 @@ class Waveform {
 		// total number of samples
 		this.total = 0
 
-		// last sum value
-		this.sum = 0
+		this.render = function (a, b, c) {
+			let r = this.range
 
-		// last sum2 value
-		this.sum2 = 0
+			// calc runtime props
+			let viewport
+			if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
+			else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
-		this.currTexture = 0
+			let step = this.step || this.thickness * 2
+			let minStep = 2 * viewport[2] / Math.abs(this.range[2] - this.range[0])
+			step = Math.max(step, minStep)
 
-		// this.render = function () {
-		// 	this.shader.draw.call(this)
-			// this.shader.draw.call(this, {mode: 1, color: [0,0,255,80],
-			// 	thickness: 20})
-			// this.shader.draw.call(this, {mode: 0, color: [255,0,0,80],
-			// 	thickness: 20})
-			// this.shader.draw.call(this, {mode: 1, color: [255,255,255,255],
-			// 	thickness: 1})
-		// }
-		this.render = this.shader.draw.bind(this)
+			let scale
+			if (!r) scale = [1 / viewport.width, 1 / viewport.height]
+			else scale = [
+				1 / (r[2] - r[0]),
+				1 / (r[3] - r[1])
+			]
+
+			let translate = !r ? [0, 0] : [-r[0], -r[2]]
+
+			// update current texture
+			let currTexture = Math.floor(r[0] / Waveform.textureLength)
+
+			let samplesPerStep = .5 * step / scale[0] / viewport[2]
+
+			this.shader.draw.call(this, {
+				step, viewport, scale, translate, currTexture,
+				samplesPerStep
+			})
+		}
+
 		this.regl = this.shader.regl
 		this.canvas = this.gl.canvas
 
@@ -93,15 +109,16 @@ class Waveform {
 			primitive: 'triangle strip',
 			offset: 0,
 
-			count: function (ctx) {
-				let step = this.step || this.thickness * 2
-				return 4 * Math.ceil(ctx.viewportWidth / step) + 4.
+			count: function (c, p) {
+				let step = p.step || this.thickness * 2
+				return 4 * Math.ceil(p.viewport[2] / step) + 4.
 			},
 
 			vert: glsl('./line-vert.glsl'),
 
 			frag: `
 			precision highp float;
+			uniform float textureId;
 			varying vec4 fragColor;
 			void main() {
 				gl_FragColor = fragColor;
@@ -114,47 +131,35 @@ class Waveform {
 				// but min zoom level is limited so
 				// that only 2 textures can fit the screen
 				// zoom levels higher than that give artifacts
-				data0: function (ctx) {
-					return this.textures[this.currTexture] || this.shader.blankTexture
+				data0: function (c, p) {
+					return this.textures[p.currTexture] || this.shader.blankTexture
 				},
-				data1: function (ctx) {
-					return this.textures[this.currTexture + 1] || this.shader.blankTexture
+				data1: function (c, p) {
+					return this.textures[p.currTexture + 1] || this.shader.blankTexture
 				},
+				// data0 texture sums
+				sum: function (c, p) {
+					return this.textures[p.currTexture] ? this.textures[p.currTexture].sum : 0
+				},
+				sum2: function (c, p) {
+					return this.textures[p.currTexture] ? this.textures[p.currTexture].sum2 : 0
+				},
+				dataShape: Waveform.textureSize,
+				dataLength: Waveform.textureLength,
+
 				// total number of samples
 				total: regl.this('total'),
-				mode: 0.,//regl.prop('mode'),
-				textureId: regl.this('currTexture'),
-				dataShape: Waveform.textureSize,
-				step: function (ctx) {
-					let step = this.step || this.thickness * 2
-					let minStep = 2 * this.viewport.width / Math.abs(this.range[2] - this.range[0])
-					return Math.max(step, minStep)
-				},
+
+				// number of pixels between sampling
+				step: regl.prop('step'),
+				// number of samples per pixel sampling step
+				samplesPerStep: regl.prop('samplesPerStep'),
+				viewport: regl.prop('viewport'),
+				scale: regl.prop('scale'),
+				translate: regl.prop('translate'),
+				textureId: regl.prop('currTexture'),
+
 				opacity: regl.this('opacity'),
-				viewport: function (ctx) {
-					if (!this.viewport) return [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
-
-					return [this.viewport.x, this.viewport.y, ctx.viewportWidth, ctx.viewportHeight]
-				},
-				scale: function () {
-					let r = this.range
-
-					if (!r) return [1 / this.viewport.width, 1 / this.viewport.height]
-
-					return [
-						1 / (r[2] - r[0]),
-						1 / (r[3] - r[1])
-					]
-				},
-				translate: function () {
-					let r = this.range
-
-					if (!r) return [0, 0]
-
-					let start = r[0], end = r[2]
-
-					return [ -start, -end ]
-				},
 				color: regl.this('color'),
 				thickness: regl.this('thickness')
 				// color: regl.prop('color'),
@@ -293,12 +298,6 @@ class Waveform {
 		}
 		if (!this.range) this.range = o.range
 
-		// update current texture
-		if (o.range) {
-			let txtLen = Waveform.textureSize[0] * Waveform.textureSize[1]
-			this.currTexture = Math.floor(this.range[0] / txtLen)
-		}
-
 		// flatten colors to a single uint8 array
 		if (o.color != null) {
 			if (!o.color) o.color = 'transparent'
@@ -332,8 +331,6 @@ class Waveform {
 		if (o.data) {
 			this.textures.forEach(txt => txt.destroy())
 			this.total = 0
-			this.sum = 0
-			this.sum2 = 0
 			this.push(o.data)
 		}
 
@@ -347,7 +344,6 @@ class Waveform {
 	push (samples) {
 		if (!samples || !samples.length) return
 
-		// we use subarrays later, as well as data is anyways always
 		if (Array.isArray(samples)) {
 			let floatSamples = pool.mallocFloat(samples.length)
 			floatSamples.set(samples)
@@ -355,7 +351,7 @@ class Waveform {
 		}
 
 		let [txtW, txtH] = Waveform.textureSize
-		let txtLen = txtW * txtH
+		let txtLen = Waveform.textureLength
 
 		let offset = this.total % txtLen
 		let id = Math.floor(this.total / txtLen)
@@ -363,19 +359,8 @@ class Waveform {
 		let x = offset % txtW
 		let tillEndOfTxt = txtLen - offset
 
-		// calc sum, sum2 and form data for the samples
-		let dataLen = Math.min(tillEndOfTxt, samples.length)
-		let data = pool.mallocFloat(dataLen * 3)
-		let lastSum = this.sum, lastSum2 = this.sum2
-		for (let i = 0, l = dataLen; i < l; i++) {
-			data[i * 3] = samples[i]
-			data[i * 3 + 1] = lastSum += samples[i]
-			data[i * 3 + 2] = lastSum2 += samples[i] * samples[i]
-		}
-		this.sum = lastSum, this.sum2 = lastSum2, this.total += dataLen
-
 		// get current texture
-		let txt = this.textures[id]
+		let txt = this.textures[id], prevTxt = this.textures[id - 1]
 		if (!txt) {
 			txt = this.textures[id] = this.regl.texture({
 				width: Waveform.textureSize[0],
@@ -386,7 +371,26 @@ class Waveform {
 				mag: 'nearest',
 				wrap: ['clamp', 'clamp']
 			})
+			if (!id) {
+				txt.sum = txt.sum2 = 0
+			}
+			else {
+				txt.sum = this.textures[id - 1].sum
+				txt.sum2 = this.textures[id - 1].sum2
+			}
 		}
+
+		// calc sum, sum2 and form data for the samples
+		let dataLen = Math.min(tillEndOfTxt, samples.length)
+		let data = pool.mallocFloat(dataLen * 3)
+		for (let i = 0, l = dataLen; i < l; i++) {
+			data[i * 3] = samples[i]
+			txt.sum += samples[i]
+			txt.sum2 += samples[i] * samples[i]
+			data[i * 3 + 1] = txt.sum
+			data[i * 3 + 2] = txt.sum2
+		}
+		this.total += dataLen
 
 		// fullfill last unfinished row
 		let firstRowWidth = 0
@@ -443,9 +447,12 @@ class Waveform {
 
 		// shorten block till the end of texture
 		if (tillEndOfTxt < samples.length) {
+			this.push(samples.subarray(tillEndOfTxt))
+
 			pool.freeFloat(samples)
 			pool.freeFloat(data)
-			return this.push(samples.subarray(tillEndOfTxt))
+
+			return
 		}
 	}
 
@@ -463,7 +470,8 @@ Waveform.prototype.range = null
 
 
 // Changing texture size to the bigger makes creating new texture slower procedure
-Waveform.textureSize = [1024, 1024]
+Waveform.textureSize = [128, 128]
+Waveform.textureLength = Waveform.textureSize[0] * Waveform.textureSize[1]
 
 
 function isRegl (o) {

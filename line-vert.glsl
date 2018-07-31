@@ -3,11 +3,10 @@ precision highp float;
 attribute float id, sign;
 
 uniform sampler2D data0, data1;
-uniform float opacity, thickness, step, textureId, total;
+uniform float opacity, thickness, step, textureId, total, samplesPerStep;
 uniform vec2 scale, translate, dataShape;
 uniform vec4 viewport, color;
-
-uniform float mode;
+uniform float sum, sum2, dataLength;
 
 varying vec4 fragColor;
 
@@ -22,12 +21,16 @@ vec2 lerp(vec2 a, vec2 b, float t) {
 }
 
 vec4 pickSample (float offset) {
-	vec2 uv = vec2(mod(offset, dataShape.x) + .5, floor(offset / dataShape.x) + .5) / dataShape;
+	vec2 uv = vec2(
+		mod(offset, dataShape.x) + .5,
+		floor(offset / dataShape.x) + .5
+	) / dataShape;
 
 	uv.y -= textureId;
 
 	if (uv.y > 1.) {
 		uv.y = uv.y - 1.;
+
 		return texture2D(data1, uv);
 	}
 	else return texture2D(data0, uv);
@@ -35,7 +38,8 @@ vec4 pickSample (float offset) {
 
 // pick sample from the source texture
 vec4 pick(float offset) {
-	offset = min(offset, total - 1.);
+	offset = offset - translate.x;
+	// offset = min(offset, total - 1.);
 
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
@@ -49,35 +53,40 @@ vec4 pick(float offset) {
 	vec4 left = pickSample(offsetLeft);
 	vec4 right = pickSample(offsetRight);
 
+	// if different textures - add sum2 shift
+	if (offsetLeft < dataLength && offsetRight >= dataLength) {
+		// right.y += sum;
+		// right.z += sum2;
+	}
+
 	return lerp(left, right, t);
 }
 
 void main() {
 	gl_PointSize = 3.;
 
-	float samplesPerStep = .5 * step / scale.x / viewport.z;
-
+	// FIXME: make end point cut more elegant
 	if (-translate.x + id * samplesPerStep >= total - 1.) return;
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = pick(-translate.x + id * samplesPerStep);
-	vec4 sample1 = pick(-translate.x + id * samplesPerStep + samplesPerStep);
+	vec4 sample0 = pick(id * samplesPerStep);
+	vec4 sample1 = pick(id * samplesPerStep + samplesPerStep);
 	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
 
 	float variance = 0., sdev = 0.;
 
 	// only scales more than 1. skip steps
-	if (scale.x * viewport.z < 1.) {
+	// if (scale.x * viewport.z < 1.) {
 		variance = abs(
 			(sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
 		);
 		sdev = sqrt(variance);
-	}
+	// }
 
 	vec2 position = vec2(.5 * step * id / viewport.z, avgCurr * .5 + .5);
 
-	vec4 samplePrev = pick(-translate.x + id * samplesPerStep - samplesPerStep);
-	vec4 sampleNext = pick(-translate.x + id * samplesPerStep + samplesPerStep * 2.);
+	vec4 samplePrev = pick(id * samplesPerStep - samplesPerStep);
+	vec4 sampleNext = pick(id * samplesPerStep + samplesPerStep * 2.);
 
 	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
 	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
@@ -101,32 +110,31 @@ void main() {
 
 	vec2 join;
 
-	if (mode == 1.) {
-		join = bisec * bisecLen;
-	}
-
-	else {
-		// sdev less than projected to vertical shows simple line
-		if (vertSdev < maxVertLen) {
-			// sdev more than normal but less than vertical threshold
-			// rotates join towards vertical
-			if (vertSdev > minVertLen) {
-				float t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);
-				join = lerp(bisec * bisecLen, vert * maxVertLen, t);
-			}
-			else {
-				join = bisec * bisecLen;
-			}
+	// sdev less than projected to vertical shows simple line
+	if (vertSdev < maxVertLen) {
+		// sdev more than normal but less than vertical threshold
+		// rotates join towards vertical
+		if (vertSdev > minVertLen) {
+			float t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);
+			join = lerp(bisec * bisecLen, vert * maxVertLen, t);
 		}
-		// sdev more than projected to vertical modifies only y coord
 		else {
-			join = vert * vertSdev;
+			join = bisec * bisecLen;
 		}
+	}
+	// sdev more than projected to vertical modifies only y coord
+	else {
+		join = vert * vertSdev;
 	}
 
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 
 	fragColor = color / 255.;
+
+	if (-translate.x + id * samplesPerStep > dataLength) {
+		fragColor.x *= .5;
+	}
+
 	fragColor.a *= opacity;
 }

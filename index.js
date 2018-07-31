@@ -48,7 +48,7 @@ class Waveform {
 			if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
 			else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
-			let step = this.step || this.thickness * 2
+			let step = this.step || this.thickness * this.thicknessStepRatio
 			let minStep = 2 * viewport[2] / Math.abs(this.range[2] - this.range[0])
 			step = Math.max(step, minStep)
 
@@ -59,7 +59,7 @@ class Waveform {
 				1 / (r[3] - r[1])
 			]
 
-			let translate = !r ? [0, 0] : [-r[0], -r[2]]
+			let translate = !r ? [0, 0] : [r[0], r[2]]
 
 			// update current texture
 			let currTexture = Math.floor(r[0] / Waveform.textureLength)
@@ -110,7 +110,7 @@ class Waveform {
 			offset: 0,
 
 			count: function (c, p) {
-				let step = p.step || this.thickness * 2
+				let step = p.step || this.thickness * this.thicknessStepRatio
 				return 4 * Math.ceil(p.viewport[2] / step) + 4.
 			},
 
@@ -371,13 +371,13 @@ class Waveform {
 				mag: 'nearest',
 				wrap: ['clamp', 'clamp']
 			})
-			if (!id) {
+			// if (!id) {
 				txt.sum = txt.sum2 = 0
-			}
-			else {
-				txt.sum = this.textures[id - 1].sum
-				txt.sum2 = this.textures[id - 1].sum2
-			}
+			// }
+			// else {
+			// 	txt.sum = this.textures[id - 1].sum
+			// 	txt.sum2 = this.textures[id - 1].sum2
+			// }
 		}
 
 		// calc sum, sum2 and form data for the samples
@@ -467,6 +467,7 @@ Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
 Waveform.prototype.range = null
+Waveform.prototype.thicknessStepRatio = 2
 
 
 // Changing texture size to the bigger makes creating new texture slower procedure

@@ -37,8 +37,8 @@ vec4 pickSample (float offset) {
 }
 
 // pick sample from the source texture
-vec4 pick(float offset) {
-	offset = offset - translate.x;
+vec4 pick(float id) {
+	float offset = id * samplesPerStep + floor(translate.x / samplesPerStep) * samplesPerStep;
 	// offset = min(offset, total - 1.);
 
 	float offsetLeft = floor(offset);
@@ -65,31 +65,37 @@ vec4 pick(float offset) {
 void main() {
 	gl_PointSize = 3.;
 
+	// 1 / samplesPerStep
+	float scaleFactor = 2. * scale[0] * viewport[2] / step;
+
 	// FIXME: make end point cut more elegant
-	if (-translate.x + id * samplesPerStep >= total - 1.) return;
+	if (translate.x + id * samplesPerStep >= total - 1.) return;
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = pick(id * samplesPerStep);
-	vec4 sample1 = pick(id * samplesPerStep + samplesPerStep);
-	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
+	vec4 sample0 = pick(id);
+	vec4 sample1 = pick(id + 1.);
+	float avgCurr = (sample1.y - sample0.y) * scaleFactor;
 
 	float variance = 0., sdev = 0.;
 
 	// only scales more than 1. skip steps
-	// if (scale.x * viewport.z < 1.) {
+	if (scale.x * viewport.z < 1.) {
 		variance = abs(
-			(sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
+			// (sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
+			((sample1.z - sample0.z) - (sample1.y - sample0.y) * (sample1.y - sample0.y) * scaleFactor) * scaleFactor
 		);
 		sdev = sqrt(variance);
-	// }
+	}
 
-	vec2 position = vec2(.5 * step * id / viewport.z, avgCurr * .5 + .5);
+	// compensate for sampling rounding
+	float translateOff = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
+	vec2 position = vec2(.5 * step * (id - translateOff) / viewport.z, avgCurr * .5 + .5);
 
-	vec4 samplePrev = pick(id * samplesPerStep - samplesPerStep);
-	vec4 sampleNext = pick(id * samplesPerStep + samplesPerStep * 2.);
+	vec4 samplePrev = pick(id - 1.);
+	vec4 sampleNext = pick(id + 2.);
 
-	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
-	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
+	float avgPrev = (sample0.y - samplePrev.y) * scaleFactor;
+	float avgNext = (sampleNext.y - sample1.y) * scaleFactor;
 
 	float x = .5 * step / viewport.z;
 	vec2 normalLeft = normalize(vec2(
@@ -132,7 +138,7 @@ void main() {
 
 	fragColor = color / 255.;
 
-	if (-translate.x + id * samplesPerStep > dataLength) {
+	if (translate.x + id * samplesPerStep > dataLength) {
 		fragColor.x *= .5;
 	}
 

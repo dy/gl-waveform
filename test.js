@@ -17,7 +17,7 @@ let count = 0
 function oscillate (l) {
 	let arr = Array()
 	for (let i = 0; i < l; i++) {
-		arr[i] = osc[config.source]((i + count) / 500)
+		arr[i] = osc[config.source]((i + count) / 50)
 	}
 	count += l
 	return arr

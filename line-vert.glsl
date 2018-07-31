@@ -37,7 +37,7 @@ vec4 pickSample (float offset, float baseOffset) {
 		vec4 sample = texture2D(data1, uv);
 
 		// if right sample is from the next texture - align it to left texture
-		if (offset + translateInt >= dataLength && baseOffset + translateInt < dataLength) {
+		if (offset + translateInt >= dataLength * (textureId + 1.) && baseOffset + translateInt < dataLength * (textureId + 1.)) {
 			sample.y += sum;
 			sample.z += sum2;
 		}

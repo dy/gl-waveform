@@ -483,7 +483,7 @@ Waveform.prototype.thicknessStepRatio = 2
 // - performance: bigger texture is slower to create
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
-Waveform.textureSize = [512, 512]
+Waveform.textureSize = [256, 256]
 Waveform.textureLength = Waveform.textureSize[0] * Waveform.textureSize[1]
 
 

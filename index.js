@@ -13,6 +13,7 @@ import pool from 'typedarray-pool'
 import glsl from 'glslify'
 import rgba from 'color-normalize'
 import nz from 'is-negative-zero'
+import f32 from 'to-float32'
 
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
@@ -67,8 +68,12 @@ function Waveform (o) {
 
 		let samplesPerStep = .5 * step / scale[0] / viewport[2]
 
+		let scaleRatio = f32.float(2. * scale[0] * viewport[2] / step)
+		let scaleRatioFract = f32.fract(scaleRatio)
+
 		this.shader.draw.call(this, {
-			step, viewport, scale, translate, currTexture, samplesPerStep
+			step, viewport, scale, translate, currTexture, samplesPerStep,
+			scaleRatio, scaleRatioFract
 		})
 	}
 
@@ -154,6 +159,8 @@ Waveform.prototype.createShader = function (o) {
 			step: regl.prop('step'),
 			// number of samples per pixel sampling step
 			samplesPerStep: regl.prop('samplesPerStep'),
+			scaleRatio: regl.prop('scaleRatio'),
+			scaleRatioFract: regl.prop('scaleRatioFract'),
 			viewport: regl.prop('viewport'),
 			scale: regl.prop('scale'),
 			translate: regl.prop('translate'),
@@ -209,7 +216,7 @@ Waveform.prototype.createShader = function (o) {
 	let blankTexture = regl.texture({
 		width: 1,
 		height: 1,
-		channels: 3,
+		channels: Waveform.textureChannels,
 		type: 'float'
 	})
 
@@ -373,6 +380,7 @@ Waveform.prototype.push = function (samples) {
 	let y = Math.floor(offset / txtW)
 	let x = offset % txtW
 	let tillEndOfTxt = txtLen - offset
+	let ch = Waveform.textureChannels
 
 	// get current texture
 	let txt = this.textures[id], prevTxt = this.textures[id - 1]
@@ -380,7 +388,7 @@ Waveform.prototype.push = function (samples) {
 		txt = this.textures[id] = this.regl.texture({
 			width: Waveform.textureSize[0],
 			height: Waveform.textureSize[1],
-			channels: 3,
+			channels: Waveform.textureChannels,
 			type: 'float',
 			min: 'nearest',
 			mag: 'nearest',
@@ -391,13 +399,14 @@ Waveform.prototype.push = function (samples) {
 
 	// calc sum, sum2 and form data for the samples
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
-	let data = pool.mallocFloat(dataLen * 3)
+	let data = pool.mallocFloat(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
-		data[i * 3] = samples[i]
+		data[i * ch] = samples[i]
 		txt.sum += samples[i]
 		txt.sum2 += samples[i] * samples[i]
-		data[i * 3 + 1] = txt.sum
-		data[i * 3 + 2] = txt.sum2
+		data[i * ch + 1] = txt.sum
+		data[i * ch + 2] = f32.float(txt.sum2)
+		data[i * ch + 3] = f32.fract(txt.sum2)
 	}
 	this.total += dataLen
 
@@ -408,7 +417,7 @@ Waveform.prototype.push = function (samples) {
 		txt.subimage({
 			width: firstRowWidth,
 			height: 1,
-			data: data.subarray(0, firstRowWidth * 3)
+			data: data.subarray(0, firstRowWidth * ch)
 		}, x, y)
 
 		// if data is shorter than the texture row - skip the rest
@@ -439,7 +448,7 @@ Waveform.prototype.push = function (samples) {
 		txt.subimage({
 			width: txtW,
 			height: h,
-			data: data.subarray(firstRowWidth * 3, (firstRowWidth + blockLen) * 3)
+			data: data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch)
 		}, 0, y)
 		y += h
 	}
@@ -450,7 +459,7 @@ Waveform.prototype.push = function (samples) {
 		txt.subimage({
 			width: lastRowWidth,
 			height: 1,
-			data: data.subarray(-lastRowWidth * 3)
+			data: data.subarray(-lastRowWidth * ch)
 		}, 0, y)
 	}
 
@@ -483,7 +492,8 @@ Waveform.prototype.thicknessStepRatio = 2
 // - performance: bigger texture is slower to create
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
-Waveform.textureSize = [256, 256]
+Waveform.textureSize = [512, 512]
+Waveform.textureChannels = 4
 Waveform.textureLength = Waveform.textureSize[0] * Waveform.textureSize[1]
 
 

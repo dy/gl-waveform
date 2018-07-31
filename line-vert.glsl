@@ -4,7 +4,7 @@ attribute float id, sign;
 
 uniform sampler2D data0, data1;
 uniform float opacity, thickness, step, textureId, total,
-		samplesPerStep, sum, sum2, dataLength;
+		samplesPerStep, sum, sum2, dataLength, scaleRatio, scaleRatioFract;
 uniform vec2 scale, translate, dataShape;
 uniform vec4 viewport, color;
 
@@ -19,6 +19,15 @@ vec4 lerp(vec4 a, vec4 b, float t) {
 vec2 lerp(vec2 a, vec2 b, float t) {
 	return t * b + (1. - t) * a;
 }
+
+// sum/mult with fractions
+float sm (float a, float aFract, float b, float bFract, float c, float cFract) {
+  return (a + b) * c
+      + (aFract + bFract) * c
+      + (a + b) * cFract
+      + (aFract + bFract) * cFract;
+}
+
 
 vec4 pickSample (float offset, float baseOffset) {
 	// subtle hack to workaround rounding spikes artifacts
@@ -78,7 +87,7 @@ void main() {
 	vec4 sample0 = pick(id, id - 1.);
 	vec4 sample1 = pick(id + 1., id - 1.);
 
-	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
+	float avgCurr = (sample1.y - sample0.y) * scaleRatio;
 
 	float variance = 0., sdev = 0.;
 
@@ -87,7 +96,8 @@ void main() {
 		// σ(x)² = M(x²) - M(x)²
 		variance = abs(
 			// (sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
-			((sample1.z - sample0.z) - (sample1.y - sample0.y) * (sample1.y - sample0.y) / samplesPerStep) / samplesPerStep
+			// sm(sample1.z, sample1.w, -sample0.z, 0., scaleRatio, scaleRatioFract) - avgCurr * avgCurr
+			(sm(sample1.z - sample0.z) - sm(sample1.y - sample0.y) * (sample1.y - sample0.y) / samplesPerStep) / samplesPerStep
 		);
 		sdev = sqrt(variance);
 	}
@@ -125,6 +135,7 @@ void main() {
 	vec2 join;
 
 	// sdev less than projected to vertical shows simple line
+	// sdev is compensated by curve bend
 	if (vertSdev < maxVertLen) {
 		// sdev more than normal but less than vertical threshold
 		// rotates join towards vertical

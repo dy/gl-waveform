@@ -20,7 +20,7 @@ vec2 lerp(vec2 a, vec2 b, float t) {
 	return t * b + (1. - t) * a;
 }
 
-vec4 pickSample (float offset) {
+vec4 pickSample (float offset, float baseOffset) {
 	vec2 uv = vec2(
 		mod(offset, dataShape.x) + .5,
 		floor(offset / dataShape.x) + .5
@@ -31,14 +31,24 @@ vec4 pickSample (float offset) {
 	if (uv.y > 1.) {
 		uv.y = uv.y - 1.;
 
-		return texture2D(data1, uv);
+		vec4 sample = texture2D(data1, uv);
+
+		// if right sample is from the next texture - align it to left texture
+		if (offset >= dataLength && baseOffset < dataLength) {
+			sample.y += sum;
+			sample.z += sum2;
+		}
+
+		return sample;
 	}
 	else return texture2D(data0, uv);
 }
 
 // pick sample from the source texture
-vec4 pick(float id) {
-	float offset = id * samplesPerStep + floor(translate.x / samplesPerStep) * samplesPerStep;
+vec4 pick(float id, float baseId) {
+	float offset = id * samplesPerStep;
+	float baseOffset = baseId * samplesPerStep;
+
 	// offset = min(offset, total - 1.);
 
 	float offsetLeft = floor(offset);
@@ -50,14 +60,8 @@ vec4 pick(float id) {
 		t = 0.;
 	}
 
-	vec4 left = pickSample(offsetLeft);
-	vec4 right = pickSample(offsetRight);
-
-	// if different textures - add sum2 shift
-	if (offsetLeft < dataLength && offsetRight >= dataLength) {
-		// right.y += sum;
-		// right.z += sum2;
-	}
+	vec4 left = pickSample(offsetLeft, baseOffset);
+	vec4 right = pickSample(offsetRight, baseOffset);
 
 	return lerp(left, right, t);
 }
@@ -65,37 +69,38 @@ vec4 pick(float id) {
 void main() {
 	gl_PointSize = 3.;
 
-	// 1 / samplesPerStep
-	float scaleFactor = 2. * scale[0] * viewport[2] / step;
-
 	// FIXME: make end point cut more elegant
 	if (translate.x + id * samplesPerStep >= total - 1.) return;
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = pick(id);
-	vec4 sample1 = pick(id + 1.);
-	float avgCurr = (sample1.y - sample0.y) * scaleFactor;
+	float translateInt = floor(translate.x / samplesPerStep);
+	float sampleId = id + translateInt;
+	vec4 sample0 = pick(sampleId, sampleId - 1.);
+	vec4 sample1 = pick(sampleId + 1., sampleId - 1.);
+
+	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
 
 	float variance = 0., sdev = 0.;
 
-	// only scales more than 1. skip steps
-	if (scale.x * viewport.z < 1.) {
+	// only scales more than 1 skip steps
+	// if (scale.x * viewport.z < 1.) {
+		// σ² = M(x²) - M²
 		variance = abs(
 			// (sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
-			((sample1.z - sample0.z) - (sample1.y - sample0.y) * (sample1.y - sample0.y) * scaleFactor) * scaleFactor
+			((sample1.z - sample0.z) - (sample1.y - sample0.y) * (sample1.y - sample0.y) / samplesPerStep) / samplesPerStep
 		);
 		sdev = sqrt(variance);
-	}
+	// }
 
 	// compensate for sampling rounding
-	float translateOff = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
+	float translateOff = translate.x / samplesPerStep - translateInt;
 	vec2 position = vec2(.5 * step * (id - translateOff) / viewport.z, avgCurr * .5 + .5);
 
-	vec4 samplePrev = pick(id - 1.);
-	vec4 sampleNext = pick(id + 2.);
+	vec4 samplePrev = pick(sampleId - 1., sampleId - 1.);
+	vec4 sampleNext = pick(sampleId + 2., sampleId - 1.);
 
-	float avgPrev = (sample0.y - samplePrev.y) * scaleFactor;
-	float avgNext = (sampleNext.y - sample1.y) * scaleFactor;
+	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
+	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
 
 	float x = .5 * step / viewport.z;
 	vec2 normalLeft = normalize(vec2(

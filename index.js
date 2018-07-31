@@ -371,13 +371,7 @@ class Waveform {
 				mag: 'nearest',
 				wrap: ['clamp', 'clamp']
 			})
-			// if (!id) {
-				txt.sum = txt.sum2 = 0
-			// }
-			// else {
-			// 	txt.sum = this.textures[id - 1].sum
-			// 	txt.sum2 = this.textures[id - 1].sum2
-			// }
+			txt.sum = txt.sum2 = 0
 		}
 
 		// calc sum, sum2 and form data for the samples

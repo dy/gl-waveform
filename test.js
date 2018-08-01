@@ -24,8 +24,8 @@ function oscillate (l) {
 }
 
 let config = {
-	thickness: 2,
-	thicknessRange: [1, 40],
+	thickness: 40,
+	thicknessRange: [0.1, 100],
 
 	color: [245, 166, 198],
 

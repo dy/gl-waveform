@@ -4,7 +4,7 @@ attribute float id, sign;
 
 uniform sampler2D data0, data1;
 uniform float opacity, thickness, step, textureId, total,
-		samplesPerStep, sum, sum2, dataLength, scaleRatio, scaleRatioFract;
+		samplesPerStep, sum, sum2, dataLength;
 uniform vec2 scale, translate, dataShape;
 uniform vec4 viewport, color;
 
@@ -20,15 +20,6 @@ vec2 lerp(vec2 a, vec2 b, float t) {
 	return t * b + (1. - t) * a;
 }
 
-// sum/mult with fractions
-float sm (float a, float aFract, float b, float bFract, float c, float cFract) {
-  return (a + b) * c
-      + (aFract + bFract) * c
-      + (a + b) * cFract
-      + (aFract + bFract) * cFract;
-}
-
-
 vec4 pickSample (float offset, float baseOffset) {
 	// subtle hack to workaround rounding spikes artifacts
 	float translateInt = floor(floor(translate.x / samplesPerStep) * samplesPerStep);
@@ -39,6 +30,9 @@ vec4 pickSample (float offset, float baseOffset) {
 	) / dataShape;
 
 	uv.y -= textureId;
+
+	// limit less than zero values
+	if (uv.y < 0.) uv = vec2(0, 0);
 
 	if (uv.y > 1.) {
 		uv.y = uv.y - 1.;
@@ -61,8 +55,6 @@ vec4 pick(float id, float baseId) {
 	float offset = id * samplesPerStep;
 	float baseOffset = baseId * samplesPerStep;
 
-	// offset = min(offset, total - 1.);
-
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;
@@ -80,6 +72,9 @@ vec4 pick(float id, float baseId) {
 void main() {
 	gl_PointSize = 3.;
 
+	// shift source id to provide left offset
+	float id = id - 1.;
+
 	// FIXME: make end point cut more elegant
 	if (translate.x + id * samplesPerStep >= total - 1.) return;
 
@@ -87,25 +82,20 @@ void main() {
 	vec4 sample0 = pick(id, id - 1.);
 	vec4 sample1 = pick(id + 1., id - 1.);
 
-	float avgCurr = (sample1.y - sample0.y) * scaleRatio;
-
-	float variance = 0., sdev = 0.;
+	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
 
 	// only scales more than 1 skip steps
-	if (scale.x * viewport.z < 1.) {
-		// σ(x)² = M(x²) - M(x)²
-		variance = abs(
-			// (sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
-			// sm(sample1.z, sample1.w, -sample0.z, 0., scaleRatio, scaleRatioFract) - avgCurr * avgCurr
-			(sm(sample1.z - sample0.z) - sm(sample1.y - sample0.y) * (sample1.y - sample0.y) / samplesPerStep) / samplesPerStep
-		);
-		sdev = sqrt(variance);
-	}
+	// σ(x)² = M(x²) - M(x)²
+	float variance = abs(
+		(sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
+	);
+	float sdev = sqrt(variance);
 
 	// compensate for sampling rounding
 	float translateOff = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
 	vec2 position = vec2(
-		.5 * step * (id - translateOff) / viewport.z,
+		// avg render is shifted by .5 relative to direct sample render for proper positioning
+		(.5 * step * (id + .5 - translateOff) ) / viewport.z,
 		avgCurr * .5 + .5
 	);
 
@@ -134,8 +124,12 @@ void main() {
 
 	vec2 join;
 
+
+	// less than 1
+	// if (scale.x * viewport.z < 1.) {}
+
 	// sdev less than projected to vertical shows simple line
-	// sdev is compensated by curve bend
+	// FIXME: sdev should be compensated by curve bend
 	if (vertSdev < maxVertLen) {
 		// sdev more than normal but less than vertical threshold
 		// rotates join towards vertical

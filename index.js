@@ -68,12 +68,8 @@ function Waveform (o) {
 
 		let samplesPerStep = .5 * step / scale[0] / viewport[2]
 
-		let scaleRatio = f32.float(2. * scale[0] * viewport[2] / step)
-		let scaleRatioFract = f32.fract(scaleRatio)
-
 		this.shader.draw.call(this, {
-			step, viewport, scale, translate, currTexture, samplesPerStep,
-			scaleRatio, scaleRatioFract
+			step, viewport, scale, translate, currTexture, samplesPerStep
 		})
 	}
 
@@ -105,7 +101,7 @@ Waveform.prototype.createShader = function (o) {
 				x[i * 4 + 3] = -1
 			}
 			return x
-		})(4096)
+		})(Waveform.maxSampleCount)
 	})
 
 	let draw = regl({
@@ -116,10 +112,14 @@ Waveform.prototype.createShader = function (o) {
 
 		count: function (c, p) {
 			let step = p.step || this.thickness * this.thicknessStepRatio
-			return 4 * Math.ceil(p.viewport[2] / step) + 4.
+			return Math.min(
+				// count is shifted in shader and needs more items than viewport
+				4 * Math.ceil(p.viewport[2] / step) + 6,
+				Waveform.maxSampleCount
+			)
 		},
 
-		vert: glsl('./line-vert.glsl'),
+		vert: glsl('./vert.glsl'),
 
 		frag: `
 		precision highp float;
@@ -159,8 +159,6 @@ Waveform.prototype.createShader = function (o) {
 			step: regl.prop('step'),
 			// number of samples per pixel sampling step
 			samplesPerStep: regl.prop('samplesPerStep'),
-			scaleRatio: regl.prop('scaleRatio'),
-			scaleRatioFract: regl.prop('scaleRatioFract'),
 			viewport: regl.prop('viewport'),
 			scale: regl.prop('scale'),
 			translate: regl.prop('translate'),
@@ -405,8 +403,8 @@ Waveform.prototype.push = function (samples) {
 		txt.sum += samples[i]
 		txt.sum2 += samples[i] * samples[i]
 		data[i * ch + 1] = txt.sum
-		data[i * ch + 2] = f32.float(txt.sum2)
-		data[i * ch + 3] = f32.fract(txt.sum2)
+		data[i * ch + 2] = txt.sum2
+		// data[i * ch + 3] = f32.fract(txt.sum2)
 	}
 	this.total += dataLen
 
@@ -493,8 +491,9 @@ Waveform.prototype.thicknessStepRatio = 2
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
 Waveform.textureSize = [512, 512]
-Waveform.textureChannels = 4
+Waveform.textureChannels = 3
 Waveform.textureLength = Waveform.textureSize[0] * Waveform.textureSize[1]
+Waveform.maxSampleCount = 8192
 
 
 function isRegl (o) {

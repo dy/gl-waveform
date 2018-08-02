@@ -1,68 +1,17 @@
 // output range-average samples line with sdev weighting
 
 #pragma glslify: lerp = require('./lerp.glsl')
+#pragma glslify: pick = require('./pick.glsl')
 
 precision highp float;
 
 attribute float id, sign;
 
-uniform sampler2D data0, data1;
-uniform float opacity, thickness, step, textureId, total,
-		samplesPerStep, sum, sum2, dataLength;
-uniform vec2 scale, translate, dataShape;
+uniform float opacity, thickness, step, samplesPerStep;
+uniform vec2 scale, translate;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
-
-// pick sample from the source texture
-// if base offset is from another texture - apply sum2 compensation
-vec4 pickSample (float offset, float baseOffset) {
-	offset = max(offset, 0.);
-
-	vec2 uv = vec2(
-		mod(offset, dataShape.x) + .5,
-		floor(offset / dataShape.x) + .5
-	) / dataShape;
-
-	uv.y -= textureId;
-
-	if (uv.y > 1.) {
-		uv.y = uv.y - 1.;
-
-		vec4 sample = texture2D(data1, uv);
-
-		// if right sample is from the next texture - align it to left texture
-		if (offset >= dataLength * (textureId + 1.) &&
-			baseOffset < dataLength * (textureId + 1.)) {
-			sample.y += sum;
-			sample.z += sum2;
-		}
-
-		return sample;
-	}
-	else return texture2D(data0, uv);
-}
-
-vec4 pick(float id, float baseId) {
-	float offset = id * samplesPerStep;
-	float baseOffset = baseId * samplesPerStep;
-
-	float offsetLeft = floor(offset);
-	float offsetRight = ceil(offset);
-	float t = offset - offsetLeft;
-	if (offsetLeft == offsetRight) {
-		offsetRight = ceil(offset + .5);
-		t = 0.;
-	}
-
-	// hack to workaround rounding spikes artifacts
-	float tr = floor(floor(translate.x / samplesPerStep) * samplesPerStep);
-
-	vec4 left = pickSample(offsetLeft + tr, baseOffset);
-	vec4 right = pickSample(offsetRight + tr, baseOffset);
-
-	return lerp(left, right, t);
-}
 
 void main() {
 	gl_PointSize = 1.5;
@@ -71,11 +20,14 @@ void main() {
 	// float id = id - 1.;
 
 	// FIXME: make end point cut more elegant
-	if (translate.x + id * samplesPerStep >= total - 1.) return;
+	// if (translate.x + id * samplesPerStep >= total - 1.) return;
+
+	float ss = samplesPerStep;
+	float tr = floor(translate.x / samplesPerStep);
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = pick(id, id - 1.);
-	vec4 sample1 = pick(id + 1., id - 1.);
+	vec4 sample0 = pick(id * ss, (id - 1.) * ss, tr );
+	vec4 sample1 = pick((id + 1.) * ss, (id - 1.) * ss, tr );
 
 	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
 
@@ -94,8 +46,8 @@ void main() {
 		avgCurr * .5 + .5
 	);
 
-	vec4 samplePrev = pick(id - 1., id - 1.);
-	vec4 sampleNext = pick(id + 2., id - 1.);
+	vec4 samplePrev = pick((id - 1.) * ss, (id - 1.) * ss, tr);
+	vec4 sampleNext = pick((id + 2.) * ss, (id - 1.) * ss, tr);
 
 	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
 	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
@@ -146,9 +98,9 @@ void main() {
 
 	fragColor = color / 255.;
 
-	if (translate.x + id * samplesPerStep > dataLength) {
-		fragColor.x *= .5;
-	}
+	// if (translate.x + id * samplesPerStep > dataLength) {
+	// 	fragColor.x *= .5;
+	// }
 
 	fragColor.a *= opacity;
 }

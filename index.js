@@ -46,8 +46,8 @@ function Waveform (o) {
 		let r = this.range
 
 		// FIXME: remove
-		// r[0] = 0
-		// r[2] = 40
+		r[0] = 0
+		r[2] = 40
 
 		// calc runtime props
 		let viewport
@@ -95,17 +95,17 @@ function Waveform (o) {
 		this.shader.drawLine.call(this, {
 			thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep
 		})
-		// this.shader.drawLine.call(this, {
-		// 	primitive: 'points',
-		// 	color: [0,0,0,255],
-		// 	thickness, step, viewport, scale, translate, currTexture, samplesPerStep
-		// })
-		// this.shader.drawLine.call(this, {
-		// 	primitive: 'points',
-		// 	color: [0,0,0,255],
-		// 	thickness: 0,
-		// 	step, viewport, scale, translate, currTexture, samplesPerStep
-		// })
+		this.shader.drawLine.call(this, {
+			primitive: 'points',
+			color: [0,0,0,255],
+			thickness, step, viewport, scale, translate, currTexture, samplesPerStep
+		})
+		this.shader.drawLine.call(this, {
+			primitive: 'points',
+			color: [0,0,0,255],
+			thickness: 0,
+			step, viewport, scale, translate, currTexture, samplesPerStep
+		})
 	}
 
 	this.regl = this.shader.regl
@@ -422,8 +422,10 @@ Waveform.prototype.push = function (samples) {
 			height: Waveform.textureSize[1],
 			channels: Waveform.textureChannels,
 			type: 'float',
-			min: 'nearest',
-			mag: 'nearest',
+			// min: 'nearest',
+			// mag: 'nearest',
+			min: 'linear',
+			mag: 'linear',
 			wrap: ['clamp', 'clamp']
 		})
 		txt.sum = txt.sum2 = 0

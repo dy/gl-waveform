@@ -1,68 +1,16 @@
 // direct sample output, connected by line, to the contrary to range
 
-#pragma glslify: lerp = require('./lerp.glsl')
+#pragma glslify: pick = require('./pick.glsl')
 
 precision highp float;
 
 attribute float id, sign;
 
-uniform sampler2D data0, data1;
-uniform float opacity, thickness, step, textureId, total,
-		samplesPerStep, sum, sum2, dataLength;
-uniform vec2 scale, translate, dataShape;
+uniform float opacity, thickness, step, samplesPerStep;
+uniform vec2 scale, translate;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
-
-// pick sample from the source texture
-vec4 pickSample (float offset, float baseOffset) {
-	offset = max(offset, 0.);
-	offset = min(offset, total - 1.);
-
-	vec2 uv = vec2(
-		mod(offset, dataShape.x) + .5,
-		floor(offset / dataShape.x) + .5
-	) / dataShape;
-
-	uv.y -= textureId;
-
-	if (uv.y > 1.) {
-		uv.y = uv.y - 1.;
-
-		vec4 sample = texture2D(data1, uv);
-
-		// if right sample is from the next texture - align it to left texture
-		if (offset >= dataLength * (textureId + 1.) &&
-			baseOffset < dataLength * (textureId + 1.)) {
-			sample.y += sum;
-			sample.z += sum2;
-		}
-
-		return sample;
-	}
-	else return texture2D(data0, uv);
-}
-
-vec4 pick(float id, float baseId) {
-	float offset = id * samplesPerStep;
-	float baseOffset = baseId * samplesPerStep;
-
-	float offsetLeft = floor(offset);
-	float offsetRight = ceil(offset);
-	float t = offset - offsetLeft;
-	if (offsetLeft == offsetRight) {
-		offsetRight = ceil(offset + .5);
-		t = 0.;
-	}
-
-	// hack to workaround rounding spikes artifacts
-	float tr = floor(floor(translate.x / samplesPerStep) * samplesPerStep);
-
-	vec4 left = pickSample(offsetLeft + tr, baseOffset);
-	vec4 right = pickSample(offsetRight + tr, baseOffset);
-
-	return lerp(left, right, t);
-}
 
 vec2 calcJoin (vec4 prev, vec4 curr, vec4 next) {
 	float x = step / viewport.z;
@@ -85,15 +33,20 @@ void main () {
 	// shift source id to hide line edges
 	float id = id - 1.;
 
+	float ss = samplesPerStep;
+
+	// hack to workaround rounding spikes artifacts
+	float tr = floor(translate.x / samplesPerStep);
+
 	// calc average of curr..next sampling points
-	vec4 sampleCurr = pick((id), (id - 2.));
-	vec4 sampleNext = pick((id + 1.), (id - 2.));
-	vec4 samplePrev = pick((id - 1.), (id - 2.));
+	vec4 sampleCurr = pick((id) * ss, (id - 2.) * ss, tr * ss);
+	vec4 sampleNext = pick((id + 1.) * ss, (id - 2.) * ss, tr * ss);
+	vec4 samplePrev = pick((id - 1.) * ss, (id - 2.) * ss, tr * ss);
 
 	// compensate for sampling rounding
-	float tr = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
+	float tr2 = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
 	vec2 position = vec2(
-		step * (id + 1. - tr) / viewport.z,
+		step * (id - tr2) / viewport.z,
 		sampleCurr.x * .5 + .5
 	);
 
@@ -109,9 +62,9 @@ void main () {
 	fragColor = color / 255.;
 
 	// mark adjacent texture with different color
-	if (translate.x + id * samplesPerStep > dataLength) {
-		fragColor.x *= .5;
-	}
+	// if (translate.x + id * samplesPerStep > dataLength) {
+	// 	fragColor.x *= .5;
+	// }
 
 	fragColor.a *= opacity;
 }

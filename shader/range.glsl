@@ -1,3 +1,7 @@
+// output range-average samples line with sdev weighting
+
+#pragma glslify: lerp = require('./lerp.glsl')
+
 precision highp float;
 
 attribute float id, sign;
@@ -10,29 +14,17 @@ uniform vec4 viewport, color;
 
 varying vec4 fragColor;
 
-const float lessThanThickness = 0.;
-
-// linear interpolation
-vec4 lerp(vec4 a, vec4 b, float t) {
-	return t * b + (1. - t) * a;
-}
-vec2 lerp(vec2 a, vec2 b, float t) {
-	return t * b + (1. - t) * a;
-}
-
+// pick sample from the source texture
+// if base offset is from another texture - apply sum2 compensation
 vec4 pickSample (float offset, float baseOffset) {
-	// subtle hack to workaround rounding spikes artifacts
-	float translateInt = floor(floor(translate.x / samplesPerStep) * samplesPerStep);
+	offset = max(offset, 0.);
 
 	vec2 uv = vec2(
-		mod(offset + translateInt, dataShape.x) + .5,
-		floor((offset + translateInt) / dataShape.x) + .5
+		mod(offset, dataShape.x) + .5,
+		floor(offset / dataShape.x) + .5
 	) / dataShape;
 
 	uv.y -= textureId;
-
-	// limit less than zero values
-	if (uv.y < 0.) uv = vec2(0, 0);
 
 	if (uv.y > 1.) {
 		uv.y = uv.y - 1.;
@@ -40,7 +32,8 @@ vec4 pickSample (float offset, float baseOffset) {
 		vec4 sample = texture2D(data1, uv);
 
 		// if right sample is from the next texture - align it to left texture
-		if (offset + translateInt >= dataLength * (textureId + 1.) && baseOffset + translateInt < dataLength * (textureId + 1.)) {
+		if (offset >= dataLength * (textureId + 1.) &&
+			baseOffset < dataLength * (textureId + 1.)) {
 			sample.y += sum;
 			sample.z += sum2;
 		}
@@ -50,7 +43,6 @@ vec4 pickSample (float offset, float baseOffset) {
 	else return texture2D(data0, uv);
 }
 
-// pick sample from the source texture
 vec4 pick(float id, float baseId) {
 	float offset = id * samplesPerStep;
 	float baseOffset = baseId * samplesPerStep;
@@ -63,17 +55,20 @@ vec4 pick(float id, float baseId) {
 		t = 0.;
 	}
 
-	vec4 left = pickSample(offsetLeft, baseOffset);
-	vec4 right = pickSample(offsetRight, baseOffset);
+	// hack to workaround rounding spikes artifacts
+	float tr = floor(floor(translate.x / samplesPerStep) * samplesPerStep);
+
+	vec4 left = pickSample(offsetLeft + tr, baseOffset);
+	vec4 right = pickSample(offsetRight + tr, baseOffset);
 
 	return lerp(left, right, t);
 }
 
 void main() {
-	gl_PointSize = 3.;
+	gl_PointSize = 1.5;
 
 	// shift source id to provide left offset
-	float id = id - 1.;
+	// float id = id - 1.;
 
 	// FIXME: make end point cut more elegant
 	if (translate.x + id * samplesPerStep >= total - 1.) return;
@@ -95,7 +90,7 @@ void main() {
 	float translateOff = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
 	vec2 position = vec2(
 		// avg render is shifted by .5 relative to direct sample render for proper positioning
-		(.5 * step * (id + .5 - translateOff) ) / viewport.z,
+		(step * (id + .5 - translateOff) ) / viewport.z,
 		avgCurr * .5 + .5
 	);
 
@@ -105,7 +100,7 @@ void main() {
 	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
 	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
 
-	float x = .5 * step / viewport.z;
+	float x = step / viewport.z;
 	vec2 normalLeft = normalize(vec2(
 		-(avgCurr - avgPrev) * .5, x
 	) / viewport.zw);
@@ -130,7 +125,7 @@ void main() {
 
 	// sdev less than projected to vertical shows simple line
 	// FIXME: sdev should be compensated by curve bend
-	if (vertSdev < maxVertLen) {
+	if (false && vertSdev < maxVertLen) {
 		// sdev more than normal but less than vertical threshold
 		// rotates join towards vertical
 		if (vertSdev > minVertLen) {

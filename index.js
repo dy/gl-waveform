@@ -42,8 +42,12 @@ function Waveform (o) {
 	// total number of samples
 	this.total = 0
 
-	this.render = function (a, b, c) {
+	this.render = function () {
 		let r = this.range
+
+		// FIXME: remove
+		// r[0] = 0
+		// r[2] = 40
 
 		// calc runtime props
 		let viewport
@@ -51,7 +55,7 @@ function Waveform (o) {
 		else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
 		let step = this.step || this.thickness * this.thicknessStepRatio
-		let minStep = 2 * viewport[2] / Math.abs(r[2] - r[0])
+		let minStep = viewport[2] / Math.abs(r[2] - r[0])
 		step = Math.max(step, minStep)
 
 		let scale
@@ -66,11 +70,42 @@ function Waveform (o) {
 		// update current texture
 		let currTexture = Math.floor(r[0] / Waveform.textureLength)
 
-		let samplesPerStep = .5 * step / scale[0] / viewport[2]
+		let samplesPerStep = step / (scale[0] * viewport[2])
 
-		this.shader.draw.call(this, {
-			step, viewport, scale, translate, currTexture, samplesPerStep
+		let color = this.color
+		let thickness = this.thickness
+
+
+		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
+		// this.shader.drawRanges.call(this, {
+		// 	thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep,
+		// 	color: [255,0,0,100],
+		// })
+		// this.shader.drawRanges.call(this, {
+		// 	primitive: 'line strip',
+		// 	color: [0,0,255,100],
+		// 	thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep
+		// })
+		// this.shader.drawRanges.call(this, {
+		// 	primitive: 'points',
+		// 	color: [0,0,0,255],
+		// 	thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep
+		// })
+
+		this.shader.drawLine.call(this, {
+			thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep
 		})
+		// this.shader.drawLine.call(this, {
+		// 	primitive: 'points',
+		// 	color: [0,0,0,255],
+		// 	thickness, step, viewport, scale, translate, currTexture, samplesPerStep
+		// })
+		// this.shader.drawLine.call(this, {
+		// 	primitive: 'points',
+		// 	color: [0,0,0,255],
+		// 	thickness: 0,
+		// 	step, viewport, scale, translate, currTexture, samplesPerStep
+		// })
 	}
 
 	this.regl = this.shader.regl
@@ -104,22 +139,17 @@ Waveform.prototype.createShader = function (o) {
 		})(Waveform.maxSampleCount)
 	})
 
-	let draw = regl({
-		// primitive: 'points',
-		// primitive: 'line strip',
-		primitive: 'triangle strip',
+	let shaderOptions = {
+		primitive: (c, p) => p.primitive || 'triangle strip',
 		offset: 0,
-
 		count: function (c, p) {
-			let step = p.step || this.thickness * this.thicknessStepRatio
+			let step = p.step || (p.thickness * this.thicknessStepRatio)
 			return Math.min(
-				// count is shifted in shader and needs more items than viewport
+				// count is shifted in shader and needs extra items to cover 1:1 viewport
 				4 * Math.ceil(p.viewport[2] / step) + 6,
 				Waveform.maxSampleCount
 			)
 		},
-
-		vert: glsl('./vert.glsl'),
 
 		frag: `
 		precision highp float;
@@ -151,6 +181,7 @@ Waveform.prototype.createShader = function (o) {
 			},
 			dataShape: Waveform.textureSize,
 			dataLength: Waveform.textureLength,
+			textureId: regl.prop('currTexture'),
 
 			// total number of samples
 			total: regl.this('total'),
@@ -162,13 +193,10 @@ Waveform.prototype.createShader = function (o) {
 			viewport: regl.prop('viewport'),
 			scale: regl.prop('scale'),
 			translate: regl.prop('translate'),
-			textureId: regl.prop('currTexture'),
 
 			opacity: regl.this('opacity'),
-			color: regl.this('color'),
-			thickness: regl.this('thickness')
-			// color: regl.prop('color'),
-			// thickness: regl.prop('thickness')
+			color: regl.prop('color'),
+			thickness: regl.prop('thickness')
 		},
 
 		attributes: {
@@ -183,7 +211,6 @@ Waveform.prototype.createShader = function (o) {
 				offset: 2
 			}
 		},
-
 		blend: {
 			enable: true,
 			color: [0,0,0,0],
@@ -198,18 +225,25 @@ Waveform.prototype.createShader = function (o) {
 				dstAlpha: 'one'
 			}
 		},
-
 		depth: {
+			// FIXME: disable for the case of null folding
 			enable: false
 		},
-
 		scissor: {
 			enable: true,
 			box: regl.this('viewport')
 		},
 		viewport: regl.this('viewport'),
 		stencil: false
-	})
+	}
+
+	let drawRanges = regl(extend({
+		vert: glsl('./shader/range.glsl')
+	}, shaderOptions))
+
+	let drawLine = regl(extend({
+		vert: glsl('./shader/line.glsl')
+	}, shaderOptions))
 
 	let blankTexture = regl.texture({
 		width: 1,
@@ -218,7 +252,7 @@ Waveform.prototype.createShader = function (o) {
 		type: 'float'
 	})
 
-	return { draw, regl, idBuffer, blankTexture }
+	return { drawRanges, drawLine, regl, idBuffer, blankTexture }
 }
 
 Waveform.prototype.update = function (o) {
@@ -297,18 +331,18 @@ Waveform.prototype.update = function (o) {
 			o.range = [-o.range, -1, -0, 1]
 		}
 
-		// limit zoom level by 1 texture
-		if (o.range[2] - o.range[0] > Waveform.textureLength) {
-			if (!this.range) {
-				o.range[0] = -Waveform.textureLength
-				o.range[2] = -0
-			}
-			else {
-				// FIXME: check if this is ok way to limit zoom
-				o.range[0] = this.range[0]
-				o.range[2] = this.range[0] + Waveform.textureLength
-			}
-		}
+		// FIXME: limit zoom level by 1 texture
+		// if (o.range[2] - o.range[0] > Waveform.textureLength) {
+		// 	if (!this.range) {
+		// 		o.range[0] = -Waveform.textureLength
+		// 		o.range[2] = -0
+		// 	}
+		// 	else {
+		// 		// FIXME: check if this is ok way to limit zoom
+		// 		o.range[0] = this.range[0]
+		// 		o.range[2] = this.range[0] + Waveform.textureLength
+		// 	}
+		// }
 
 		this.range = o.range
 	}

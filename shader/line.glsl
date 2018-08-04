@@ -6,7 +6,7 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform float opacity, thickness, pxStep, sampleStep, total, translateInt, translateFract;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
@@ -14,27 +14,24 @@ varying vec4 fragColor;
 void main () {
 	gl_PointSize = 1.5;
 
-	// shift source id to hide line edges
-	float id = id;
-
-	float offset = id * sampleStep + translateInt + translateFract;
+	float translateInt = floor(translate / sampleStep);
+	float translateFract = translate / sampleStep - translateInt;
+	float offset = (id + translateInt) * sampleStep;
 
 	// ignore not existing data
 	if (offset < 0.) return;
 	if (offset > total - 1.) return;
 
-	bool isStart = offset < sampleStep;
-	bool isEnd = offset >= (total - 1. - sampleStep);
+	bool isStart = offset - sampleStep < 0.;
+	bool isEnd = offset + sampleStep > total - 1.;
 
 	// calc average of curr..next sampling points
-	vec4 sampleCurr = pick(offset, offset - sampleStep * 2.);
-	vec4 sampleNext = pick(offset + sampleStep, offset - sampleStep * 2.);
-	vec4 samplePrev = pick(offset - sampleStep, offset - sampleStep * 2.);
+	vec4 sampleCurr = pick(offset, offset - sampleStep);
+	vec4 sampleNext = pick(offset + sampleStep, offset - sampleStep);
+	vec4 samplePrev = pick(offset - sampleStep, offset - sampleStep);
 
-	// compensate for sampling rounding
-	float tr2 = 0.;//translate.x / sampleStep - floor(translate.x / sampleStep);
 	vec2 position = vec2(
-		pxStep * (id - tr2) / viewport.z,
+		pxStep * (id - translateFract) / viewport.z,
 		sampleCurr.x * .5 + .5
 	);
 

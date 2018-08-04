@@ -135,8 +135,8 @@ function tick() {
 	let data = oscillate(config.size)
 
 	let start = now()
-	waveform.push([.6,.8,.8,.8, .5,.5,.5,.5, -.5,-.5,-.5,-.5])
-	// waveform.push(data)
+	// waveform.push([.6,.8,.8,.8, .5,.5,.5,.5, -.5,-.5,-.5,-.5])
+	waveform.push(data)
 	let end = now()
 	config.time = end - start
 

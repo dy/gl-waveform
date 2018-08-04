@@ -25,3 +25,9 @@ t('line/range mode is switched properly')
 t('2σ thickness scheme')
 
 t('multipass rendering for large zoom levels')
+
+t('correct tail')
+
+t('correct head')
+
+t('correct everything for line mode')

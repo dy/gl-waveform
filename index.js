@@ -46,66 +46,72 @@ function Waveform (o) {
 		let r = this.range
 
 		// FIXME: remove
-		r[0] = 0
-		r[2] = 40
+		// r[0] = -4
+		// r[2] = 40
 
 		// calc runtime props
 		let viewport
 		if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
 		else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
-		let step = this.step || this.thickness * this.thicknessStepRatio
+		let pxStep = this.pxStep || this.thickness * this.thicknessStepRatio
 		let minStep = viewport[2] / Math.abs(r[2] - r[0])
-		step = Math.max(step, minStep)
+		pxStep = Math.max(pxStep, minStep)
 
-		let scale
-		if (!r) scale = [1 / viewport.width, 1 / viewport.height]
-		else scale = [
-			1 / (r[2] - r[0]),
-			1 / (r[3] - r[1])
+		let span
+		if (!r) span = [viewport.width, viewport.height]
+		else span = [
+			(r[2] - r[0]),
+			(r[3] - r[1])
 		]
-
-		let translate = !r ? [0, 0] : [r[0], r[2]]
 
 		// update current texture
 		let currTexture = Math.floor(r[0] / Waveform.textureLength)
 
-		let samplesPerStep = step / (scale[0] * viewport[2])
+		let sampleStep = pxStep * span[0] / viewport[2]
 
 		let color = this.color
 		let thickness = this.thickness
 
+		let translateInt = Math.floor(r[0])
+		let translateFract = r[0] % 1
+
+		// FIXME: bring cap login from shader here
+		let offset = 0//Math.max(0, -2 * Math.floor(r[0] / sampleStep))
+		let count = Math.min(
+			// 2 * Math.round((this.total - Math.max(translate[0], 0)) / sampleStep),
+			// count is shifted in shader and needs extra items to cover 1:1 viewport
+			4 * Math.ceil(viewport[2] / pxStep) + 4,
+			Waveform.maxSampleCount
+		)
 
 		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
 		// this.shader.drawRanges.call(this, {
-		// 	thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep,
-		// 	color: [255,0,0,100],
-		// })
-		// this.shader.drawRanges.call(this, {
-		// 	primitive: 'line strip',
-		// 	color: [0,0,255,100],
-		// 	thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep
+		// 	offset, count, thickness, color, pxStep, viewport, span, translateInt, translateFract, currTexture, sampleStep,
+		// 	color: [255,0,0,10],
 		// })
 		// this.shader.drawRanges.call(this, {
 		// 	primitive: 'points',
-		// 	color: [0,0,0,255],
-		// 	thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep
+		// 	offset, count, thickness, color, pxStep, viewport, span, translateInt, translateFract, currTexture, sampleStep,
+		// 	color: [0,0,0,255]
 		// })
 
 		this.shader.drawLine.call(this, {
-			thickness, color, step, viewport, scale, translate, currTexture, samplesPerStep
+			offset, count, thickness, color, pxStep, viewport, span, translateInt, translateFract, currTexture, sampleStep,
+			thickness: 20,
 		})
 		this.shader.drawLine.call(this, {
 			primitive: 'points',
-			color: [0,0,0,255],
-			thickness, step, viewport, scale, translate, currTexture, samplesPerStep
-		})
-		this.shader.drawLine.call(this, {
-			primitive: 'points',
+			offset, count, thickness, color, pxStep, viewport, span, translateInt, translateFract, currTexture, sampleStep,
 			color: [0,0,0,255],
 			thickness: 0,
-			step, viewport, scale, translate, currTexture, samplesPerStep
 		})
+		// this.shader.drawLine.call(this, {
+		// 	primitive: 'points',
+		// 	offset, count, thickness, color, pxStep, viewport, span, translateInt, translateFract, currTexture, sampleStep,
+		// 	color: [0,0,0,255],
+		// 	thickness: 0,
+		// })
 	}
 
 	this.regl = this.shader.regl
@@ -141,16 +147,8 @@ Waveform.prototype.createShader = function (o) {
 
 	let shaderOptions = {
 		primitive: (c, p) => p.primitive || 'triangle strip',
-		offset: 0,
-		count: function (c, p) {
-			let step = p.step || (p.thickness * this.thicknessStepRatio)
-			return Math.min(
-				// count is shifted in shader and needs extra items to cover 1:1 viewport
-				4 * Math.ceil(p.viewport[2] / step) + 6,
-				Waveform.maxSampleCount
-			)
-		},
-
+		offset: regl.prop('offset'),
+		count: regl.prop('count'),
 		frag: `
 		precision highp float;
 		uniform float textureId;
@@ -187,12 +185,13 @@ Waveform.prototype.createShader = function (o) {
 			total: regl.this('total'),
 
 			// number of pixels between sampling
-			step: regl.prop('step'),
+			pxStep: regl.prop('pxStep'),
 			// number of samples per pixel sampling step
-			samplesPerStep: regl.prop('samplesPerStep'),
+			sampleStep: regl.prop('sampleStep'),
 			viewport: regl.prop('viewport'),
-			scale: regl.prop('scale'),
-			translate: regl.prop('translate'),
+			span: regl.prop('span'),
+			translateInt: regl.prop('translateInt'),
+			translateFract: regl.prop('translateFract'),
 
 			opacity: regl.this('opacity'),
 			color: regl.prop('color'),
@@ -264,7 +263,7 @@ Waveform.prototype.update = function (o) {
 		max: 'max maxAmp maxAmplitude',
 		min: 'min minAmp minAmplitude',
 		thickness: 'thickness width linewidth lineWidth line-width',
-		step: 'step pxStep',
+		pxStep: 'step pxStep',
 		color: 'color colour colors colours fill fillColor fill-color',
 		line: 'line line-style lineStyle linestyle',
 		viewport: 'vp viewport viewBox viewbox viewPort',
@@ -297,9 +296,9 @@ Waveform.prototype.update = function (o) {
 		this.thickness = parseFloat(o.thickness)
 	}
 
-	if (o.step != null) {
+	if (o.pxStep != null) {
 		// FIXME: parse non-px values
-		this.step = parseFloat(o.step)
+		this.pxStep = parseFloat(o.pxStep)
 	}
 
 	if (o.opacity != null) {
@@ -422,10 +421,10 @@ Waveform.prototype.push = function (samples) {
 			height: Waveform.textureSize[1],
 			channels: Waveform.textureChannels,
 			type: 'float',
-			// min: 'nearest',
-			// mag: 'nearest',
-			min: 'linear',
-			mag: 'linear',
+			min: 'nearest',
+			mag: 'nearest',
+			// min: 'linear',
+			// mag: 'linear',
 			wrap: ['clamp', 'clamp']
 		})
 		txt.sum = txt.sum2 = 0

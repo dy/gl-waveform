@@ -7,7 +7,7 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform float opacity, thickness, step, samplesPerStep;
+uniform float opacity, thickness, pxStep, sampleStep, total, translateInt, translateFract;
 uniform vec2 scale, translate;
 uniform vec4 viewport, color;
 
@@ -17,48 +17,53 @@ void main() {
 	gl_PointSize = 1.5;
 
 	// shift source id to provide left offset
-	// float id = id - 1.;
+	float id = id;
 
-	// FIXME: make end point cut more elegant
-	// if (translate.x + id * samplesPerStep >= total - 1.) return;
-
-	float ss = samplesPerStep;
-	float tr = floor(translate.x / samplesPerStep);
+	float offset = id * sampleStep;
+	float tr = floor(translate.x / sampleStep);
+	bool isStart = offset + tr <= 0.;
+	bool isEnd = offset + tr >= total - 1.;
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = pick(id * ss, (id - 1.) * ss, tr );
-	vec4 sample1 = pick((id + 1.) * ss, (id - 1.) * ss, tr );
+	vec4 sample0 = pick(offset - sampleStep + tr, offset - sampleStep * 2. + tr);
+	vec4 sample1 = pick(offset, offset - sampleStep * 2.);
+	vec4 samplePrev = pick(offset - sampleStep * 2. + tr, offset - sampleStep * 2. + tr);
+	vec4 sampleNext = pick(offset + sampleStep + tr, offset - sampleStep * 2. + tr);
 
-	float avgCurr = (sample1.y - sample0.y) / samplesPerStep;
+	float avgCurr = 0., avgPrev = 0., avgNext = 0.,
+		sdev = 0., variance = 0.;
 
-	// only scales more than 1 skip steps
-	// σ(x)² = M(x²) - M(x)²
-	float variance = abs(
-		(sample1.z - sample0.z) / samplesPerStep - avgCurr * avgCurr
-	);
-	float sdev = sqrt(variance);
+	// 0 sample has sum/sum2 already
+	if (isStart || isEnd) {
+		avgCurr = avgPrev = sample0.x;
+	}
+	else {
+		avgCurr = (sample1.y - sample0.y) / sampleStep;
+		avgPrev = (sample0.y - samplePrev.y) / sampleStep;
+		avgNext = (sampleNext.y - sample1.y) / sampleStep;
+		// only scales more than 1 skip pxSteps
+		// σ(x)² = M(x²) - M(x)²
+		variance = abs(
+			(sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
+		);
+		sdev = sqrt(variance);
+	}
 
 	// compensate for sampling rounding
-	float translateOff = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
+	float translateOff = translate.x / sampleStep - floor(translate.x / sampleStep);
 	vec2 position = vec2(
 		// avg render is shifted by .5 relative to direct sample render for proper positioning
-		(step * (id + .5 - translateOff) ) / viewport.z,
+		(pxStep * (id - translateOff) ) / viewport.z,
 		avgCurr * .5 + .5
 	);
 
-	vec4 samplePrev = pick((id - 1.) * ss, (id - 1.) * ss, tr);
-	vec4 sampleNext = pick((id + 2.) * ss, (id - 1.) * ss, tr);
-
-	float avgPrev = (sample0.y - samplePrev.y) / samplesPerStep;
-	float avgNext = (sampleNext.y - sample1.y) / samplesPerStep;
-
-	float x = step / viewport.z;
+	float x = pxStep / viewport.z;
 	vec2 normalLeft = normalize(vec2(
 		-(avgCurr - avgPrev) * .5, x
-	) / viewport.zw);
+	));
 	vec2 normalRight = normalize(vec2(
 		-(avgNext - avgCurr) * .5, x
-	) / viewport.zw);
+	));
 
 	vec2 bisec = normalize(normalLeft + normalRight);
 	vec2 vert = vec2(0, 1);
@@ -71,13 +76,9 @@ void main() {
 
 	vec2 join;
 
-
-	// less than 1
-	// if (scale.x * viewport.z < 1.) {}
-
 	// sdev less than projected to vertical shows simple line
 	// FIXME: sdev should be compensated by curve bend
-	if (false && vertSdev < maxVertLen) {
+	if (vertSdev < maxVertLen) {
 		// sdev more than normal but less than vertical threshold
 		// rotates join towards vertical
 		if (vertSdev > minVertLen) {
@@ -98,7 +99,7 @@ void main() {
 
 	fragColor = color / 255.;
 
-	// if (translate.x + id * samplesPerStep > dataLength) {
+	// if (translate.x + id * sampleStep > dataLength) {
 	// 	fragColor.x *= .5;
 	// }
 

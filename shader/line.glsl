@@ -6,51 +6,58 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform float opacity, thickness, step, samplesPerStep;
-uniform vec2 scale, translate;
+uniform float opacity, thickness, pxStep, sampleStep, total, translateInt, translateFract;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
-
-vec2 calcJoin (vec4 prev, vec4 curr, vec4 next) {
-	float x = step / viewport.z;
-	vec2 normalLeft = normalize(vec2(
-		-(curr.x - prev.x) * .5, x
-	) / viewport.zw);
-	vec2 normalRight = normalize(vec2(
-		-(next.x - curr.x) * .5, x
-	) / viewport.zw);
-
-	vec2 bisec = normalize(normalLeft + normalRight);
-	float bisecLen = abs(1. / dot(normalLeft, bisec));
-
-	return bisec * bisecLen;
-}
 
 void main () {
 	gl_PointSize = 1.5;
 
 	// shift source id to hide line edges
-	float id = id - 1.;
+	float id = id;
 
-	float ss = samplesPerStep;
+	float offset = id * sampleStep + translateInt + translateFract;
 
-	// hack to workaround rounding spikes artifacts
-	float tr = floor(translate.x / samplesPerStep);
+	// ignore not existing data
+	if (offset < 0.) return;
+	if (offset > total - 1.) return;
+
+	bool isStart = offset < sampleStep;
+	bool isEnd = offset >= (total - 1. - sampleStep);
 
 	// calc average of curr..next sampling points
-	vec4 sampleCurr = pick((id) * ss, (id - 2.) * ss, tr * ss);
-	vec4 sampleNext = pick((id + 1.) * ss, (id - 2.) * ss, tr * ss);
-	vec4 samplePrev = pick((id - 1.) * ss, (id - 2.) * ss, tr * ss);
+	vec4 sampleCurr = pick(offset, offset - sampleStep * 2.);
+	vec4 sampleNext = pick(offset + sampleStep, offset - sampleStep * 2.);
+	vec4 samplePrev = pick(offset - sampleStep, offset - sampleStep * 2.);
 
 	// compensate for sampling rounding
-	float tr2 = translate.x / samplesPerStep - floor(translate.x / samplesPerStep);
+	float tr2 = 0.;//translate.x / sampleStep - floor(translate.x / sampleStep);
 	vec2 position = vec2(
-		step * (id - tr2) / viewport.z,
+		pxStep * (id - tr2) / viewport.z,
 		sampleCurr.x * .5 + .5
 	);
 
-	vec2 join = calcJoin(samplePrev, sampleCurr, sampleNext);
+	float x = pxStep / viewport.z;
+	vec2 normalLeft = normalize(vec2(
+		-(sampleCurr.x - samplePrev.x) * .5, x
+	) / viewport.zw);
+	vec2 normalRight = normalize(vec2(
+		-(sampleNext.x - sampleCurr.x) * .5, x
+	) / viewport.zw);
+
+	vec2 join;
+	if (isStart) {
+		join = normalRight;
+	}
+	else if (isEnd) {
+		join = normalLeft;
+	}
+	else {
+		vec2 bisec = normalize(normalLeft + normalRight);
+		float bisecLen = abs(1. / dot(normalLeft, bisec));
+		join = bisec * bisecLen;
+	}
 
 	// FIXME: limit join by prev vertical
 	// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;
@@ -62,7 +69,7 @@ void main () {
 	fragColor = color / 255.;
 
 	// mark adjacent texture with different color
-	// if (translate.x + id * samplesPerStep > dataLength) {
+	// if (translate.x + id * sampleStep > dataLength) {
 	// 	fragColor.x *= .5;
 	// }
 

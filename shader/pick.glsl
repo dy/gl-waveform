@@ -5,11 +5,10 @@
 
 uniform sampler2D data0, data1;
 uniform vec2 dataShape;
-uniform float dataLength, textureId, sum, sum2, total;
+uniform float dataLength, textureId, sum, sum2;
 
 vec4 pick (float offset, float baseOffset) {
 	offset = max(offset, 0.);
-	offset = min(offset, total - 1.);
 
 	vec2 uv = vec2(
 		mod(offset, dataShape.x) + .5,
@@ -34,13 +33,10 @@ vec4 pick (float offset, float baseOffset) {
 	}
 	else return texture2D(data0, uv);
 }
-vec4 pick (float offset, float baseOffset, float shift) {
-	return pick(offset + shift, baseOffset + shift);
-}
 
 // shift is passed separately for higher float32 precision of offset
 // export pickLinear for the case of emulating texture linear interpolation
-vec4 pickLinear(float offset, float baseOffset, float shift) {
+vec4 pickLinear(float offset, float baseOffset) {
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;
@@ -49,10 +45,10 @@ vec4 pickLinear(float offset, float baseOffset, float shift) {
 		t = 0.;
 	}
 
-	vec4 left = pick(offsetLeft, baseOffset, shift);
-	vec4 right = pick(offsetRight, baseOffset, shift);
+	vec4 left = pick(offsetLeft, baseOffset);
+	vec4 right = pick(offsetRight, baseOffset);
 
 	return lerp(left, right, t);
 }
 
-#pragma glslify: export(pick)
+#pragma glslify: export(pickLinear)

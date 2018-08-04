@@ -27,8 +27,8 @@ let config = {
 	thickness: 20,
 	thicknessRange: [.5, 100],
 
-	step: 4,
-	stepRange: [.1, 100],
+	// step: 1,
+	// stepRange: [.1, 100],
 
 	color: [245, 166, 198, 100],
 
@@ -38,7 +38,7 @@ let config = {
 	interval: 150,
 	intervalRange: [10, 3000],
 
-	source: 'sine',
+	source: 'sawtooth',
 	sourceOptions: [
 		'noise',
 		'sine',
@@ -77,14 +77,14 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 					waveform.render()
 				}
 			})
-			.addSlider(config, 'step', 'stepRange', {
-				onChange: () => {
-					waveform.update({
-						step: config.step
-					})
-					waveform.render()
-				}
-			})
+			// .addSlider(config, 'step', 'stepRange', {
+			// 	onChange: () => {
+			// 		waveform.update({
+			// 			step: config.step
+			// 		})
+			// 		waveform.render()
+			// 	}
+			// })
 			.addColor(config, 'color', {
 				onChange: v => {
 					waveform.update({

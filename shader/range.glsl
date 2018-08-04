@@ -77,7 +77,7 @@ void main() {
 	// for large sampleStep that makes for correct grouped signal width
 	// we guess signal starts looking like normal
 	// 2σ covers 95% of signal with normal distribution noise
-	float thicknessCoef = max(.5, min(sampleStep * .5, 2.));
+	float thicknessCoef = max(.25, min(pow(sampleStep * .5, .5), 2.));
 	vertSdev *= thicknessCoef;
 
 	vec2 join;

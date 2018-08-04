@@ -54,16 +54,16 @@ function Waveform (o) {
 		if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
 		else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
-		let pxStep = this.pxStep || this.thickness * this.thicknessStepRatio
-		let minStep = viewport[2] / Math.abs(r[2] - r[0])
-		pxStep = Math.max(pxStep, minStep)
-
 		let span
 		if (!r) span = [viewport.width, viewport.height]
 		else span = [
 			(r[2] - r[0]),
 			(r[3] - r[1])
 		]
+
+		let pxStep = this.pxStep || Math.sqrt(this.thickness) * .5
+		let minStep = .05 * Math.abs(span[0]) / viewport[2]
+		pxStep = Math.max(pxStep, minStep)
 
 		// update current texture
 		let currTexture = Math.floor(r[0] / Waveform.textureLength)
@@ -85,7 +85,7 @@ function Waveform (o) {
 		)
 
 		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
-		if (sampleStep > 1.5) {
+		if (sampleStep > 1) {
 			this.shader.drawRanges.call(this, {
 				offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
 				// color: [255,0,0,10],
@@ -227,7 +227,7 @@ Waveform.prototype.createShader = function (o) {
 		},
 		depth: {
 			// FIXME: disable for the case of null folding
-			enable: false
+			enable: true
 		},
 		scissor: {
 			enable: true,
@@ -518,7 +518,6 @@ Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
 Waveform.prototype.range = null
-Waveform.prototype.thicknessStepRatio = 2
 
 
 // Texture size affects

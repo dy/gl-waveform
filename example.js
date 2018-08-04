@@ -38,7 +38,7 @@ let config = {
 	interval: 150,
 	intervalRange: [10, 3000],
 
-	source: 'noise',
+	source: 'sine',
 	sourceOptions: [
 		'noise',
 		'sine',

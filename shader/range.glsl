@@ -28,6 +28,7 @@ void main() {
 	// ignore not existing data
 	if (offset < 0.) return;
 	if (offset > total - 1.) return;
+	// if (offset > dataLength * 2. - 1.) return;
 
 	bool isStart = offset - sampleStep < 0.;
 	bool isEnd = offset + sampleStep > total - 1.;

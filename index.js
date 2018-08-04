@@ -85,33 +85,35 @@ function Waveform (o) {
 		)
 
 		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
-		this.shader.drawRanges.call(this, {
-			offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
-			// color: [255,0,0,10],
-		})
-		// this.shader.drawRanges.call(this, {
-		// 	primitive: 'points',
-		// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
-		// 	color: [0,0,0,255]
-		// })
-
-		this.shader.drawLine.call(this, {
-			offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
-			// thickness: 1,
-			color: [0, 0, 255, 10]
-		})
-		// this.shader.drawLine.call(this, {
-		// 	primitive: 'points',
-		// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
-		// 	color: [0,0,0,255],
-		// 	thickness: 0,
-		// })
-		// this.shader.drawLine.call(this, {
-		// 	primitive: 'points',
-		// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
-		// 	color: [0,0,0,255],
-		// 	thickness: 0,
-		// })
+		if (sampleStep > 1.5) {
+			this.shader.drawRanges.call(this, {
+				offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+				// color: [255,0,0,10],
+			})
+			// this.shader.drawRanges.call(this, {
+			// 	primitive: 'points',
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+			// 	color: [0,0,0,255]
+			// })
+		}
+		else {
+			this.shader.drawLine.call(this, {
+				offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+				// thickness: 1,
+			})
+			// this.shader.drawLine.call(this, {
+			// 	primitive: 'points',
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+			// 	color: [0,0,0,255],
+			// 	thickness: 0,
+			// })
+			// this.shader.drawLine.call(this, {
+			// 	primitive: 'points',
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+			// 	color: [0,0,0,255],
+			// 	thickness: 0,
+			// })
+		}
 	}
 
 	this.regl = this.shader.regl

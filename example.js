@@ -8,6 +8,7 @@ import FPS from 'fps-indicator'
 import ControlKit from 'controlkit'
 import raf from 'raf'
 import now from 'performance-now'
+import sz from 'prettysize'
 
 FPS()
 
@@ -24,7 +25,7 @@ function oscillate (l) {
 }
 
 let config = {
-	thickness: 20,
+	thickness: 2,
 	thicknessRange: [.5, 100],
 
 	// step: 1,
@@ -34,11 +35,13 @@ let config = {
 	opacity: .75,
 	opacityRange: [0, 1],
 
-	size: 512,
+	size: 512 * 20,
+	// size: 2e7,
 	sizeRange: [64, 8192],
+	paused: true,
 
-	interval: 150,
-	intervalRange: [10, 3000],
+	frequency: 150,
+	frequencyRange: [1, 3000],
 
 	source: 'sine',
 	sourceOptions: [
@@ -52,8 +55,8 @@ let config = {
 		// mic, url
 	],
 	time: 0,
+	total: 0,
 
-	paused: false
 
 	// bg: '#fff',
 
@@ -119,14 +122,14 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 
 				}
 			})
-			.addSlider(config, 'interval', 'intervalRange', {
+			.addSlider(config, 'frequency', 'frequencyRange', {
 				dp: 0, step: 1,
-				label: 'packet interval',
+				label: 'frequency, Hz',
 				onChange: () => {
 
 				}
 			})
-			.addNumberOutput(waveform, 'total')
+			.addNumberOutput(config, 'total')
 			.addButton('Pause / resume', () => {
 				config.paused = !config.paused
 
@@ -160,12 +163,15 @@ function tick() {
 		waveform.update({ range })
 	}
 
+	config.total = sz(waveform.total, true, true)
+
 	controlKit.update()
 
 	raf.cancel(frame)
 	frame = raf(() => waveform.render())
 
-	!config.paused && setTimeout(tick, config.interval)
+	let interval = 1000 / config.frequency
+	!config.paused && setTimeout(tick, interval)
 }
 
 tick()

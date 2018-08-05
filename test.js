@@ -31,3 +31,7 @@ t('correct tail')
 t('correct head')
 
 t('correct everything for line mode')
+
+t('large data (1e7) has no artifacts on display')
+
+t('hide not visible available texture data (more than 2 textures zoom)')

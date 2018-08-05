@@ -7,7 +7,7 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform float opacity, thickness, pxStep, sampleStep, total, translate;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate, translateInt, translateFract, dataLength;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
@@ -21,8 +21,6 @@ void main() {
 	// if (translate.x + id * sampleStep > dataLength) {
 	// 	fragColor.x *= .5;
 	// }
-	float translateInt = floor(translate / sampleStep);
-	float translateFract = translate / sampleStep - translateInt;
 	float offset = (id + translateInt) * sampleStep;
 
 	// ignore not existing data
@@ -108,4 +106,9 @@ void main() {
 
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
+
+	// mark adjacent texture with different color
+	if (translate + (id + 1.) * sampleStep > 64. * 64.) {
+		fragColor.x *= .5;
+	}
 }

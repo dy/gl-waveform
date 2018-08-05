@@ -74,42 +74,56 @@ function Waveform (o) {
 		let thickness = this.thickness
 
 		let translate = r[0]
+		let dataLength = Waveform.textureLength
+		let translateInt = Math.floor((translate) / sampleStep);
+		let translateFract = (translate) / sampleStep - translateInt;
 
 		// FIXME: bring cap login from shader here
-		let offset = 0//Math.max(0, -2 * Math.floor(r[0] / sampleStep))
+		let offset = 0
+
 		let count = Math.min(
+			// number of visible texture sampling points
+			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
+
+			// number of available data points
 			// 2 * Math.round((this.total - Math.max(translate[0], 0)) / sampleStep),
-			// count is shifted in shader and needs extra items to cover 1:1 viewport
-			4 * Math.ceil(viewport[2] / pxStep) + 4,
+
+			// number of visible vertices on the screen
+			2 * Math.ceil(viewport[2] / pxStep),
+
+			// number of ids available
 			Waveform.maxSampleCount
 		)
 
+
 		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
 		if (sampleStep > 1) {
+			// console.log('range')
 			this.shader.drawRanges.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 				// color: [255,0,0,10],
 			})
 			// this.shader.drawRanges.call(this, {
 			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 			// 	color: [0,0,0,255]
 			// })
 		}
 		else {
+			// console.log('line')
 			this.shader.drawLine.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 				// thickness: 1,
 			})
 			// this.shader.drawLine.call(this, {
 			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 			// 	color: [0,0,0,255],
 			// 	thickness: 0,
 			// })
 			// this.shader.drawLine.call(this, {
 			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, currTexture, sampleStep,
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 			// 	color: [0,0,0,255],
 			// 	thickness: 0,
 			// })
@@ -193,6 +207,8 @@ Waveform.prototype.createShader = function (o) {
 			viewport: regl.prop('viewport'),
 			span: regl.prop('span'),
 			translate: regl.prop('translate'),
+			translateInt: regl.prop('translateInt'),
+			translateFract: regl.prop('translateFract'),
 
 			opacity: regl.this('opacity'),
 			color: regl.prop('color'),
@@ -525,7 +541,7 @@ Waveform.prototype.range = null
 // - performance: bigger texture is slower to create
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
-Waveform.textureSize = [512, 512]
+Waveform.textureSize = [64, 64]
 Waveform.textureChannels = 3
 Waveform.textureLength = Waveform.textureSize[0] * Waveform.textureSize[1]
 Waveform.maxSampleCount = 8192

@@ -5,7 +5,7 @@
 
 uniform sampler2D data0, data1;
 uniform vec2 dataShape;
-uniform float dataLength, textureId, sum, sum2;
+uniform float textureId, sum, sum2;
 
 vec4 pick (float offset, float baseOffset) {
 	offset = max(offset, 0.);
@@ -17,20 +17,26 @@ vec4 pick (float offset, float baseOffset) {
 
 	uv.y -= textureId;
 
-	if (uv.y > 1.) {
+	// use last sample for textures past 2nd
+	if (uv.y > 2.) {
+		return texture2D(data1, vec2(1, 1));
+	}
+
+	else if (uv.y > 1.) {
 		uv.y = uv.y - 1.;
 
 		vec4 sample = texture2D(data1, uv);
 
 		// if right sample is from the next texture - align it to left texture
-		if (offset >= dataLength * (textureId + 1.) &&
-			baseOffset < dataLength * (textureId + 1.)) {
+		if (offset >= dataShape.x * dataShape.y * (textureId + 1.) &&
+			baseOffset < dataShape.x * dataShape.y * (textureId + 1.)) {
 			sample.y += sum;
 			sample.z += sum2;
 		}
 
 		return sample;
 	}
+
 	else return texture2D(data0, uv);
 }
 

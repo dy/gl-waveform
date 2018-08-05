@@ -61,7 +61,7 @@ function Waveform (o) {
 			(r[3] - r[1])
 		]
 
-		let pxStep = this.pxStep || Math.sqrt(this.thickness) * .5
+		let pxStep = this.pxStep || Math.pow(this.thickness, .65) * .65
 		let minStep = .5 * viewport[2] / Math.abs(span[0])
 		pxStep = Math.max(pxStep, minStep)
 
@@ -98,7 +98,6 @@ function Waveform (o) {
 
 		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
 		if (sampleStep > 1) {
-			// console.log('range')
 			this.shader.drawRanges.call(this, {
 				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 			})
@@ -241,7 +240,7 @@ Waveform.prototype.createShader = function (o) {
 		},
 		depth: {
 			// FIXME: disable for the case of null folding
-			enable: false
+			enable: true
 		},
 		scissor: {
 			enable: true,

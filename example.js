@@ -30,15 +30,17 @@ let config = {
 	// step: 1,
 	// stepRange: [.1, 100],
 
-	color: [245, 166, 198, 100],
+	color: [245, 166, 198],
+	opacity: .75,
+	opacityRange: [0, 1],
 
-	size: 512 * 1000,
+	size: 512,
 	sizeRange: [64, 8192],
 
 	interval: 150,
 	intervalRange: [10, 3000],
 
-	source: 'sawtooth',
+	source: 'sine',
 	sourceOptions: [
 		'noise',
 		'sine',
@@ -51,7 +53,7 @@ let config = {
 	],
 	time: 0,
 
-	paused: true
+	paused: false
 
 	// bg: '#fff',
 
@@ -93,6 +95,14 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 					waveform.render()
 				},
 				colorMode: 'rgb'
+			})
+			.addSlider(config, 'opacity', 'opacityRange', {
+				onChange: () => {
+					waveform.update({
+						opacity: config.opacity
+					})
+					waveform.render()
+				}
 			})
 		.addSubGroup({ label: 'Data' })
 			.addSelect(config, 'sourceOptions', {
@@ -142,12 +152,12 @@ function tick() {
 
 	// recalc range to show tail
 	if (!moved) {
-		// let range = waveform.range.slice()
-		// let span = range[2] - range[0]
-		// range[0] = waveform.total - span
-		// range[2] = waveform.total
+		let range = waveform.range.slice()
+		let span = range[2] - range[0]
+		range[0] = waveform.total - span
+		range[2] = waveform.total
 
-		// waveform.update({ range })
+		waveform.update({ range })
 	}
 
 	controlKit.update()

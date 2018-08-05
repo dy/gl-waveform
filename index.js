@@ -62,7 +62,7 @@ function Waveform (o) {
 		]
 
 		let pxStep = this.pxStep || Math.sqrt(this.thickness) * .5
-		let minStep = .05 * Math.abs(span[0]) / viewport[2]
+		let minStep = .5 * viewport[2] / Math.abs(span[0])
 		pxStep = Math.max(pxStep, minStep)
 
 		// update current texture

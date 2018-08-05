@@ -79,14 +79,14 @@ function Waveform (o) {
 		let translateFract = (translate) / sampleStep - translateInt;
 
 		// FIXME: bring cap login from shader here
-		let offset = 0
+		let offset = translateInt < 0 ? -2 * translateInt : 0
 
 		let count = Math.min(
 			// number of visible texture sampling points
 			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
 
 			// number of available data points
-			// 2 * Math.round((this.total - Math.max(translate[0], 0)) / sampleStep),
+			2 * Math.max(0, Math.floor((this.total - 1) / sampleStep) - Math.max(translateInt, 0)) + 2,
 
 			// number of visible vertices on the screen
 			2 * Math.ceil(viewport[2] / pxStep),
@@ -101,7 +101,6 @@ function Waveform (o) {
 			// console.log('range')
 			this.shader.drawRanges.call(this, {
 				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
-				// color: [255,0,0,10],
 			})
 			// this.shader.drawRanges.call(this, {
 			// 	primitive: 'points',
@@ -113,7 +112,6 @@ function Waveform (o) {
 			// console.log('line')
 			this.shader.drawLine.call(this, {
 				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
-				// thickness: 1,
 			})
 			// this.shader.drawLine.call(this, {
 			// 	primitive: 'points',
@@ -243,7 +241,7 @@ Waveform.prototype.createShader = function (o) {
 		},
 		depth: {
 			// FIXME: disable for the case of null folding
-			enable: true
+			enable: false
 		},
 		scissor: {
 			enable: true,

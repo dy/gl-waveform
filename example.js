@@ -28,15 +28,15 @@ let config = {
 	thickness: 2,
 	thicknessRange: [.5, 100],
 
-	// step: 1,
-	// stepRange: [.1, 100],
+	step: 1,
+	stepRange: [.1, 100],
 
 	color: [245, 166, 198],
 	opacity: .75,
 	opacityRange: [0, 1],
 
-	size: 512 * 20,
 	// size: 2e7,
+	size: 512 * 10,
 	sizeRange: [64, 8192],
 	paused: true,
 
@@ -82,14 +82,14 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 					waveform.render()
 				}
 			})
-			// .addSlider(config, 'step', 'stepRange', {
-			// 	onChange: () => {
-			// 		waveform.update({
-			// 			step: config.step
-			// 		})
-			// 		waveform.render()
-			// 	}
-			// })
+			.addSlider(config, 'step', 'stepRange', {
+				onChange: () => {
+					waveform.update({
+						step: config.step
+					})
+					waveform.render()
+				}
+			})
 			.addColor(config, 'color', {
 				onChange: v => {
 					waveform.update({
@@ -155,12 +155,12 @@ function tick() {
 
 	// recalc range to show tail
 	if (!moved) {
-		let range = waveform.range.slice()
-		let span = range[2] - range[0]
-		range[0] = waveform.total - span
-		range[2] = waveform.total
+		// let range = waveform.range.slice()
+		// let span = range[2] - range[0]
+		// range[0] = waveform.total - span
+		// range[2] = waveform.total
 
-		waveform.update({ range })
+		// waveform.update({ range })
 	}
 
 	config.total = sz(waveform.total, true, true)

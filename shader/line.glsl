@@ -14,11 +14,20 @@ varying vec4 fragColor;
 void main () {
 	gl_PointSize = 1.5;
 
+	fragColor = color / 255.;
+	fragColor.a *= opacity;
+
+	// mark adjacent texture with different color
+	if (translate + (id + 1.) * sampleStep > 64. * 64.) {
+		fragColor.x *= .5;
+	}
+
 	float offset = (id + translateInt) * sampleStep;
 
 	// ignore not existing data
-	if (offset < 0.) return;
-	if (offset > total - 1.) return;
+	// if (offset < 0.) return;
+	// if (offset > total - 1.) return;
+	// if (isEnd) fragColor = vec4(0,0,1,1);
 
 	bool isStart = offset - sampleStep < 0.;
 	bool isEnd = offset + sampleStep > total - 1.;
@@ -60,12 +69,4 @@ void main () {
 
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
-
-	fragColor = color / 255.;
-	fragColor.a *= opacity;
-
-	// mark adjacent texture with different color
-	if (translate + (id + 1.) * sampleStep > 64. * 64.) {
-		fragColor.x *= .5;
-	}
 }

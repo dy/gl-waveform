@@ -15,11 +15,13 @@ vec4 pick (float offset, float baseOffset) {
 		floor(offset / dataShape.x) + .5
 	) / dataShape;
 
-	uv.y -= textureId;
+	// uv.y -= textureId;
 
 	// use last sample for textures past 2nd
 	if (uv.y > 2.) {
-		return texture2D(data1, vec2(1, 1));
+		vec4 sample = texture2D(data1, vec2(1, 1));
+		sample.x = 0.;
+		return sample;
 	}
 
 	else if (uv.y > 1.) {
@@ -28,8 +30,8 @@ vec4 pick (float offset, float baseOffset) {
 		vec4 sample = texture2D(data1, uv);
 
 		// if right sample is from the next texture - align it to left texture
-		if (offset >= dataShape.x * dataShape.y * (textureId + 1.) &&
-			baseOffset < dataShape.x * dataShape.y * (textureId + 1.)) {
+		if (offset >= dataShape.x * dataShape.y &&
+			baseOffset < dataShape.x * dataShape.y) {
 			sample.y += sum;
 			sample.z += sum2;
 		}

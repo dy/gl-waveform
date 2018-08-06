@@ -25,18 +25,18 @@ function oscillate (l) {
 }
 
 let config = {
-	thickness: 2,
+	thickness: 20,
 	thicknessRange: [.5, 100],
 
-	// step: 1,
-	// stepRange: [.1, 100],
+	step: 1,
+	stepRange: [.1, 100],
 
 	color: [245, 166, 198],
 	opacity: .75,
 	opacityRange: [0, 1],
 
 	// size: 2e7,
-	size: 512 * 10,
+	size: 512 * 20,
 	sizeRange: [64, 8192],
 	paused: true,
 
@@ -82,14 +82,14 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 					waveform.render()
 				}
 			})
-			// .addSlider(config, 'step', 'stepRange', {
-			// 	onChange: () => {
-			// 		waveform.update({
-			// 			step: config.step
-			// 		})
-			// 		waveform.render()
-			// 	}
-			// })
+			.addSlider(config, 'step', 'stepRange', {
+				onChange: () => {
+					waveform.update({
+						step: config.step
+					})
+					waveform.render()
+				}
+			})
 			.addColor(config, 'color', {
 				onChange: v => {
 					waveform.update({
@@ -148,8 +148,8 @@ function tick() {
 	let data = oscillate(config.size)
 
 	let start = now()
-	// waveform.push([.6,.8,.8,.8, .5,.5,.5,.5, -.5,-.5,-.5,-.5])
-	waveform.push(data)
+	waveform.push([.6,.8,.8,.8, .5,.5,.5,.5, -.5,-.5,-.5,-.5])
+	// waveform.push(data)
 	let end = now()
 	config.time = end - start
 

@@ -49,6 +49,9 @@ function Waveform (o) {
 		// r[0] = -4
 		// r[2] = 40
 
+		let color = this.color
+		let thickness = this.thickness
+
 		// calc runtime props
 		let viewport
 		if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
@@ -61,32 +64,33 @@ function Waveform (o) {
 			(r[3] - r[1])
 		]
 
-		let pxStep = this.pxStep || Math.pow(this.thickness, .65) * .65
+		let pxStep = this.pxStep || Math.pow(thickness, .5) * .25
 		let minStep = .5 * viewport[2] / Math.abs(span[0])
 		pxStep = Math.max(pxStep, minStep)
 
-		// update current texture
-		let currTexture = Math.floor(r[0] / Waveform.textureLength)
-
 		let sampleStep = pxStep * span[0] / viewport[2]
 
-		let color = this.color
-		let thickness = this.thickness
+		let dataLength = Waveform.textureLength
+
+		// update current texture
+		let currTexture = Math.floor(r[0] / dataLength)
 
 		let translate = r[0]
-		let dataLength = Waveform.textureLength
-		let translateInt = Math.floor((translate) / sampleStep);
-		let translateFract = (translate) / sampleStep - translateInt;
+		if (translate < 0) currTexture += 1
+		let translateInt = Math.floor(
+			Math.floor((translate % dataLength) / sampleStep)
+		)
+		let translateFract = (translate % dataLength) / sampleStep - translateInt;
 
 		// FIXME: bring cap login from shader here
-		let offset = translateInt < 0 ? -2 * translateInt : 0
+		let offset = 0//translate < 0 ? -2 * translateInt : 0
 
 		let count = Math.min(
 			// number of visible texture sampling points
 			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
 
 			// number of available data points
-			2 * Math.max(0, Math.floor((this.total - 1) / sampleStep) - Math.max(translateInt, 0)) + 2,
+			// 2 * Math.max(0, Math.floor((this.total - 1) / sampleStep) - Math.max(Math.floor(Math.floor(translate) / sampleStep), 0) + 1),
 
 			// number of visible vertices on the screen
 			2 * Math.ceil(viewport[2] / pxStep),
@@ -97,33 +101,40 @@ function Waveform (o) {
 
 
 		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
-		if (sampleStep > 1) {
+		if (false && sampleStep > 1) {
+			console.log('range')
 			this.shader.drawRanges.call(this, {
 				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 			})
-			// this.shader.drawRanges.call(this, {
-			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
-			// 	color: [0,0,0,255]
-			// })
+			this.shader.drawRanges.call(this, {
+				primitive: 'points',
+				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				color: [0,0,0,255]
+			})
+			this.shader.drawRanges.call(this, {
+				primitive: 'points',
+				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				thickness: 0,
+				color: [0,0,0,255]
+			})
 		}
 		else {
-			// console.log('line')
+			console.log('line')
 			this.shader.drawLine.call(this, {
 				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
 			})
-			// this.shader.drawLine.call(this, {
-			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
-			// 	color: [0,0,0,255],
-			// 	thickness: 0,
-			// })
-			// this.shader.drawLine.call(this, {
-			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
-			// 	color: [0,0,0,255],
-			// 	thickness: 0,
-			// })
+			this.shader.drawLine.call(this, {
+				primitive: 'points',
+				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				color: [0,0,0,255],
+				thickness: 0,
+			})
+			this.shader.drawLine.call(this, {
+				primitive: 'points',
+				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				color: [0,0,0,255],
+				thickness: 0,
+			})
 		}
 	}
 
@@ -240,7 +251,7 @@ Waveform.prototype.createShader = function (o) {
 		},
 		depth: {
 			// FIXME: disable for the case of null folding
-			enable: true
+			enable: false
 		},
 		scissor: {
 			enable: true,

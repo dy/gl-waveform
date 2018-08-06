@@ -18,10 +18,14 @@ void main() {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
-	float offset = (id + translateInt) * sampleStep;
+	float offset = id * sampleStep + translateInt * sampleStep;
+
+	if (offset < 0.) return;
+	if (offset > total - 1.) return;
 
 	bool isStart = offset - sampleStep < 0.;
 	bool isEnd = offset + sampleStep > total - 1.;
+	if (isEnd) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
 	vec4 sample0 = isStart ? vec4(0) : pick(offset - sampleStep, offset - sampleStep * 2.);

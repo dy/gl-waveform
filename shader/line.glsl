@@ -22,15 +22,16 @@ void main () {
 		fragColor.x *= .5;
 	}
 
-	float offset = (id + translateInt) * sampleStep;
+	float offset = id * sampleStep + translateInt * sampleStep;
 
 	// ignore not existing data
-	// if (offset < 0.) return;
-	// if (offset > total - 1.) return;
-	// if (isEnd) fragColor = vec4(0,0,1,1);
+	if (offset < 0.) return;
+	if (offset > total - 1.) return;
 
 	bool isStart = offset - sampleStep < 0.;
 	bool isEnd = offset + sampleStep > total - 1.;
+	if (isEnd) fragColor = vec4(0,0,1,1);
+	if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = pick(offset, offset - sampleStep);

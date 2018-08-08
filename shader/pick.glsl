@@ -15,7 +15,7 @@ vec4 pick (float offset, float baseOffset) {
 		floor(offset / dataShape.x) + .5
 	) / dataShape;
 
-	// uv.y -= textureId;
+	uv.y -= textureId;
 
 	// use last sample for textures past 2nd
 	if (uv.y > 2.) {

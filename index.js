@@ -64,23 +64,28 @@ function Waveform (o) {
 			(r[3] - r[1])
 		]
 
+		let dataLength = Waveform.textureLength
+
 		let pxStep = this.pxStep || Math.pow(thickness, .5) * .25
-		let minStep = .5 * viewport[2] / Math.abs(span[0])
+		let minStep = viewport[2] / Math.abs(span[0])
 		pxStep = Math.max(pxStep, minStep)
 
 		let sampleStep = pxStep * span[0] / viewport[2]
-
-		let dataLength = Waveform.textureLength
 
 		// update current texture
 		let currTexture = Math.floor(r[0] / dataLength)
 
 		let translate = r[0]
-		if (translate < 0) currTexture += 1
-		let translateInt = Math.floor(
-			Math.floor((translate % dataLength) / sampleStep)
-		)
-		let translateFract = (translate % dataLength) / sampleStep - translateInt;
+		if (translate < 0) currTexture -= 0
+			console.log(sampleStep)
+
+	// let offset = Math.floor((Math.floor(translate / sampleStep)) * sampleStep + .5);
+	// let posShift = (translate - offset) / sampleStep;
+
+	let texShift = currTexture * ((dataLength % sampleStep))
+
+		// let translateInt = Math.floor(r[0] % dataLength)
+		// let translateFract = 0(r[0] % dataLength) / sampleStep - translateInt;
 
 		// FIXME: bring cap login from shader here
 		let offset = 0//translate < 0 ? -2 * translateInt : 0
@@ -104,16 +109,16 @@ function Waveform (o) {
 		if (false && sampleStep > 1) {
 			console.log('range')
 			this.shader.drawRanges.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
 			})
 			this.shader.drawRanges.call(this, {
 				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
 				color: [0,0,0,255]
 			})
 			this.shader.drawRanges.call(this, {
 				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
 				thickness: 0,
 				color: [0,0,0,255]
 			})
@@ -121,20 +126,19 @@ function Waveform (o) {
 		else {
 			console.log('line')
 			this.shader.drawLine.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
 			})
-			this.shader.drawLine.call(this, {
-				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
-				color: [0,0,0,255],
-				thickness: 0,
-			})
-			this.shader.drawLine.call(this, {
-				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, translateInt, translateFract, currTexture, sampleStep,
-				color: [0,0,0,255],
-				thickness: 0,
-			})
+			// this.shader.drawLine.call(this, {
+			// 	primitive: 'points',
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+			// 	color: [0,0,0,255],
+			// 	thickness: 0,
+			// })
+			// this.shader.drawLine.call(this, {
+			// 	primitive: 'points',
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+			// 	color: [0,0,0,255]
+			// })
 		}
 	}
 
@@ -215,8 +219,7 @@ Waveform.prototype.createShader = function (o) {
 			viewport: regl.prop('viewport'),
 			span: regl.prop('span'),
 			translate: regl.prop('translate'),
-			translateInt: regl.prop('translateInt'),
-			translateFract: regl.prop('translateFract'),
+			texShift: regl.prop('texShift'),
 
 			opacity: regl.this('opacity'),
 			color: regl.prop('color'),

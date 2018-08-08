@@ -18,7 +18,8 @@ void main() {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
-	float offset = id * sampleStep + translateInt * sampleStep;
+	float offset = floor((id + floor(translate / sampleStep)) * sampleStep + .5);
+	float posShift = (id * sampleStep + translate - offset) / sampleStep;
 
 	if (offset < 0.) return;
 	if (offset > total - 1.) return;
@@ -45,7 +46,7 @@ void main() {
 
 	// compensate for sampling rounding
 	vec2 position = vec2(
-		(pxStep * (id - translateFract) ) / viewport.z,
+		(pxStep * (id - posShift) ) / viewport.z,
 		avgCurr * .5 + .5
 	);
 

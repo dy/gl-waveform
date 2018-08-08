@@ -25,7 +25,7 @@ function oscillate (l) {
 }
 
 let config = {
-	thickness: 20,
+	thickness: 2,
 	thicknessRange: [.5, 100],
 
 	step: 1,
@@ -36,7 +36,7 @@ let config = {
 	opacityRange: [0, 1],
 
 	// size: 2e7,
-	size: 512 * 20,
+	size: 512 * 30,
 	sizeRange: [64, 8192],
 	paused: true,
 
@@ -148,8 +148,8 @@ function tick() {
 	let data = oscillate(config.size)
 
 	let start = now()
-	waveform.push([.6,.8,.8,.8, .5,.5,.5,.5, -.5,-.5,-.5,-.5])
-	// waveform.push(data)
+	// waveform.push([.6,.8,.8,.8, .5,.5,.5,.5, -.5,-.5,-.5,-.5])
+	waveform.push(data)
 	let end = now()
 	config.time = end - start
 

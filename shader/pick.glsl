@@ -5,7 +5,8 @@
 
 uniform sampler2D data0, data1;
 uniform vec2 dataShape;
-uniform float textureId, sum, sum2;
+uniform float sum, sum2;
+uniform float textureId;
 
 vec4 pick (float offset, float baseOffset) {
 	offset = max(offset, 0.);
@@ -15,7 +16,7 @@ vec4 pick (float offset, float baseOffset) {
 		floor(offset / dataShape.x) + .5
 	) / dataShape;
 
-	uv.y -= textureId;
+	// uv.y -= textureId;
 
 	// use last sample for textures past 2nd
 	if (uv.y > 2.) {

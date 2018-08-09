@@ -72,30 +72,31 @@ function Waveform (o) {
 
 		let sampleStep = pxStep * span[0] / viewport[2]
 
-		// update current texture
-		let currTexture = Math.floor(r[0] / dataLength)
+		// translate is calculated so to meet conditions:
+		// - sampling always starts at 0 sample of 0 texture
+		// - panning never breaks that rule
+		// - changing sampling step never breaks that rule
+		// - to reduce error for big translate, it is rotated by textureLength
+		// - panning is always perceived smooth
 
 		let translate = r[0]
-		if (translate < 0) currTexture -= 0
-			console.log(sampleStep)
+		let translater = translate % dataLength
+		let translates = Math.floor(translate / sampleStep)
+		let translatei = translates * sampleStep
+		let translateri = translatei % dataLength
 
-	// let offset = Math.floor((Math.floor(translate / sampleStep)) * sampleStep + .5);
-	// let posShift = (translate - offset) / sampleStep;
-
-	let texShift = currTexture * ((dataLength % sampleStep))
-
-		// let translateInt = Math.floor(r[0] % dataLength)
-		// let translateFract = 0(r[0] % dataLength) / sampleStep - translateInt;
+		let currTexture = Math.floor(translatei / dataLength)
+		if (translateri < 0) currTexture += 1
 
 		// FIXME: bring cap login from shader here
-		let offset = 0//translate < 0 ? -2 * translateInt : 0
+		let offset = translate < 0 ? -2 * translates : 0
 
 		let count = Math.min(
 			// number of visible texture sampling points
 			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
 
 			// number of available data points
-			// 2 * Math.max(0, Math.floor((this.total - 1) / sampleStep) - Math.max(Math.floor(Math.floor(translate) / sampleStep), 0) + 1),
+			2 * (Math.round(this.total / sampleStep) - Math.max(translates, 0)),
 
 			// number of visible vertices on the screen
 			2 * Math.ceil(viewport[2] / pxStep),
@@ -109,16 +110,16 @@ function Waveform (o) {
 		if (false && sampleStep > 1) {
 			console.log('range')
 			this.shader.drawRanges.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
 			})
 			this.shader.drawRanges.call(this, {
 				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
 				color: [0,0,0,255]
 			})
 			this.shader.drawRanges.call(this, {
 				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
 				thickness: 0,
 				color: [0,0,0,255]
 			})
@@ -126,17 +127,17 @@ function Waveform (o) {
 		else {
 			console.log('line')
 			this.shader.drawLine.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
 			})
 			// this.shader.drawLine.call(this, {
 			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
 			// 	color: [0,0,0,255],
 			// 	thickness: 0,
 			// })
 			// this.shader.drawLine.call(this, {
 			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, texShift, currTexture, sampleStep,
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
 			// 	color: [0,0,0,255]
 			// })
 		}
@@ -212,14 +213,17 @@ Waveform.prototype.createShader = function (o) {
 			// total number of samples
 			total: regl.this('total'),
 
-			// number of pixels between sampling
+			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
 			// number of samples per pixel sampling step
 			sampleStep: regl.prop('sampleStep'),
 			viewport: regl.prop('viewport'),
 			span: regl.prop('span'),
 			translate: regl.prop('translate'),
-			texShift: regl.prop('texShift'),
+			translater: regl.prop('translater'),
+			translatei: regl.prop('translatei'),
+			translateri: regl.prop('translateri'),
+			translates: regl.prop('translates'),
 
 			opacity: regl.this('opacity'),
 			color: regl.prop('color'),

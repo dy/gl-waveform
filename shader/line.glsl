@@ -6,7 +6,8 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform float opacity, thickness, pxStep, sampleStep, total, translate, dataLength, texShift;
+uniform float opacity, thickness, pxStep, sampleStep, pxPerSample, total, translate, dataLength, translateri, translater, translatei, translates;
+// uniform float textureId;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
@@ -18,23 +19,17 @@ void main () {
 	fragColor.a *= opacity;
 
 	// mark adjacent texture with different color
-	if (translate + (id) * sampleStep > 64. * 64.) {
-		fragColor.x *= .5;
-	}
+	// if (translate + (id) * sampleStep > 64. * 64.) {
+	// 	fragColor.x *= .5;
+	// }
 
-	// float translater = mod(translate, dataLength);
-	// if (translater < 0.) translater -= dataLength;
-	float offset = floor((id + floor(translate / sampleStep)) * sampleStep + .5);
-	// float offset = id * sampleStep + translate;
-	// compensate for
-	float posShift = sampleStep <= 1. ? id + (translate - offset) / sampleStep : 0.;
+	float offset = id * sampleStep + translateri;
 
-	// ignore not existing data
-	// if (offset < 0.) return;
-	// if (offset > total - 1.) return;
+	// compensate snapping for low scale levels
+	float posShift = pxStep / sampleStep < 1. ? 0. : id + (translater - offset) / sampleStep;
 
-	bool isStart = offset < sampleStep;
-	bool isEnd = offset >= total - 1.;
+	bool isStart = id <= -translates;
+	bool isEnd = id >= -translates + floor(total / sampleStep - .5);
 	if (isEnd) fragColor = vec4(0,0,1,1);
 	if (isStart) fragColor = vec4(0,0,1,1);
 

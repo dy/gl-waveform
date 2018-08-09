@@ -129,7 +129,7 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 
 				}
 			})
-			.addNumberOutput(config, 'total')
+			.addNumberOutput(config, 'total', {label: 'total #'})
 			.addButton('Pause / resume', () => {
 				config.paused = !config.paused
 
@@ -155,12 +155,12 @@ function tick() {
 
 	// recalc range to show tail
 	if (!moved) {
-		// let range = waveform.range.slice()
-		// let span = range[2] - range[0]
-		// range[0] = waveform.total - span
-		// range[2] = waveform.total
+		let range = waveform.range.slice()
+		let span = range[2] - range[0]
+		range[0] = waveform.total - span
+		range[2] = waveform.total
 
-		// waveform.update({ range })
+		waveform.update({ range })
 	}
 
 	config.total = sz(waveform.total, true, true)

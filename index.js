@@ -85,21 +85,27 @@ function Waveform (o) {
 		let translatei = translates * sampleStep
 		let translateri = translatei % dataLength
 
+		// NOTE: this code took ~3 days
+		// please beware of circular texture join cases and low scales
+		// .1 / sampleStep is error compensation
+		let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
+
 		let currTexture = Math.floor(translatei / dataLength)
 		if (translateri < 0) currTexture += 1
 
-		// FIXME: bring cap login from shader here
-		let offset = translate < 0 ? -2 * translates : 0
+		// limit not existing in texture points
+		let offset = 2 * Math.max(-translates, 0)
+		console.log(translateri, translater)
 
 		let count = Math.min(
 			// number of visible texture sampling points
 			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
 
 			// number of available data points
-			2 * (Math.round(this.total / sampleStep) - Math.max(translates, 0)),
+			2 * Math.floor(totals - Math.max(translates, 0)),
 
 			// number of visible vertices on the screen
-			2 * Math.ceil(viewport[2] / pxStep),
+			2 * Math.ceil(viewport[2] / pxStep) + 4,
 
 			// number of ids available
 			Waveform.maxSampleCount
@@ -107,37 +113,37 @@ function Waveform (o) {
 
 
 		// FIXME: samplePerStep <1 and >1 gives sharp zoom transition
-		if (false && sampleStep > 1) {
+		if (true || sampleStep > 1) {
 			console.log('range')
 			this.shader.drawRanges.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep,
 			})
-			this.shader.drawRanges.call(this, {
-				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
-				color: [0,0,0,255]
-			})
-			this.shader.drawRanges.call(this, {
-				primitive: 'points',
-				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
-				thickness: 0,
-				color: [0,0,0,255]
-			})
+			// this.shader.drawRanges.call(this, {
+			// 	primitive: 'points',
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep,
+			// 	color: [0,0,0,255]
+			// })
+			// this.shader.drawRanges.call(this, {
+			// 	primitive: 'points',
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep,
+			// 	thickness: 0,
+			// 	color: [0,0,0,255]
+			// })
 		}
 		else {
 			console.log('line')
 			this.shader.drawLine.call(this, {
-				offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
+				offset, count, thickness, color, pxStep, viewport, span, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep,
 			})
 			// this.shader.drawLine.call(this, {
 			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep,
 			// 	color: [0,0,0,255],
 			// 	thickness: 0,
 			// })
 			// this.shader.drawLine.call(this, {
 			// 	primitive: 'points',
-			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, translatei, translateri, translates, currTexture, sampleStep,
+			// 	offset, count, thickness, color, pxStep, viewport, span, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep,
 			// 	color: [0,0,0,255]
 			// })
 		}
@@ -212,6 +218,9 @@ Waveform.prototype.createShader = function (o) {
 
 			// total number of samples
 			total: regl.this('total'),
+
+			// number of sample steps
+			totals: regl.prop('totals'),
 
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),

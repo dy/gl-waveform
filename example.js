@@ -37,14 +37,15 @@ let config = {
 	opacityRange: [0, 1],
 
 	// size: 2e7,
-	size: 512 * 30,
+	// size: 512 * 30,
+	size: 512,
 	sizeRange: [64, 8192],
-	paused: true,
+	paused: false,
 
 	frequency: 150,
 	frequencyRange: [1, 3000],
 
-	source: 'sine',
+	source: 'sawtooth',
 	sourceOptions: [
 		'noise',
 		'sine',
@@ -170,7 +171,6 @@ function tick() {
 
 	raf.cancel(frame)
 	frame = raf(() => waveform.render())
-
 	let interval = 1000 / config.frequency
 	!config.paused && setTimeout(tick, interval)
 }

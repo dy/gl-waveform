@@ -7,7 +7,7 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform float opacity, thickness, pxStep, sampleStep, pxPerSample, total, totals, translate, dataLength, translateri, translater, translatei, translates;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
@@ -18,10 +18,11 @@ void main() {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
+	// float id = id - 1.;
 	float offset = id * sampleStep + translateri;
 
 	// compensate snapping for low scale levels
-	float posShift = id + (translater - offset) / sampleStep;
+	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset) / sampleStep;
 
 	bool isStart = id <= -translates;
 	bool isEnd = id >= floor(totals - translates - 1.);

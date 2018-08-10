@@ -26,12 +26,13 @@ t('2σ thickness scheme')
 
 t('multipass rendering for large zoom levels')
 
-t('correct tail')
+t('correct tail rendering')
 
-t('correct head')
+t('correct head rendering')
 
 t('correct everything for line mode')
 
-t('large data (1e7) has no artifacts on display')
+t('large data (2e7) has no artifacts on display')
 
 t('hide not visible available texture data (more than 2 textures zoom)')
+

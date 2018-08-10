@@ -28,10 +28,11 @@ let config = {
 	thickness: 2,
 	thicknessRange: [.5, 100],
 
-	step: 1,
-	stepRange: [.1, 100],
+	// step: 1,
+	// stepRange: [.1, 100],
 
-	color: [245, 166, 198],
+	// color: [245, 166, 198],
+	color: [0, 0, 0],
 	opacity: .75,
 	opacityRange: [0, 1],
 
@@ -82,14 +83,14 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 					waveform.render()
 				}
 			})
-			.addSlider(config, 'step', 'stepRange', {
-				onChange: () => {
-					waveform.update({
-						step: config.step
-					})
-					waveform.render()
-				}
-			})
+			// .addSlider(config, 'step', 'stepRange', {
+			// 	onChange: () => {
+			// 		waveform.update({
+			// 			step: config.step
+			// 		})
+			// 		waveform.render()
+			// 	}
+			// })
 			.addColor(config, 'color', {
 				onChange: v => {
 					waveform.update({

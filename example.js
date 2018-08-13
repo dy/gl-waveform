@@ -33,7 +33,7 @@ function oscillate (l, type) {
 }
 
 let config = {
-	thickness: 2,
+	thickness: 3,
 	thicknessRange: [.5, 100],
 
 	// step: 1,
@@ -144,6 +144,13 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 					})
 				}
 			})
+			.addRange(config, 'amp', {
+				label: 'amp range',
+				step: .01,
+				onChange: () => {
+					waveforms.forEach(wf => wf.update({amp: config.amp}).render())
+				}
+			})
 		.addSubGroup({ label: 'Data' })
 			// .addSelect(config, 'sourceOptions', {
 			// 	target: 'source',
@@ -152,13 +159,6 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 
 			// 	}
 			// })
-			.addRange(config, 'amp', {
-				label: 'amplitudes',
-				step: .01,
-				onChange: () => {
-					waveforms.forEach(wf => wf.update({amp: config.amp}).render())
-				}
-			})
 			.addSlider(config, 'size', 'sizeRange', {
 				dp: 0, step: 1,
 				label: 'packet size',
@@ -203,12 +203,14 @@ function tick() {
 
 	// recalc range to show tail
 	if (!moved) {
-		// let range = waveform.range.slice()
-		// let span = range[2] - range[0]
-		// range[0] = waveform.total - span
-		// range[2] = waveform.total
+		waveforms.forEach(waveform => {
+			let range = waveform.range.slice()
+			let span = range[1] - range[0]
+			range[0] = waveform.total - span
+			range[1] = waveform.total
 
-		// waveform.update({ range })
+			waveform.update({ range })
+		})
 	}
 
 	config.total = sz(waveform0.total, true, true)

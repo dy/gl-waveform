@@ -58,11 +58,11 @@ void main() {
 		(sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
 	);
 	float sdev = sqrt(variance);
+	sdev /= abs(amp.y - amp.x);
 
 	avgCurr = reamp(avgCurr);
 	avgNext = reamp(avgNext);
 	avgPrev = reamp(avgPrev);
-	sdev /= (amp.y - amp.x);
 
 	// compensate for sampling rounding
 	vec2 position = vec2(
@@ -72,10 +72,10 @@ void main() {
 
 	float x = pxStep / viewport.z;
 	vec2 normalLeft = normalize(vec2(
-		-(avgCurr - avgPrev) * .5, x
+		-(avgCurr - avgPrev), x
 	) / viewport.zw);
 	vec2 normalRight = normalize(vec2(
-		-(avgNext - avgCurr) * .5, x
+		-(avgNext - avgCurr), x
 	) / viewport.zw);
 
 	vec2 bisec = normalize(normalLeft + normalRight);

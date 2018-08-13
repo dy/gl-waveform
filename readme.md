@@ -43,8 +43,14 @@ Create waveform instance. Argument can specify the way instance is created, can 
 * `regl` - existing [regl](https://ghub.io/regl) instance
 * `canvas` - canvas element to initialize waveform on
 * `container` - html element to use as a container for new canvas with webgl context
-* `options` - an object with `regl`, `gl`, `canvas` or `container` properties
 * none - creates new fullscreen canvas and puts into `<body>`
+* `options` - an object with properties, see table
+
+Property | Meaning
+---|---
+`gl`, `regl`, `canvas`, `container` | Same as argument
+`pixelRatio` | Device pixel ratio, by default `window.devicePixelRatio`
+`invertViewport` | Use webgl viewport direction (bottom → top) instead of normal canvas2d direction (top → bottom). By default - `false`.
 
 ### `waveform.update(options)`
 

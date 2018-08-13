@@ -59,16 +59,21 @@ function Waveform (o) {
 		if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
 		else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
+		// invert viewport if necessary
+		if (!this.iviewport) {
+			viewport[1] = this.canvas.height - viewport[1] - viewport[3]
+		}
+
 		let span
-		if (!r) span = viewport.width
+		if (!r) span = viewport[2]
 		else span = r[1] - r[0]
 
 		let dataLength = Waveform.textureLength
 
-		let pxStep = this.pxStep || Math.pow(thickness, .25) * .25
+		let pxStep = this.pxStep || (Math.pow(thickness, .25) * .25)
 		let minStep = viewport[2] / Math.abs(span)
 		// min 1. pxStep reduces jittering on panning
-		pxStep = Math.max(pxStep, minStep, .5)
+		pxStep = Math.max(pxStep, minStep, 1.)
 
 		let sampleStep = pxStep * span / viewport[2]
 		let pxPerSample = pxStep / sampleStep
@@ -278,9 +283,9 @@ Waveform.prototype.createShader = function (o) {
 		},
 		scissor: {
 			enable: true,
-			box: regl.this('viewport')
+			box: (c, {viewport}) => ({x: viewport[0], y: viewport[1], width: viewport[2], height: viewport[3]})
 		},
-		viewport: regl.this('viewport'),
+		viewport: (c, {viewport}) => ({x: viewport[0], y: viewport[1], width: viewport[2], height: viewport[3]}),
 		stencil: false
 	}
 
@@ -314,7 +319,8 @@ Waveform.prototype.update = function (o) {
 		color: 'color colour colors colours fill fillColor fill-color',
 		line: 'line line-style lineStyle linestyle',
 		viewport: 'vp viewport viewBox viewbox viewPort',
-		opacity: 'opacity alpha transparency visible visibility opaque'
+		opacity: 'opacity alpha transparency visible visibility opaque',
+		iviewport: 'iviewport invertViewport inverseViewport'
 	})
 
 	// parse line style
@@ -361,6 +367,9 @@ Waveform.prototype.update = function (o) {
 		}
 	}
 
+	if (o.iviewport) {
+		this.iviewport = !!o.viewport
+	}
 
 	// custom/default visible data window
 	if (o.range != null) {
@@ -554,7 +563,7 @@ Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
 Waveform.prototype.range = null
-Waveform.prototype.inverseViewport = false
+Waveform.prototype.iviewport = false
 Waveform.prototype.amp = [-1, 1]
 
 

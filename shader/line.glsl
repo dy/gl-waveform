@@ -54,10 +54,10 @@ void main () {
 
 	float x = pxStep / viewport.z;
 	vec2 normalLeft = normalize(vec2(
-		-(sampleCurr.x - samplePrev.x) * .5, x
+		-(sampleCurr.x - samplePrev.x), x
 	) / viewport.zw);
 	vec2 normalRight = normalize(vec2(
-		-(sampleNext.x - sampleCurr.x) * .5, x
+		-(sampleNext.x - sampleCurr.x), x
 	) / viewport.zw);
 
 	vec2 join;

@@ -36,3 +36,4 @@ t('large data (2e7) has no artifacts on display')
 
 t('hide not visible available texture data (more than 2 textures zoom)')
 
+t('viewport: correct translate, thickness, angle')

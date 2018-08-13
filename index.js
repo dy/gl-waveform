@@ -14,6 +14,8 @@ import glsl from 'glslify'
 import rgba from 'color-normalize'
 import nz from 'is-negative-zero'
 import f32 from 'to-float32'
+import parseUnit from 'parse-unit'
+import px from 'to-px'
 
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
@@ -66,11 +68,10 @@ function Waveform (o) {
 
 		let dataLength = Waveform.textureLength
 
-		let pxStep = this.pxStep || Math.pow(thickness, .5) * .25
+		let pxStep = this.pxStep || Math.pow(thickness, .25) * .25
 		let minStep = viewport[2] / Math.abs(span[0])
-
 		// min 1. pxStep reduces jittering on panning
-		pxStep = Math.max(pxStep, minStep, 1.)
+		pxStep = Math.max(pxStep, minStep, .5)
 
 		let sampleStep = pxStep * span[0] / viewport[2]
 		let pxPerSample = pxStep / sampleStep
@@ -103,18 +104,20 @@ function Waveform (o) {
 		// limit not existing in texture points
 		let offset = 2 * Math.max(-translates, 0)
 
-		let count = Math.min(
-			// number of visible texture sampling points
-			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
+		let count = Math.max(2,
+			Math.min(
+				// number of visible texture sampling points
+				// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
 
-			// number of available data points
-			2 * Math.floor(totals - Math.max(translates, 0)),
+				// number of available data points
+				2 * Math.floor(totals - Math.max(translates, 0)),
 
-			// number of visible vertices on the screen
-			2 * Math.ceil(viewport[2] / pxStep) + 4,
+				// number of visible vertices on the screen
+				2 * Math.ceil(viewport[2] / pxStep) + 4,
 
-			// number of ids available
-			Waveform.maxSampleCount
+				// number of ids available
+				Waveform.maxSampleCount
+			)
 		)
 
 		// use more complicated range draw only for sample intervals
@@ -269,7 +272,7 @@ Waveform.prototype.createShader = function (o) {
 		},
 		depth: {
 			// FIXME: disable for the case of null folding
-			enable: false
+			enable: true
 		},
 		scissor: {
 			enable: true,
@@ -300,11 +303,12 @@ Waveform.prototype.createShader = function (o) {
 Waveform.prototype.update = function (o) {
 	if (!o) return this
 	o = pick(o, {
-		data: 'data value values amp amplitude amplitudes sample samples',
+		data: 'data value values sample samples',
 		push: 'add append push insert concat',
-		range: 'range dataRange dataBox dataBounds limits',
-		max: 'max maxAmp maxAmplitude',
-		min: 'min minAmp minAmplitude',
+		offset: 'offset translate start from',
+		count: 'count number',
+		end: 'end to',
+		range: 'range limits amplitude amplitudes ampRange bounds',
 		thickness: 'thickness width linewidth lineWidth line-width',
 		pxStep: 'step pxStep',
 		color: 'color colour colors colours fill fillColor fill-color',
@@ -335,13 +339,11 @@ Waveform.prototype.update = function (o) {
 	}
 
 	if (o.thickness != null) {
-		// FIXME: parse non-px values
-		this.thickness = parseFloat(o.thickness)
+		this.thickness = toPx(o.thickness)
 	}
 
 	if (o.pxStep != null) {
-		// FIXME: parse non-px values
-		this.pxStep = parseFloat(o.pxStep)
+		this.thickness = toPx(o.pxStep)
 	}
 
 	if (o.opacity != null) {
@@ -350,7 +352,6 @@ Waveform.prototype.update = function (o) {
 
 	if (o.viewport != null) {
 		this.viewport = parseRect(o.viewport)
-
 	}
 	if (this.viewport == null) {
 		this.viewport = {
@@ -434,6 +435,8 @@ Waveform.prototype.update = function (o) {
 	if (o.push) {
 		this.push(o.push)
 	}
+
+	return this
 }
 
 // put new samples into texture
@@ -585,5 +588,9 @@ function isNeg(v) {
 	return v < 0 || nz(v)
 }
 
+function toPx(str) {
+	let unit = parseUnit(str)
+	return unit[0] * px(unit[1])
+}
 
 module.exports = Waveform

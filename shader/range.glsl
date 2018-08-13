@@ -27,6 +27,9 @@ void main() {
 	bool isStart = id <= -translates;
 	bool isEnd = id >= floor(totals - translates - 1.);
 
+	float baseOffset = offset - sampleStep * 2.;
+	if (isEnd) offset = total - 1.;
+
 	// DEBUG: mark adjacent texture with different color
 	// if (translate + (id + 1.) * sampleStep > 64. * 64.) {
 	// 	fragColor.x *= .5;
@@ -35,13 +38,13 @@ void main() {
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = isStart ? vec4(0) : pick(offset - sampleStep, offset - sampleStep * 2.);
-	vec4 sample1 = pick(offset, offset - sampleStep * 2.);
-	vec4 samplePrev = pick(offset - sampleStep * 2., offset - sampleStep * 2.);
-	vec4 sampleNext = pick(offset + sampleStep, offset - sampleStep * 2.);
+	vec4 sample0 = isStart ? vec4(0) : pick(offset - sampleStep, baseOffset);
+	vec4 sample1 = pick(offset, baseOffset);
+	vec4 samplePrev = pick(baseOffset, baseOffset);
+	vec4 sampleNext = pick(offset + sampleStep, baseOffset);
 
 	float avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
-	float avgPrev = offset - sampleStep * 2. < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
+	float avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
 	float avgNext = (sampleNext.y - sample1.y) / sampleStep;
 
 	// σ(x)² = M(x²) - M(x)²
@@ -71,15 +74,7 @@ void main() {
 	float vertLeftLen = abs(1. / dot(normalLeft, vert));
 	float maxVertLen = max(vertLeftLen, vertRightLen);
 	float minVertLen = min(vertLeftLen, vertRightLen);
-	float vertSdev = sdev * viewport.w / thickness;
-
-	// for small sampleStep that makes sharp transitions thinner
-	// because signal is less likely normal distribution
-	// for large sampleStep that makes for correct grouped signal width
-	// we guess signal starts looking like normal
-	// 2σ covers 95% of signal with normal distribution noise
-	float thicknessCoef = max(.25, min(pow(sampleStep * .5, .5), 2.));
-	vertSdev *= thicknessCoef;
+	float vertSdev = 2. * sdev * viewport.w / thickness;
 
 	vec2 join;
 

@@ -46,9 +46,11 @@
     "negative-index": "^1.0.2",
     "object-assign": "^4.1.1",
     "parse-rect": "^1.2.0",
+    "parse-unit": "^1.0.1",
     "pick-by-alias": "^1.2.0",
     "regl": "^1.3.7",
     "to-float32": "^1.0.0",
+    "to-px": "^1.0.1",
     "typedarray-pool": "^1.1.0"
   },
   "devDependencies": {

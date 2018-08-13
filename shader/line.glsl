@@ -7,10 +7,14 @@ precision highp float;
 attribute float id, sign;
 
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
-// uniform float textureId;
+uniform vec2 amp;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
+
+float reamp(float v) {
+	return (v - amp.x) / (amp.y - amp.x);
+}
 
 void main () {
 	gl_PointSize = 1.5;
@@ -39,9 +43,13 @@ void main () {
 	vec4 sampleNext = pick(offset + sampleStep, offset - sampleStep);
 	vec4 samplePrev = pick(offset - sampleStep, offset - sampleStep);
 
+	sampleCurr.x = reamp(sampleCurr.x);
+	sampleNext.x = reamp(sampleNext.x);
+	samplePrev.x = reamp(samplePrev.x);
+
 	vec2 position = vec2(
 		pxStep * (id - posShift) / viewport.z,
-		sampleCurr.x * .5 + .5
+		sampleCurr.x
 	);
 
 	float x = pxStep / viewport.z;

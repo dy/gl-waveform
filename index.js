@@ -219,22 +219,28 @@ Waveform.prototype.createShader = function (o) {
 
 			// total number of samples
 			total: regl.this('total'),
-
+			// number of pixels between vertices
+			pxStep: regl.prop('pxStep'),
+			// number of pixels per sample step
+			pxPerSample: regl.prop('pxPerSample'),
+			// number of samples between vertices
+			sampleStep: regl.prop('sampleStep'),
+			translate: regl.prop('translate'),
+			// circular translate by textureData
+			translater: regl.prop('translater'),
+			// translate rounded to sampleSteps
+			translatei: regl.prop('translatei'),
+			// rotated translatei
+			translateri: regl.prop('translateri'),
+			// translate in terms of sample steps
+			translates: regl.prop('translates'),
 			// number of sample steps
 			totals: regl.prop('totals'),
 
-			// number of pixels between vertices
-			pxStep: regl.prop('pxStep'),
-			pxPerSample: regl.prop('pxPerSample'),
-			// number of samples per pixel sampling step
-			sampleStep: regl.prop('sampleStep'),
-			viewport: regl.prop('viewport'),
-			translate: regl.prop('translate'),
-			translater: regl.prop('translater'),
-			translatei: regl.prop('translatei'),
-			translateri: regl.prop('translateri'),
-			translates: regl.prop('translates'),
+			// min/max amplitude
+			amp: regl.this('amp'),
 
+			viewport: regl.prop('viewport'),
 			opacity: regl.this('opacity'),
 			color: regl.prop('color'),
 			thickness: regl.prop('thickness')
@@ -301,8 +307,8 @@ Waveform.prototype.update = function (o) {
 	o = pick(o, {
 		data: 'data value values sample samples',
 		push: 'add append push insert concat',
-		range: 'range dataRange dataBox dataBounds limits',
-		amplitude: 'amp amplitude amplitudes ampRange bounds',
+		range: 'range dataRange dataBox dataBounds dataLimits',
+		amp: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
 		thickness: 'thickness width linewidth lineWidth line-width',
 		pxStep: 'step pxStep',
 		color: 'color colour colors colours fill fillColor fill-color',
@@ -368,6 +374,15 @@ Waveform.prototype.update = function (o) {
 
 	if (!this.range && !o.range) {
 		this.range = [0, Math.min(this.viewport.width, Waveform.textureLength)]
+	}
+
+	if (o.amp) {
+		if (typeof o.amp === 'number') {
+			this.amp = [-o.amp, +o.amp]
+		}
+		else if (o.amp.length) {
+			this.amp = [o.amp[0], o.amp[1]]
+		}
 	}
 
 
@@ -461,7 +476,7 @@ Waveform.prototype.push = function (samples) {
 		txt.sum2 += samples[i] * samples[i]
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
-		// data[i * ch + 3] = f32.fract(txt.sum2)
+		data[i * ch + 3] = f32.fract(txt.sum2)
 	}
 	this.total += dataLen
 
@@ -539,6 +554,8 @@ Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
 Waveform.prototype.range = null
+Waveform.prototype.inverseViewport = false
+Waveform.prototype.amp = [-1, 1]
 
 
 // Texture size affects
@@ -547,7 +564,7 @@ Waveform.prototype.range = null
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
 Waveform.textureSize = [512, 512]
-Waveform.textureChannels = 3
+Waveform.textureChannels = 4
 Waveform.textureLength = Waveform.textureSize[0] * Waveform.textureSize[1]
 Waveform.maxSampleCount = 8192
 

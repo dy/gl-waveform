@@ -8,9 +8,14 @@ precision highp float;
 attribute float id, sign;
 
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
+uniform vec2 amp;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
+
+float reamp(float v) {
+	return (v - amp.x) / (amp.y - amp.x);
+}
 
 void main() {
 	gl_PointSize = 1.5;
@@ -28,7 +33,7 @@ void main() {
 	bool isEnd = id >= floor(totals - translates - 1.);
 
 	float baseOffset = offset - sampleStep * 2.;
-	if (isEnd) offset = total - 1.;
+	// if (isEnd) offset = total - 1.;
 
 	// DEBUG: mark adjacent texture with different color
 	// if (translate + (id + 1.) * sampleStep > 64. * 64.) {
@@ -47,16 +52,22 @@ void main() {
 	float avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
 	float avgNext = (sampleNext.y - sample1.y) / sampleStep;
 
+
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(
 		(sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
 	);
 	float sdev = sqrt(variance);
 
+	avgCurr = reamp(avgCurr);
+	avgNext = reamp(avgNext);
+	avgPrev = reamp(avgPrev);
+	sdev /= (amp.y - amp.x);
+
 	// compensate for sampling rounding
 	vec2 position = vec2(
 		(pxStep * (id - posShift) ) / viewport.z,
-		avgCurr * .5 + .5
+		avgCurr
 	);
 
 	float x = pxStep / viewport.z;

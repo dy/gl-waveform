@@ -53,6 +53,8 @@ let config = {
 	frequency: 150,
 	frequencyRange: [1, 3000],
 
+	amp: [-1.5, 1.5],
+
 	// source: 'sine',
 	// sourceOptions: [
 	// 	'noise',
@@ -150,6 +152,13 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 
 			// 	}
 			// })
+			.addRange(config, 'amp', {
+				label: 'amplitudes',
+				step: .01,
+				onChange: () => {
+					waveforms.forEach(wf => wf.update({amp: config.amp}).render())
+				}
+			})
 			.addSlider(config, 'size', 'sizeRange', {
 				dp: 0, step: 1,
 				label: 'packet size',

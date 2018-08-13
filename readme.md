@@ -53,9 +53,8 @@ Update state of the renderer instance. Possible `options`:
 Property | Meaning
 ---|---
 `data`			| Array or typed array with sample data. Usually it contains values from `-1..+1` range, but that can be adjusted via `range` property.						|
-`offset`		| Sample offset in the data to display from. Negative values display data from the tail.
-`count`			| Number of samples to fit into viewport.
-`range`			| Amplitudes range, by default considered `[-1, +1]`.
+`range`			| Visible data range, an array with `[start, end]` offsets or a number with samples count of the last added data. Negative numbers use data from the end.
+`amplitude` 	| Amplitudes range, number or array `[min, max]`, by default considered `[-1, +1]`.
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).							|
 `thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.		|
 `viewport` 		| Area within the canvas, an array `[left, top, width, height]` or rectangle `{x, y, width, height}`, see [parse-rect](https://ghub.io/parse-rect).

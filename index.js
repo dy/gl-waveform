@@ -60,20 +60,17 @@ function Waveform (o) {
 		else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
 		let span
-		if (!r) span = [viewport.width, viewport.height]
-		else span = [
-			(r[2] - r[0]),
-			(r[3] - r[1])
-		]
+		if (!r) span = viewport.width
+		else span = r[1] - r[0]
 
 		let dataLength = Waveform.textureLength
 
 		let pxStep = this.pxStep || Math.pow(thickness, .25) * .25
-		let minStep = viewport[2] / Math.abs(span[0])
+		let minStep = viewport[2] / Math.abs(span)
 		// min 1. pxStep reduces jittering on panning
 		pxStep = Math.max(pxStep, minStep, .5)
 
-		let sampleStep = pxStep * span[0] / viewport[2]
+		let sampleStep = pxStep * span / viewport[2]
 		let pxPerSample = pxStep / sampleStep
 
 		// translate is calculated so to meet conditions:
@@ -123,7 +120,7 @@ function Waveform (o) {
 		// use more complicated range draw only for sample intervals
 		// note that rangeDraw gives sdev error for high values dataLength
 		let drawOptions = {
-			offset, count, thickness, color, pxStep, pxPerSample, viewport, span, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep
+			offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep
 		}
 		if (pxPerSample < 1) {
 			// console.log('range')
@@ -232,7 +229,6 @@ Waveform.prototype.createShader = function (o) {
 			// number of samples per pixel sampling step
 			sampleStep: regl.prop('sampleStep'),
 			viewport: regl.prop('viewport'),
-			span: regl.prop('span'),
 			translate: regl.prop('translate'),
 			translater: regl.prop('translater'),
 			translatei: regl.prop('translatei'),
@@ -305,10 +301,8 @@ Waveform.prototype.update = function (o) {
 	o = pick(o, {
 		data: 'data value values sample samples',
 		push: 'add append push insert concat',
-		offset: 'offset translate start from',
-		count: 'count number',
-		end: 'end to',
-		range: 'range limits amplitude amplitudes ampRange bounds',
+		range: 'range dataRange dataBox dataBounds limits',
+		amplitude: 'amp amplitude amplitudes ampRange bounds',
 		thickness: 'thickness width linewidth lineWidth line-width',
 		pxStep: 'step pxStep',
 		color: 'color colour colors colours fill fillColor fill-color',
@@ -364,34 +358,16 @@ Waveform.prototype.update = function (o) {
 
 	// custom/default visible data window
 	if (o.range != null) {
-		if (o.range.length === 2) {
-			o.range = [o.range[0], -1, o.range[1], 1]
-		}
-		else if (o.range.length === 4) {
-			o.range = o.range.slice()
+		if (o.range.length) {
+			this.range = [o.range[0], o.range[1]]
 		}
 		else if (typeof o.range === 'number') {
-			o.range = [-o.range, -1, -0, 1]
+			this.range = [-o.range, -0]
 		}
-
-		// FIXME: limit zoom level by 1 texture
-		// if (o.range[2] - o.range[0] > Waveform.textureLength) {
-		// 	if (!this.range) {
-		// 		o.range[0] = -Waveform.textureLength
-		// 		o.range[2] = -0
-		// 	}
-		// 	else {
-		// 		// FIXME: check if this is ok way to limit zoom
-		// 		o.range[0] = this.range[0]
-		// 		o.range[2] = this.range[0] + Waveform.textureLength
-		// 	}
-		// }
-
-		this.range = o.range
 	}
 
 	if (!this.range && !o.range) {
-		this.range = [0, -1, Math.min(this.viewport.width, Waveform.textureLength), 1]
+		this.range = [0, Math.min(this.viewport.width, Waveform.textureLength)]
 	}
 
 

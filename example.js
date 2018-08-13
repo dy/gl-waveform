@@ -230,27 +230,16 @@ panzoom(waveform0.canvas, e => {
 		let rx = e.x / w
 		let ry = e.y / h
 
-		let xrange = range[2] - range[0],
-			yrange = range[3] - range[1]
+		let xrange = range[1] - range[0]
 
 		if (e.dz) {
 			let dz = e.dz / w
 			range[0] -= rx * xrange * dz
-			range[2] += (1 - rx) * xrange * dz
-
-			// range[1] -= ry * yrange * dz
-			// range[3] += (1 - ry) * yrange * dz
-
-			range[1] -= (1 - ry) * yrange * dz
-			range[3] += ry * yrange * dz
+			range[1] += (1 - rx) * xrange * dz
 		}
 
 		range[0] -= xrange * e.dx / w
-		range[2] -= xrange * e.dx / w
-		// range[1] -= yrange * e.dy / h
-		// range[3] -= yrange * e.dy / h
-		range[1] += yrange * e.dy / h
-		range[3] += yrange * e.dy / h
+		range[1] -= xrange * e.dx / w
 
 		waveform.update({ range })
 	})

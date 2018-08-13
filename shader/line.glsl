@@ -11,6 +11,7 @@ uniform vec2 amp;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
+varying float sdev, avg;
 
 float reamp(float v) {
 	return (v - amp.x) / (amp.y - amp.x);
@@ -46,6 +47,9 @@ void main () {
 	sampleCurr.x = reamp(sampleCurr.x);
 	sampleNext.x = reamp(sampleNext.x);
 	samplePrev.x = reamp(samplePrev.x);
+
+	avg = sampleCurr.x;
+	sdev = 0.;
 
 	vec2 position = vec2(
 		pxStep * (id - posShift) / viewport.z,

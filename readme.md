@@ -50,7 +50,10 @@ Property | Meaning
 ---|---
 `gl`, `regl`, `canvas`, `container` | Same as argument
 `pixelRatio` | Device pixel ratio, by default `window.devicePixelRatio`
+`viewport` 		| Area within the canvas, an array `[left, top, width, height]` or rectangle `{x, y, width, height}`, see [parse-rect](https://ghub.io/parse-rect).
 `invertViewport` | Use webgl viewport direction (bottom → top) instead of normal canvas2d direction (top → bottom). By default - `false`.
+`pick` | If picking data is required. By default `true`. Disabling reduces memory usage and increases `push` performance.
+`fade` 			| Fade out color based on sdev. That enhances look but reduces shader performance a bit.
 
 ### `waveform.update(options)`
 
@@ -58,24 +61,23 @@ Update state of the renderer instance. Possible `options`:
 
 Property | Meaning
 ---|---
-`data`			| Array or typed array with sample data. Usually it contains values from `-1..+1` range, but that can be adjusted via `range` property.						|
+`data`			| Array or typed array with sample data. Usually it contains values from `-1..+1` range, but that can be adjusted via `range` property.
 `range`			| Visible data range, an array with `[start, end]` offsets or a number with samples count of the last added data. Negative numbers use data from the end.
 `amplitude` 	| Amplitudes range, number or array `[min, max]`, by default considered `[-1, +1]`.
-`color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).							|
-`thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.		|
-`viewport` 		| Area within the canvas, an array `[left, top, width, height]` or rectangle `{x, y, width, height}`, see [parse-rect](https://ghub.io/parse-rect).
+`color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).
+`thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.
 
 ### `waveform.push(data)`
 
-Put new data with new samples, same as `waveform.update({push: data})`.
+Append new samples to the existing data, instead of rewriting it, same as `waveform.update({push: data})`. This method is optimized for realtime performance, so gl-waveform can be used in audio vis.
 
 ### `waveform.render()`
 
-Draw trace withing the viewport.
+Draw trace frame according to the state.
 
 ### `waveform.pick(x)`
 
-Get information about samples at defined x coordinate relative to . Returns an object with `{ data, mean, sdev }` properties.
+Get information about samples at `x` coordinate relative to the viewport. Returns an object with `{ data, mean, sdev }` properties.
 
 ### `waveform.destroy()`
 

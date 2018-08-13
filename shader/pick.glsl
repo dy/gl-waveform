@@ -1,5 +1,5 @@
 // pick texture sample linearly interpolated:
-// default interpolation is broken
+// default webgl interpolation is more broken
 
 #pragma glslify: lerp = require('./lerp.glsl')
 

@@ -34,6 +34,15 @@ function Waveform (o) {
 		this.gl = createGl(o)
 	}
 	if (!o) o = {}
+	else if (o) {
+		if (o.pick != null) this.storeData = !!o.pick
+		if (o.fade != null) this.fade = !!o.fade
+	}
+	// stack of textures with sample data
+	this.textures = []
+	this.textureLength = this.textureSize[0] * this.textureSize[1]
+	// total number of samples
+	this.total = 0
 
 	this.shader = shaderCache.get(this.gl)
 	if (!this.shader) {
@@ -41,125 +50,9 @@ function Waveform (o) {
 		shaderCache.set(this.gl, this.shader)
 	}
 
-	// total number of samples
-	this.total = 0
-
-	this.render = function () {
-		let r = this.range
-
-		// FIXME: remove
-		// r[0] = -4
-		// r[2] = 40
-
-		let color = this.color
-		let thickness = this.thickness
-
-		// calc runtime props
-		let viewport
-		if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
-		else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
-
-		// invert viewport if necessary
-		if (!this.iviewport) {
-			viewport[1] = this.canvas.height - viewport[1] - viewport[3]
-		}
-
-		let span
-		if (!r) span = viewport[2]
-		else span = r[1] - r[0]
-
-		let dataLength = Waveform.textureLength
-
-		let pxStep = this.pxStep || (Math.pow(thickness, .25) * .25)
-		let minStep = viewport[2] / Math.abs(span)
-		// min 1. pxStep reduces jittering on panning
-		pxStep = Math.max(pxStep, minStep, 1.)
-
-		let sampleStep = pxStep * span / viewport[2]
-		let pxPerSample = pxStep / sampleStep
-
-		// translate is calculated so to meet conditions:
-		// - sampling always starts at 0 sample of 0 texture
-		// - panning never breaks that rule
-		// - changing sampling step never breaks that rule
-		// - to reduce error for big translate, it is rotated by textureLength
-		// - panning is always perceived smooth
-
-		let translate = r[0]
-		let translater = translate % dataLength
-		let translates = Math.floor(translate / sampleStep)
-		let translatei = translates * sampleStep
-		let translateri = translatei % dataLength
-
-		// correct translater to always be under translateri
-		// for correct posShift in shader
-		if (translater < translateri) translater += dataLength
-
-		// NOTE: this code took ~3 days
-		// please beware of circular texture join cases and low scales
-		// .1 / sampleStep is error compensation
-		let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
-
-		let currTexture = Math.floor(translatei / dataLength)
-		if (translateri < 0) currTexture += 1
-
-		// limit not existing in texture points
-		let offset = 2 * Math.max(-translates, 0)
-
-		let count = Math.max(2,
-			Math.min(
-				// number of visible texture sampling points
-				// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
-
-				// number of available data points
-				2 * Math.floor(totals - Math.max(translates, 0)),
-
-				// number of visible vertices on the screen
-				2 * Math.ceil(viewport[2] / pxStep) + 4,
-
-				// number of ids available
-				Waveform.maxSampleCount
-			)
-		)
-
-		// use more complicated range draw only for sample intervals
-		// note that rangeDraw gives sdev error for high values dataLength
-		let drawOptions = {
-			offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep
-		}
-		if (pxPerSample < 1) {
-			// console.log('range')
-			this.shader.drawRanges.call(this, drawOptions)
-			// this.shader.drawRanges.call(this, extend(drawOptions, {
-			// 	primitive: 'points',
-			// 	color: [0,0,0,255]
-			// }))
-			// this.shader.drawRanges.call(this, extend(drawOptions, {
-			// 	primitive: 'points',
-			// 	thickness: 0,
-			// 	color: [0,0,0,255]
-			// }))
-		}
-		else {
-			// console.log('line')
-			this.shader.drawLine.call(this, drawOptions)
-			// this.shader.drawLine.call(this, extend(drawOptions, {
-			// 	primitive: 'points',
-			// 	color: [0,0,0,255]
-			// }))
-			// this.shader.drawLine.call(this, extend(drawOptions, {
-			// 	primitive: 'points',
-			// 	thickness: 0,
-			// 	color: [0,0,0,255]
-			// }))
-		}
-	}
-
 	this.regl = this.shader.regl
 	this.canvas = this.gl.canvas
 
-	// stack of textures with sample data
-	this.textures = []
 
 	this.update(o)
 }
@@ -183,13 +76,14 @@ Waveform.prototype.createShader = function (o) {
 				x[i * 4 + 3] = -1
 			}
 			return x
-		})(Waveform.maxSampleCount)
+		})(this.maxSampleCount)
 	})
 
 	let shaderOptions = {
 		primitive: (c, p) => p.primitive || 'triangle strip',
 		offset: regl.prop('offset'),
 		count: regl.prop('count'),
+
 		frag: `
 		precision highp float;
 		uniform float textureId;
@@ -218,8 +112,8 @@ Waveform.prototype.createShader = function (o) {
 			sum2: function (c, p) {
 				return this.textures[p.currTexture] ? this.textures[p.currTexture].sum2 : 0
 			},
-			dataShape: Waveform.textureSize,
-			dataLength: Waveform.textureLength,
+			dataShape: this.textureSize,
+			dataLength: this.textureLength,
 			textureId: regl.prop('currTexture'),
 
 			// total number of samples
@@ -300,13 +194,146 @@ Waveform.prototype.createShader = function (o) {
 	let blankTexture = regl.texture({
 		width: 1,
 		height: 1,
-		channels: Waveform.textureChannels,
+		channels: this.textureChannels,
 		type: 'float'
 	})
 
 	return { drawRanges, drawLine, regl, idBuffer, blankTexture }
 }
 
+// draw frame according to state
+Waveform.prototype.render = function (fn) {
+	let r = this.range
+
+	// FIXME: remove
+	// r[0] = -4
+	// r[2] = 40
+
+	let color = this.color
+	let thickness = this.thickness
+
+	// calc runtime props
+	let viewport
+	if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
+	else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
+
+	// invert viewport if necessary
+	if (!this.iviewport) {
+		viewport[1] = this.canvas.height - viewport[1] - viewport[3]
+	}
+
+	let span
+	if (!r) span = viewport[2]
+	else span = r[1] - r[0]
+
+	let dataLength = this.textureLength
+
+	let pxStep = this.pxStep || (Math.pow(thickness, .25) * .25)
+	let minStep = viewport[2] / Math.abs(span)
+	// min 1. pxStep reduces jittering on panning
+	pxStep = Math.max(pxStep, minStep, 1.)
+
+	let sampleStep = pxStep * span / viewport[2]
+	let pxPerSample = pxStep / sampleStep
+
+	// translate is calculated so to meet conditions:
+	// - sampling always starts at 0 sample of 0 texture
+	// - panning never breaks that rule
+	// - changing sampling step never breaks that rule
+	// - to reduce error for big translate, it is rotated by textureLength
+	// - panning is always perceived smooth
+
+	let translate = r[0]
+	let translater = translate % dataLength
+	let translates = Math.floor(translate / sampleStep)
+	let translatei = translates * sampleStep
+	let translateri = translatei % dataLength
+
+	// correct translater to always be under translateri
+	// for correct posShift in shader
+	if (translater < translateri) translater += dataLength
+
+	// NOTE: this code took ~3 days
+	// please beware of circular texture join cases and low scales
+	// .1 / sampleStep is error compensation
+	let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
+
+	let currTexture = Math.floor(translatei / dataLength)
+	if (translateri < 0) currTexture += 1
+
+	// limit not existing in texture points
+	let offset = 2 * Math.max(-translates, 0)
+
+	let count = Math.max(2,
+		Math.min(
+			// number of visible texture sampling points
+			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
+
+			// number of available data points
+			2 * Math.floor(totals - Math.max(translates, 0)),
+
+			// number of visible vertices on the screen
+			2 * Math.ceil(viewport[2] / pxStep) + 4,
+
+			// number of ids available
+			this.maxSampleCount
+		)
+	)
+
+	// use more complicated range draw only for sample intervals
+	// note that rangeDraw gives sdev error for high values dataLength
+	let drawOptions = {
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep
+	}
+
+	// pick case
+	if (typeof fn === 'function') fn(drawOptions)
+
+	// range case
+	else if (pxPerSample < 1) {
+		// console.log('range')
+		this.shader.drawRanges.call(this, drawOptions)
+		// this.shader.drawRanges.call(this, extend(drawOptions, {
+		// 	primitive: 'points',
+		// 	color: [0,0,0,255]
+		// }))
+		// this.shader.drawRanges.call(this, extend(drawOptions, {
+		// 	primitive: 'points',
+		// 	thickness: 0,
+		// 	color: [0,0,0,255]
+		// }))
+	}
+
+	// line case
+	else {
+		// console.log('line')
+		this.shader.drawLine.call(this, drawOptions)
+		// this.shader.drawLine.call(this, extend(drawOptions, {
+		// 	primitive: 'points',
+		// 	color: [0,0,0,255]
+		// }))
+		// this.shader.drawLine.call(this, extend(drawOptions, {
+		// 	primitive: 'points',
+		// 	thickness: 0,
+		// 	color: [0,0,0,255]
+		// }))
+	}
+
+	return this
+}
+
+// get data at a point
+Waveform.prototype.pick = function (x) {
+	if (!this.storeData) throw Error('Picking is disabled. Enable it via constructor options.')
+
+	let sdev, avg, values
+
+	this.render(props => {
+		// console.log(props)
+	})
+}
+
+// update visual state
 Waveform.prototype.update = function (o) {
 	if (!o) return this
 	o = pick(o, {
@@ -382,7 +409,7 @@ Waveform.prototype.update = function (o) {
 	}
 
 	if (!this.range && !o.range) {
-		this.range = [0, Math.min(this.viewport.width, Waveform.textureLength)]
+		this.range = [0, Math.min(this.viewport.width, this.textureLength)]
 	}
 
 	if (o.amp) {
@@ -449,23 +476,23 @@ Waveform.prototype.push = function (samples) {
 		samples = floatSamples
 	}
 
-	let [txtW, txtH] = Waveform.textureSize
-	let txtLen = Waveform.textureLength
+	let [txtW, txtH] = this.textureSize
+	let txtLen = this.textureLength
 
 	let offset = this.total % txtLen
 	let id = Math.floor(this.total / txtLen)
 	let y = Math.floor(offset / txtW)
 	let x = offset % txtW
 	let tillEndOfTxt = txtLen - offset
-	let ch = Waveform.textureChannels
+	let ch = this.textureChannels
 
 	// get current texture
 	let txt = this.textures[id], prevTxt = this.textures[id - 1]
 	if (!txt) {
 		txt = this.textures[id] = this.regl.texture({
-			width: Waveform.textureSize[0],
-			height: Waveform.textureSize[1],
-			channels: Waveform.textureChannels,
+			width: this.textureSize[0],
+			height: this.textureSize[1],
+			channels: this.textureChannels,
 			type: 'float',
 			min: 'nearest',
 			mag: 'nearest',
@@ -474,6 +501,8 @@ Waveform.prototype.push = function (samples) {
 			wrap: ['clamp', 'clamp']
 		})
 		txt.sum = txt.sum2 = 0
+
+		if (this.storeData) txt.data = pool.mallocFloat(txtLen)
 	}
 
 	// calc sum, sum2 and form data for the samples
@@ -487,6 +516,7 @@ Waveform.prototype.push = function (samples) {
 		data[i * ch + 2] = txt.sum2
 		data[i * ch + 3] = f32.fract(txt.sum2)
 	}
+	if (this.storeData) txt.data.set(data, x)
 	this.total += dataLen
 
 	// fullfill last unfinished row
@@ -554,28 +584,31 @@ Waveform.prototype.push = function (samples) {
 }
 
 Waveform.prototype.destroy = function () {
-	this.textures.forEach(txt => txt.destroy())
+	this.textures.forEach(txt => {
+		if (this.storeData) pool.freeFloat(txt.data)
+		txt.destroy()
+	})
 }
 
-
+// Default instance values
 Waveform.prototype.color = new Uint8Array([0,0,0,255])
 Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
-Waveform.prototype.range = null
 Waveform.prototype.iviewport = false
+Waveform.prototype.range = null
+Waveform.prototype.fade = false
 Waveform.prototype.amp = [-1, 1]
-
+Waveform.prototype.storeData = true
 
 // Texture size affects
 // - sdev error: bigger texture accumulate sum2 error so signal looks more fluffy
 // - performance: bigger texture is slower to create
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
-Waveform.textureSize = [512, 512]
-Waveform.textureChannels = 4
-Waveform.textureLength = Waveform.textureSize[0] * Waveform.textureSize[1]
-Waveform.maxSampleCount = 8192
+Waveform.prototype.textureSize = [512, 512]
+Waveform.prototype.textureChannels = 4
+Waveform.prototype.maxSampleCount = 8192
 
 
 function isRegl (o) {

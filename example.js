@@ -48,7 +48,7 @@ let config = {
 	// size: 512 * 30,
 	size: 1024,
 	sizeRange: [64, 8192],
-	paused: true,
+	paused: false,
 
 	frequency: 150,
 	frequencyRange: [1, 3000],
@@ -173,7 +173,7 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 
 				}
 			})
-			.addNumberOutput(config, 'total', {label: 'total #'})
+			.addNumberOutput(config, 'total', {label: 'total length'})
 			.addButton('Pause / resume', () => {
 				config.paused = !config.paused
 
@@ -189,7 +189,6 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 let moved = false, frame
 
 function tick() {
-
 	let srctype = ['sine', 'sawtooth', 'noise']
 
 	let start = now()
@@ -257,4 +256,11 @@ panzoom(waveform0.canvas, e => {
 
 	raf.cancel(frame)
 	frame = raf(() => waveforms.forEach(wf => wf.render()))
+})
+
+
+waveform0.canvas.addEventListener('mousemove', e => {
+	waveforms.forEach(wf => {
+		wf.pick(e.x)
+	})
 })

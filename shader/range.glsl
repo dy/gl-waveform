@@ -12,6 +12,7 @@ uniform vec2 amp;
 uniform vec4 viewport, color;
 
 varying vec4 fragColor;
+varying float sdev, avg;
 
 float reamp(float v) {
 	return (v - amp.x) / (amp.y - amp.x);
@@ -52,12 +53,13 @@ void main() {
 	float avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
 	float avgNext = (sampleNext.y - sample1.y) / sampleStep;
 
+	avg = avgCurr;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(
 		(sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
 	);
-	float sdev = sqrt(variance);
+	sdev = sqrt(variance);
 	sdev /= abs(amp.y - amp.x);
 
 	avgCurr = reamp(avgCurr);

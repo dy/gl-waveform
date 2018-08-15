@@ -5,7 +5,7 @@
   "scripts": {
     "test": "budo test.js",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
-    "build": "browserify example.js -g bubleify | indexhtmlify | metadataify > demo/refactor.html"
+    "build": "browserify example.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
   },
   "browserify": {
     "transform": [

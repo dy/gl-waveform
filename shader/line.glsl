@@ -1,21 +1,18 @@
 // direct sample output, connected by line, to the contrary to range
 
-#pragma glslify: pick = require('./pick.glsl')
-
 precision highp float;
+
+#pragma glslify: pick = require('./pick.glsl')
+#pragma glslify: reamp = require('./reamp.glsl')
 
 attribute float id, sign;
 
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
-uniform vec2 amp;
 uniform vec4 viewport, color;
+uniform vec2 amp;
 
 varying vec4 fragColor;
-varying float sdev, avg;
-
-float reamp(float v) {
-	return (v - amp.x) / (amp.y - amp.x);
-}
+varying float avgPrev, avgCurr, avgNext, sdev;
 
 void main () {
 	gl_PointSize = 1.5;
@@ -44,24 +41,23 @@ void main () {
 	vec4 sampleNext = pick(offset + sampleStep, offset - sampleStep);
 	vec4 samplePrev = pick(offset - sampleStep, offset - sampleStep);
 
-	sampleCurr.x = reamp(sampleCurr.x);
-	sampleNext.x = reamp(sampleNext.x);
-	samplePrev.x = reamp(samplePrev.x);
+	avgCurr = reamp(sampleCurr.x, amp);
+	avgNext = reamp(sampleNext.x, amp);
+	avgPrev = reamp(samplePrev.x, amp);
 
-	avg = sampleCurr.x;
 	sdev = 0.;
 
 	vec2 position = vec2(
 		pxStep * (id - posShift) / viewport.z,
-		sampleCurr.x
+		avgCurr
 	);
 
 	float x = pxStep / viewport.z;
 	vec2 normalLeft = normalize(vec2(
-		-(sampleCurr.x - samplePrev.x), x
+		-(avgCurr - avgPrev), x
 	) / viewport.zw);
 	vec2 normalRight = normalize(vec2(
-		-(sampleNext.x - sampleCurr.x), x
+		-(avgNext - avgCurr), x
 	) / viewport.zw);
 
 	vec2 join;

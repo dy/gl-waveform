@@ -14,6 +14,7 @@ FPS()
 
 document.body.style.margin = 0
 
+// generate data function
 let count = {}
 function oscillate (l, type) {
 	if (!count[type]) count[type] = 0
@@ -32,6 +33,8 @@ function oscillate (l, type) {
 	return arr
 }
 
+
+// basic trace/panel config
 let config = {
 	thickness: 3,
 	thicknessRange: [.5, 100],
@@ -48,7 +51,7 @@ let config = {
 	// size: 512 * 30,
 	size: 1024,
 	sizeRange: [64, 8192],
-	paused: false,
+	paused: true,
 
 	frequency: 150,
 	frequencyRange: [1, 3000],
@@ -75,6 +78,8 @@ let config = {
 	// block: 1024
 }
 
+
+// create waveform traces
 let waveform0 = Waveform()
 waveform0.update(config)
 
@@ -100,6 +105,32 @@ waveforms.push(
 )
 
 
+// add picking canvas
+let canvas2d = document.body.appendChild(document.createElement('canvas'))
+canvas2d.style.position = 'absolute'
+let ctx2d = canvas2d.getContext('2d')
+let w = waveform0.canvas.width
+let h = waveform0.canvas.height
+canvas2d.width = w
+canvas2d.height = h
+
+document.addEventListener('mousemove', e => {
+	ctx2d.fillStyle = 'rgba(255,0,0,.5)'
+	ctx2d.clearRect(0, 0, w, h)
+
+	waveforms.forEach(wf => {
+		// let wf = waveforms[1]
+		let o = wf.pick(e)
+		if (!o) return
+
+		let {values, average, offset, y, x, sdev} = o
+
+		ctx2d.fillRect(x - 3, y - 3, 6, 6)
+	})
+})
+
+
+// setup control panel
 let controlKit = new ControlKit
 
 controlKit.addPanel({ label: 'Options', width: 280 })
@@ -146,7 +177,7 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 			})
 			.addRange(config, 'amp', {
 				label: 'amp range',
-				step: .01,
+				step: .1,
 				onChange: () => {
 					waveforms.forEach(wf => wf.update({amp: config.amp}).render())
 				}
@@ -186,6 +217,8 @@ controlKit.addPanel({ label: 'Options', width: 280 })
 			// })
 
 
+
+// setup dynamic data generating/rendering routine
 let moved = false, frame
 
 function tick() {
@@ -227,7 +260,11 @@ function tick() {
 tick()
 
 
-panzoom(waveform0.canvas, e => {
+// handle pan/zoom
+panzoom(document, e => {
+	// clear pick markers
+	ctx2d.clearRect(0, 0, w, h)
+
 	moved = true
 
 	waveforms.forEach(waveform => {
@@ -258,9 +295,3 @@ panzoom(waveform0.canvas, e => {
 	frame = raf(() => waveforms.forEach(wf => wf.render()))
 })
 
-
-waveform0.canvas.addEventListener('mousemove', e => {
-	waveforms.forEach(wf => {
-		wf.pick(e.x)
-	})
-})

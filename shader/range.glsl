@@ -1,22 +1,19 @@
 // output range-average samples line with sdev weighting
 
+precision highp float;
+
 #pragma glslify: lerp = require('./lerp.glsl')
 #pragma glslify: pick = require('./pick.glsl')
-
-precision highp float;
+#pragma glslify: reamp = require('./reamp.glsl')
 
 attribute float id, sign;
 
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
-uniform vec2 amp;
 uniform vec4 viewport, color;
+uniform  vec2 amp;
 
 varying vec4 fragColor;
-varying float sdev, avg;
-
-float reamp(float v) {
-	return (v - amp.x) / (amp.y - amp.x);
-}
+varying float avgPrev, avgCurr, avgNext, sdev;
 
 void main() {
 	gl_PointSize = 1.5;
@@ -49,11 +46,9 @@ void main() {
 	vec4 samplePrev = pick(baseOffset, baseOffset);
 	vec4 sampleNext = pick(offset + sampleStep, baseOffset);
 
-	float avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
-	float avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
-	float avgNext = (sampleNext.y - sample1.y) / sampleStep;
-
-	avg = avgCurr;
+	avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
+	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
+	avgNext = (sampleNext.y - sample1.y) / sampleStep;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(
@@ -62,9 +57,9 @@ void main() {
 	sdev = sqrt(variance);
 	sdev /= abs(amp.y - amp.x);
 
-	avgCurr = reamp(avgCurr);
-	avgNext = reamp(avgNext);
-	avgPrev = reamp(avgPrev);
+	avgCurr = reamp(avgCurr, amp);
+	avgNext = reamp(avgNext, amp);
+	avgPrev = reamp(avgPrev, amp);
 
 	// compensate for sampling rounding
 	vec2 position = vec2(

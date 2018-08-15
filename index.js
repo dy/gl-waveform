@@ -84,9 +84,8 @@ Waveform.prototype.createShader = function (o) {
 		offset: regl.prop('offset'),
 		count: regl.prop('count'),
 
-		frag: `
+		frag: this.fade ? glsl('./shader/fade.glsl') : `
 		precision highp float;
-		uniform float textureId;
 		varying vec4 fragColor;
 		void main() {
 			gl_FragColor = fragColor;
@@ -116,6 +115,8 @@ Waveform.prototype.createShader = function (o) {
 			dataLength: this.textureLength,
 			textureId: regl.prop('currTexture'),
 
+			// number of samples per viewport
+			span: regl.prop('span'),
 			// total number of samples
 			total: regl.this('total'),
 			// number of pixels between vertices
@@ -201,8 +202,8 @@ Waveform.prototype.createShader = function (o) {
 	return { drawRanges, drawLine, regl, idBuffer, blankTexture }
 }
 
-// draw frame according to state
-Waveform.prototype.render = function (fn) {
+// calculate draw options
+Waveform.prototype.calc = function () {
 	let r = this.range
 
 	// FIXME: remove
@@ -283,16 +284,20 @@ Waveform.prototype.render = function (fn) {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep, span
 	}
 
-	// pick case
-	if (typeof fn === 'function') fn(drawOptions)
+	return drawOptions
+}
+
+// draw frame according to state
+Waveform.prototype.render = function () {
+	let o = this.calc()
 
 	// range case
-	else if (pxPerSample < 1) {
+	if (o.pxPerSample < 1) {
 		// console.log('range')
-		this.shader.drawRanges.call(this, drawOptions)
+		this.shader.drawRanges.call(this, o)
 		// this.shader.drawRanges.call(this, extend(drawOptions, {
 		// 	primitive: 'points',
 		// 	color: [0,0,0,255]
@@ -307,7 +312,7 @@ Waveform.prototype.render = function (fn) {
 	// line case
 	else {
 		// console.log('line')
-		this.shader.drawLine.call(this, drawOptions)
+		this.shader.drawLine.call(this, o)
 		// this.shader.drawLine.call(this, extend(drawOptions, {
 		// 	primitive: 'points',
 		// 	color: [0,0,0,255]
@@ -326,11 +331,42 @@ Waveform.prototype.render = function (fn) {
 Waveform.prototype.pick = function (x) {
 	if (!this.storeData) throw Error('Picking is disabled. Enable it via constructor options.')
 
-	let sdev, avg, values
+	if (typeof x !== 'number') x = x.x
 
-	this.render(props => {
-		// console.log(props)
-	})
+	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep} = this.calc()
+
+	let txt = this.textures[currTexture]
+
+	if (!txt) return null
+
+	let xOffset = Math.floor(span * x / viewport[2])
+	let offset = Math.floor(translater + xOffset)
+	let xShift = translater - translateri
+
+	if (offset < 0 || offset > this.total) return null
+
+	let ch = this.textureChannels
+	let data = txt.data
+
+	let sample = data.subarray(offset * ch, offset * ch + ch)
+
+	let amp = this.amp
+
+	// single-value pick
+	if (pxPerSample >= 1) {
+		let avg = sample[0]
+		return {
+			values: [avg],
+			average: avg,
+			sdev: 0,
+			offset: [offset, offset],
+			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
+			y: ((-avg - amp[0]) / (amp[1] - amp[0])) * this.viewport.height + this.viewport.y
+		}
+	}
+
+	// range-value pick
+	console.log(2)
 }
 
 // update visual state
@@ -471,7 +507,7 @@ Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
 
 	if (Array.isArray(samples)) {
-		let floatSamples = pool.mallocFloat(samples.length)
+		let floatSamples = pool.mallocFloat64(samples.length)
 		floatSamples.set(samples)
 		samples = floatSamples
 	}
@@ -502,12 +538,12 @@ Waveform.prototype.push = function (samples) {
 		})
 		txt.sum = txt.sum2 = 0
 
-		if (this.storeData) txt.data = pool.mallocFloat(txtLen)
+		if (this.storeData) txt.data = pool.mallocFloat(txtLen * ch)
 	}
 
 	// calc sum, sum2 and form data for the samples
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
-	let data = pool.mallocFloat(dataLen * ch)
+	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
 		data[i * ch] = samples[i]
 		txt.sum += samples[i]
@@ -516,7 +552,6 @@ Waveform.prototype.push = function (samples) {
 		data[i * ch + 2] = txt.sum2
 		data[i * ch + 3] = f32.fract(txt.sum2)
 	}
-	if (this.storeData) txt.data.set(data, x)
 	this.total += dataLen
 
 	// fullfill last unfinished row
@@ -531,8 +566,8 @@ Waveform.prototype.push = function (samples) {
 
 		// if data is shorter than the texture row - skip the rest
 		if (x + samples.length <= txtW) {
-			pool.freeFloat(samples)
-			pool.freeFloat(data)
+			pool.freeFloat64(samples)
+			if (!this.storeData) pool.freeFloat(data)
 			return
 		}
 
@@ -540,9 +575,9 @@ Waveform.prototype.push = function (samples) {
 
 		// shortcut next texture block
 		if (y === txtH) {
-			pool.freeFloat(data)
+			if (!this.storeData) pool.freeFloat(data)
 			this.push(samples.subarray(firstRowWidth))
-			pool.freeFloat(samples)
+			pool.freeFloat(samples64)
 			return
 		}
 
@@ -576,8 +611,8 @@ Waveform.prototype.push = function (samples) {
 	if (tillEndOfTxt < samples.length) {
 		this.push(samples.subarray(tillEndOfTxt))
 
-		pool.freeFloat(samples)
-		pool.freeFloat(data)
+		pool.freeFloat64(samples)
+		if (!this.storeData) pool.freeFloat(data)
 
 		return
 	}

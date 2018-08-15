@@ -51,7 +51,7 @@ let config = {
 	// size: 512 * 30,
 	size: 1024,
 	sizeRange: [64, 8192],
-	paused: true,
+	paused: false,
 
 	frequency: 150,
 	frequencyRange: [1, 3000],
@@ -115,7 +115,6 @@ canvas2d.width = w
 canvas2d.height = h
 
 document.addEventListener('mousemove', e => {
-	ctx2d.fillStyle = 'rgba(255,0,0,.5)'
 	ctx2d.clearRect(0, 0, w, h)
 
 	waveforms.forEach(wf => {
@@ -123,9 +122,13 @@ document.addEventListener('mousemove', e => {
 		let o = wf.pick(e)
 		if (!o) return
 
-		let {values, average, offset, y, x, sdev} = o
+		let {average, offset, y, x, sdev} = o
 
+		ctx2d.fillStyle = 'rgba(255,0,0,.5)'
 		ctx2d.fillRect(x - 3, y - 3, 6, 6)
+
+		ctx2d.fillStyle = 'rgba(0,0,0,1)'
+		ctx2d.fillText(average.toFixed(2), x + 10, y + 3)
 	})
 })
 

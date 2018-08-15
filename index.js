@@ -348,24 +348,24 @@ Waveform.prototype.pick = function (x) {
 	let ch = this.textureChannels
 	let data = txt.data
 
-	let sample = data.subarray(offset * ch, offset * ch + ch)
+	let samples = data.subarray(offset * ch, offset * ch + ch)
 
 	let amp = this.amp
 
 	// single-value pick
-	if (pxPerSample >= 1) {
-		let avg = sample[0]
+	// if (pxPerSample >= 1) {
+		let avg = samples[0]
 		return {
-			values: [avg],
 			average: avg,
 			sdev: 0,
 			offset: [offset, offset],
 			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
 			y: ((-avg - amp[0]) / (amp[1] - amp[0])) * this.viewport.height + this.viewport.y
 		}
-	}
+	// }
 
-	// range-value pick
+	// FIXME: multi-value pick
+
 	console.log(2)
 }
 

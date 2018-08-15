@@ -75,9 +75,16 @@ Append new samples to the existing data, instead of rewriting it, same as `wavef
 
 Draw trace frame according to the state.
 
-### `waveform.pick(x)`
+### `waveform.pick(event|x)`
 
-Get information about samples at `x` coordinate relative to the viewport. Returns an object with `{ data, mean, sdev }` properties.
+Get information about samples at `x` coordinate relative to the canvas. Returns an object with `{ values, average, sdev, offset, x, y }` properties.
+
+Property | Meaning
+---|---
+`average` | Average value for the picking point. The one actually visible on the screen.
+`sdev` | Standard deviance for the picking point.
+`x`, `y` | Actual coordinates of picking value relative to canvas.
+`offset` | An array with `[left, right]` offsets within data.
 
 ### `waveform.destroy()`
 

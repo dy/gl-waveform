@@ -36,7 +36,7 @@ function oscillate (l, type) {
 
 // basic trace/panel config
 let config = {
-	thickness: 3,
+	thickness: 1,
 	thicknessRange: [.5, 100],
 
 	// step: 1,
@@ -48,10 +48,10 @@ let config = {
 	opacityRange: [0, 1],
 
 	// size: 2e7,
-	// size: 512 * 30,
-	size: 1024,
+	size: 512 * 300,
+	// size: 1024,
 	sizeRange: [64, 8192],
-	paused: false,
+	paused: true,
 
 	frequency: 150,
 	frequencyRange: [1, 3000],

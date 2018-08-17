@@ -125,6 +125,8 @@ Waveform.prototype.createShader = function (o) {
 			pxPerSample: regl.prop('pxPerSample'),
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
+			sampleStepRatio: regl.prop('sampleStepRatio'),
+			sampleStepRatioFract: regl.prop('sampleStepRatioFract'),
 			translate: regl.prop('translate'),
 			// circular translate by textureData
 			translater: regl.prop('translater'),
@@ -235,6 +237,8 @@ Waveform.prototype.calc = function () {
 	pxStep = Math.max(pxStep, minStep, 1.)
 
 	let sampleStep = pxStep * span / viewport[2]
+	let sampleStepRatio = 1 / sampleStep
+	let sampleStepRatioFract = f32.fract(sampleStepRatio)
 	let pxPerSample = pxStep / sampleStep
 
 	// translate is calculated so to meet conditions:
@@ -284,7 +288,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep, span
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep, span, sampleStepRatio, sampleStepRatioFract
 	}
 
 	return drawOptions
@@ -295,8 +299,7 @@ Waveform.prototype.render = function () {
 	let o = this.calc()
 
 	// range case
-	if (o.pxPerSample < 1) {
-		// console.log('range')
+	if (o.pxPerSample <= 1) {
 		this.shader.drawRanges.call(this, o)
 		// this.shader.drawRanges.call(this, extend(drawOptions, {
 		// 	primitive: 'points',

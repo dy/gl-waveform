@@ -8,12 +8,20 @@ precision highp float;
 
 attribute float id, sign;
 
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
 uniform vec4 viewport, color;
 uniform  vec2 amp;
 
 varying vec4 fragColor;
 varying float avgPrev, avgCurr, avgNext, sdev;
+
+// precise sum + multiply
+float summul(float a, float aFract, float b, float bFract, float c, float cFract) {
+	return (a + b) * c
+      + (aFract + bFract) * c
+      + (a + b) * cFract
+      + (aFract + bFract) * cFract;
+}
 
 void main() {
 	gl_PointSize = 1.5;
@@ -52,7 +60,8 @@ void main() {
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(
-		(sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
+		summul(sample1.z, sample1.w, -sample0.z, -sample0.w, sampleStepRatio, sampleStepRatioFract) - avgCurr * avgCurr
+		// (sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
 	);
 	sdev = sqrt(variance);
 	sdev /= abs(amp.y - amp.x);

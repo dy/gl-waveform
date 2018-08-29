@@ -49,15 +49,22 @@ vec4 pickLinear(float offset, float baseOffset) {
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;
-	if (offsetLeft == offsetRight) {
-		offsetRight = ceil(offset + .5);
-		t = 0.;
-	}
-
 	vec4 left = pick(offsetLeft, baseOffset);
-	vec4 right = pick(offsetRight, baseOffset);
 
-	return lerp(left, right, t);
+	if (t == 0. || offsetLeft == offsetRight) return left;
+	else {
+		vec4 right = pick(offsetRight, baseOffset);
+
+		// float it = 1. - t;
+		// vec4 res = vec4(
+		// 	t * right.x + it * left.x,
+		// 	t * right.y + it * left.y,
+		// 	t * right.z + it * left.z,
+		// 	t * right.w + it * left.w
+		// );
+		// return res;
+		return lerp(left, right, t);
+	}
 }
 
 #pragma glslify: export(pickLinear)

@@ -1,6 +1,6 @@
 'use strict'
 
-import Waveform from './'
+import Waveform from './debug'
 import extend from 'object-assign'
 import osc from 'periodic-function'
 import panzoom from 'pan-zoom'

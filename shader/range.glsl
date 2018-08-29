@@ -54,9 +54,12 @@ void main() {
 	vec4 samplePrev = pick(baseOffset, baseOffset);
 	vec4 sampleNext = pick(offset + sampleStep, baseOffset);
 
-	avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
-	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
-	avgNext = (sampleNext.y - sample1.y) / sampleStep;
+	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
+	// avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
+	// avgNext = (sampleNext.y - sample1.y) / sampleStep;
+	avgCurr = isStart ? sample1.x : summul(sample1.y, 0., -sample0.y, 0., sampleStepRatio, sampleStepRatioFract);
+	avgPrev = baseOffset < 0. ? sample0.x : summul(sample0.y, 0., -samplePrev.y, 0., sampleStepRatio, sampleStepRatioFract);
+	avgNext = summul(sampleNext.y, 0., -sample1.y, 0., sampleStepRatio, sampleStepRatioFract);
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(
@@ -121,5 +124,4 @@ void main() {
 
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
-
 }

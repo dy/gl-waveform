@@ -118,7 +118,7 @@ Waveform.prototype.createShader = function (o) {
 			// number of samples per viewport
 			span: regl.prop('span'),
 			// total number of samples
-			total: regl.this('total'),
+			total: regl.prop('total'),
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
 			// number of pixels per sample step
@@ -140,10 +140,10 @@ Waveform.prototype.createShader = function (o) {
 			totals: regl.prop('totals'),
 
 			// min/max amplitude
-			amp: regl.this('amp'),
+			amp: regl.prop('amp'),
 
 			viewport: regl.prop('viewport'),
-			opacity: regl.this('opacity'),
+			opacity: regl.prop('opacity'),
 			color: regl.prop('color'),
 			thickness: regl.prop('thickness')
 		},
@@ -207,6 +207,7 @@ Waveform.prototype.createShader = function (o) {
 // calculate draw options
 Waveform.prototype.calc = function () {
 	let r = this.range
+	let {total, opacity, amp} = this
 
 	// FIXME: remove
 	// r[0] = -4
@@ -237,7 +238,7 @@ Waveform.prototype.calc = function () {
 	pxStep = Math.max(pxStep, minStep, 1.)
 
 	let sampleStep = pxStep * span / viewport[2]
-	let sampleStepRatio = 1 / sampleStep
+	let sampleStepRatio = viewport[2] / pxStep / span
 	let sampleStepRatioFract = f32.fract(sampleStepRatio)
 	let pxPerSample = pxStep / sampleStep
 
@@ -288,7 +289,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep, span, sampleStepRatio, sampleStepRatioFract
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep, span, sampleStepRatio, sampleStepRatioFract, total, opacity, amp
 	}
 
 	return drawOptions
@@ -336,7 +337,7 @@ Waveform.prototype.pick = function (x) {
 
 	if (typeof x !== 'number') x = x.x
 
-	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep} = this.calc()
+	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep, amp} = this.calc()
 
 	let txt = this.textures[currTexture]
 
@@ -353,8 +354,6 @@ Waveform.prototype.pick = function (x) {
 
 	let samples = data.subarray(offset * ch, offset * ch + ch)
 
-	let amp = this.amp
-
 	// single-value pick
 	// if (pxPerSample >= 1) {
 		let avg = samples[0]
@@ -363,7 +362,7 @@ Waveform.prototype.pick = function (x) {
 			sdev: 0,
 			offset: [offset, offset],
 			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
-			y: ((-avg - amp[0]) / (amp[1] - amp[0])) * this.viewport.height + this.viewport.y
+			y: ((-avg - amp[0]) / (amp[1] - amp[0])) * this.viewport.height + this.viewport[1]
 		}
 	// }
 
@@ -580,7 +579,7 @@ Waveform.prototype.push = function (samples) {
 		if (y === txtH) {
 			if (!this.storeData) pool.freeFloat(data)
 			this.push(samples.subarray(firstRowWidth))
-			pool.freeFloat(samples64)
+			pool.freeFloat(samples)
 			return
 		}
 

@@ -3,25 +3,89 @@
 precision highp float;
 
 #pragma glslify: lerp = require('./lerp.glsl')
-#pragma glslify: pick = require('./pick.glsl')
+// #pragma glslify: pick = require('./pick.glsl')
 #pragma glslify: reamp = require('./reamp.glsl')
 
 attribute float id, sign;
 
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, sampleStepFract, total, totals, translate, dataLength, translateri, translateriFract, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
+uniform float dataShapeStepFract, dataShapeStep;
 uniform vec4 viewport, color;
 uniform  vec2 amp;
 
 varying vec4 fragColor;
 varying float avgPrev, avgCurr, avgNext, sdev;
 
-// precise sum + multiply
-float summul(float a, float aFract, float b, float bFract, float c, float cFract) {
-	return (a + b) * c
-      + (aFract + bFract) * c
-      + (a + b) * cFract
-      + (aFract + bFract) * cFract;
+
+
+
+uniform sampler2D data0, data1;
+uniform vec2 dataShape;
+uniform float sum, sum2;
+uniform float textureId;
+
+vec4 _pick (float offset, float baseOffset) {
+	offset = max(offset, 0.);
+
+	// offset += translateri;
+	// baseOffset += translateri;
+	// vec2 uv = vec2(
+	// 	floor(mod(offset, dataShape.x)) + .5,
+	// 	// floor(offset / dataShape.x) + .5
+	// 	280.5
+	// ) / dataShape;
+
+	vec2 uv = vec2(
+		mod(offset, dataShape.x),
+		280.5
+		// (floor(offset * dataShapeStep + offset * dataShapeStepFract) + .5)
+	) * (dataShapeStep + dataShapeStepFract);
+
+	// uv.y -= textureId;
+
+	vec4 sample;
+	// use last sample for textures past 2nd
+	if (uv.y > 2.) {
+		sample = texture2D(data1, vec2(1, 1));
+		sample.x = 0.;
+	}
+	else if (uv.y > 1.) {
+		uv.y = uv.y - 1.;
+
+		sample = texture2D(data1, uv);
+
+		// if right sample is from the next texture - align it to left texture
+		if (offset >= dataShape.x * dataShape.y &&
+			baseOffset < dataShape.x * dataShape.y) {
+			sample.y += sum;
+			sample.z += sum2;
+		}
+
+	}
+	else {
+		sample = texture2D(data0, uv);
+	}
+
+	return sample;
 }
+
+// shift is passed separately for higher float32 precision of offset
+// export pickLinear for the case of emulating texture linear interpolation
+vec4 pick (float offset, float baseOffset) {
+	float offsetLeft = floor(offset);
+	float offsetRight = ceil(offset);
+	float t = offset - offsetLeft;
+	vec4 left = _pick(offsetLeft, baseOffset);
+
+	if (t == 0. || offsetLeft == offsetRight) return left;
+	else {
+		vec4 right = _pick(offsetRight, baseOffset);
+
+		return lerp(left, right, t);
+	}
+}
+
+
 
 void main() {
 	gl_PointSize = 1.5;
@@ -29,43 +93,109 @@ void main() {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
+	float id = float(id);
+
 	// float id = id - 1.;
-	float offset = id * sampleStep + translateri;
+	float offset = id * (sampleStep + sampleStepFract);
 
 	// compensate snapping for low scale levels
-	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset) / sampleStep;
+	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri - translateriFract) * (sampleStepRatio + sampleStepRatioFract);
 
 	bool isStart = id <= -translates;
 	bool isEnd = id >= floor(totals - translates - 1.);
 
-	float baseOffset = offset - sampleStep * 2.;
+	float baseOffset = offset - sampleStep * 2. - sampleStepFract * 2.;
+	float offset0 = offset - sampleStep - sampleStepFract;
+	float offset1 = offset;
 	// if (isEnd) offset = total - 1.;
 
 	// DEBUG: mark adjacent texture with different color
-	// if (translate + (id + 1.) * sampleStep > 64. * 64.) {
+	// if (translate + (id + 1.) * (sampleStep + sampleStepFract) > 8192. * 2.) {
 	// 	fragColor.x *= .5;
 	// }
 	// if (isEnd) fragColor = vec4(0,0,1,1);
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = isStart ? vec4(0) : pick(offset - sampleStep, baseOffset);
-	vec4 sample1 = pick(offset, baseOffset);
+	vec4 sample0 = isStart ? vec4(0) : pick(offset0, baseOffset);
+	vec4 sample1 = pick(offset1, baseOffset);
 	vec4 samplePrev = pick(baseOffset, baseOffset);
-	vec4 sampleNext = pick(offset + sampleStep, baseOffset);
+	vec4 sampleNext = pick(offset + sampleStep + sampleStepFract, baseOffset);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	// avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
 	// avgNext = (sampleNext.y - sample1.y) / sampleStep;
-	avgCurr = isStart ? sample1.x : summul(sample1.y, 0., -sample0.y, 0., sampleStepRatio, sampleStepRatioFract);
-	avgPrev = baseOffset < 0. ? sample0.x : summul(sample0.y, 0., -samplePrev.y, 0., sampleStepRatio, sampleStepRatioFract);
-	avgNext = summul(sampleNext.y, 0., -sample1.y, 0., sampleStepRatio, sampleStepRatioFract);
+	avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) * (sampleStepRatio + sampleStepRatioFract);
+	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) * (sampleStepRatio + sampleStepRatioFract);
+	avgNext = (sampleNext.y - sample1.y) * (sampleStepRatio + sampleStepRatioFract);
 
 	// σ(x)² = M(x²) - M(x)²
-	float variance = abs(
-		summul(sample1.z, sample1.w, -sample0.z, -sample0.w, sampleStepRatio, sampleStepRatioFract) - avgCurr * avgCurr
-		// (sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
+
+	// error proof variance calculation
+	float offset0l = floor(offset0);
+	float offset1l = floor(offset1);
+	float t0 = offset0 - offset0l;
+	float t1 = offset1 - offset1l;
+	float ti0 = 1. - t0;
+	float ti1 = 1. - t1;
+	float offset0r = ceil(offset0l + max(t0, .5));
+	float offset1r = ceil(offset1l + max(t1, .5));
+
+	avgCurr = (
+		+ pick(offset1l, baseOffset).y * sampleStepRatio * ti1
+		+ pick(offset1r, baseOffset).y * sampleStepRatio * t1
+		- pick(offset0l, baseOffset).y * sampleStepRatio * ti0
+		- pick(offset0r, baseOffset).y * sampleStepRatio * t0
+
+		+ pick(offset1l, baseOffset).y * sampleStepRatioFract * ti1
+		+ pick(offset1r, baseOffset).y * sampleStepRatioFract * t1
+		- pick(offset0l, baseOffset).y * sampleStepRatioFract * ti0
+		- pick(offset0r, baseOffset).y * sampleStepRatioFract * t0
 	);
+
+	float variance = abs(
+		// (sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr
+		// summul(sample1.z, sample1.w, -sample0.z, -sample0.w, sampleStepRatio, sampleStepRatioFract) - avgCurr * avgCurr
+
+		+ (sample1.z - sample0.z) * sampleStepRatio
+		// + (sample1.w - sample0.w) * sampleStepRatio
+
+		// + (
+		// 	+ _pick(offset1l, baseOffset).z * ti1
+		// 	+ _pick(offset1r, baseOffset).z * t1
+		// 	- _pick(offset0l, baseOffset).z * ti0
+		// 	- _pick(offset0r, baseOffset).z * t0
+		// ) * sampleStepRatio
+		// + (
+		// 	+ _pick(offset1l, baseOffset).w * ti1
+		// 	+ _pick(offset1r, baseOffset).w * t1
+		// 	- _pick(offset0l, baseOffset).w * ti0
+		// 	- _pick(offset0r, baseOffset).w * t0
+		// ) * sampleStepRatio
+
+		// + _pick(offset1l, baseOffset).z * sampleStepRatio * ti1
+		// + _pick(offset1r, baseOffset).z * sampleStepRatio * t1
+		// - _pick(offset0l, baseOffset).z * sampleStepRatio * ti0
+		// - _pick(offset0r, baseOffset).z * sampleStepRatio * t0
+
+		// + _pick(offset1l, baseOffset).z * sampleStepRatioFract * ti1
+		// + _pick(offset1r, baseOffset).z * sampleStepRatioFract * t1
+		// - _pick(offset0l, baseOffset).z * sampleStepRatioFract * ti0
+		// - _pick(offset0r, baseOffset).z * sampleStepRatioFract * t0
+
+		// + _pick(offset1l, baseOffset).w * sampleStepRatio * ti1
+		// + _pick(offset1r, baseOffset).w * sampleStepRatio * t1
+		// - _pick(offset0l, baseOffset).w * sampleStepRatio * ti0
+		// - _pick(offset0r, baseOffset).w * sampleStepRatio * t0
+
+		// + _pick(offset1l, baseOffset).w * sampleStepRatioFract * ti1
+		// + _pick(offset1r, baseOffset).w * sampleStepRatioFract * t1
+		// - _pick(offset0l, baseOffset).w * sampleStepRatioFract * ti0
+		// - _pick(offset0r, baseOffset).w * sampleStepRatioFract * t0
+
+		- avgCurr * avgCurr
+	);
+
 	sdev = sqrt(variance);
 	sdev /= abs(amp.y - amp.x);
 

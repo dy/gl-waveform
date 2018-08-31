@@ -125,8 +125,11 @@ Waveform.prototype.createShader = function (o) {
 			pxPerSample: regl.prop('pxPerSample'),
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
+			sampleStepFract: regl.prop('sampleStepFract'),
 			sampleStepRatio: regl.prop('sampleStepRatio'),
 			sampleStepRatioFract: regl.prop('sampleStepRatioFract'),
+			dataShapeStep: regl.prop('dataShapeStep'),
+			dataShapeStepFract: regl.prop('dataShapeStepFract'),
 			translate: regl.prop('translate'),
 			// circular translate by textureData
 			translater: regl.prop('translater'),
@@ -134,6 +137,7 @@ Waveform.prototype.createShader = function (o) {
 			translatei: regl.prop('translatei'),
 			// rotated translatei
 			translateri: regl.prop('translateri'),
+			translateriFract: regl.prop('translateriFract'),
 			// translate in terms of sample steps
 			translates: regl.prop('translates'),
 			// number of sample steps
@@ -238,9 +242,13 @@ Waveform.prototype.calc = function () {
 	pxStep = Math.max(pxStep, minStep, 1.)
 
 	let sampleStep = pxStep * span / viewport[2]
+	let sampleStepFract = f32.fract(sampleStep)
 	let sampleStepRatio = viewport[2] / pxStep / span
 	let sampleStepRatioFract = f32.fract(sampleStepRatio)
 	let pxPerSample = pxStep / sampleStep
+
+	let dataShapeStep = 1 / this.textureSize[0]
+	let dataShapeStepFract = f32.fract(dataShapeStep)
 
 	// translate is calculated so to meet conditions:
 	// - sampling always starts at 0 sample of 0 texture
@@ -254,6 +262,7 @@ Waveform.prototype.calc = function () {
 	let translates = Math.floor(translate / sampleStep)
 	let translatei = translates * sampleStep
 	let translateri = translatei % dataLength
+	let translateriFract = f32.fract(translateri)
 
 	// correct translater to always be under translateri
 	// for correct posShift in shader
@@ -289,7 +298,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep, span, sampleStepRatio, sampleStepRatioFract, total, opacity, amp
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, sampleStepRatio, sampleStepFract, sampleStepRatioFract, total, opacity, amp, dataShapeStep, dataShapeStepFract
 	}
 
 	return drawOptions
@@ -550,9 +559,12 @@ Waveform.prototype.push = function (samples) {
 		data[i * ch] = samples[i]
 		txt.sum += samples[i]
 		txt.sum2 += samples[i] * samples[i]
+		txt.sum2 %= 10000
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
 		data[i * ch + 3] = f32.fract(txt.sum2)
+		// data[i * ch + 2] = Math.floor(txt.sum2)
+		// data[i * ch + 3] = txt.sum2 - Math.floor(txt.sum2)
 	}
 	this.total += dataLen
 

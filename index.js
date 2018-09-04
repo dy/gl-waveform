@@ -358,13 +358,12 @@ Waveform.prototype.pick = function (x) {
 			sdev: 0,
 			offset: [offset, offset],
 			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
-			y: ((-avg - amp[0]) / (amp[1] - amp[0])) * this.viewport.height + this.viewport[1]
+			y: ((-avg - amp[0]) / (amp[1] - amp[0])) * this.viewport.height + this.viewport.y
 		}
 	// }
 
 	// FIXME: multi-value pick
 
-	console.log(2)
 }
 
 // update visual state

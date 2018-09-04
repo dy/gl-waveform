@@ -113,7 +113,6 @@ Waveform.prototype.createShader = function (o) {
 			},
 			dataShape: this.textureSize,
 			dataLength: this.textureLength,
-			textureId: regl.prop('currTexture'),
 
 			// number of samples per viewport
 			span: regl.prop('span'),
@@ -125,7 +124,6 @@ Waveform.prototype.createShader = function (o) {
 			pxPerSample: regl.prop('pxPerSample'),
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
-			sampleStepRatio: regl.prop('sampleStepRatio'),
 			translate: regl.prop('translate'),
 			// circular translate by textureData
 			translater: regl.prop('translater'),
@@ -133,6 +131,7 @@ Waveform.prototype.createShader = function (o) {
 			translatei: regl.prop('translatei'),
 			// rotated translatei
 			translateri: regl.prop('translateri'),
+			translateriFract: regl.prop('translateriFract'),
 			// translate in terms of sample steps
 			translates: regl.prop('translates'),
 			// number of sample steps
@@ -210,7 +209,7 @@ Waveform.prototype.calc = function () {
 
 	// FIXME: remove
 	// r[0] = -4
-	// r[2] = 40
+	// r[1] = 40
 
 	let color = this.color
 	let thickness = this.thickness
@@ -237,7 +236,6 @@ Waveform.prototype.calc = function () {
 	pxStep = Math.max(pxStep, minStep, 1.)
 
 	let sampleStep = pxStep * span / viewport[2]
-	let sampleStepRatio = viewport[2] / pxStep / span
 	let pxPerSample = pxStep / sampleStep
 
 	// translate is calculated so to meet conditions:
@@ -251,7 +249,8 @@ Waveform.prototype.calc = function () {
 	let translater = translate % dataLength
 	let translates = Math.floor(translate / sampleStep)
 	let translatei = translates * sampleStep
-	let translateri = translatei % dataLength
+	let translateri = Math.floor(translatei % dataLength)
+	let translateriFract = (translatei % dataLength) - translateri
 
 	// correct translater to always be under translateri
 	// for correct posShift in shader
@@ -287,7 +286,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translates, currTexture, sampleStep, span, sampleStepRatio, total, opacity, amp
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amp
 	}
 
 	return drawOptions
@@ -313,7 +312,6 @@ Waveform.prototype.render = function () {
 
 	// line case
 	else {
-		// console.log('line')
 		this.shader.drawLine.call(this, o)
 		// this.shader.drawLine.call(this, extend(drawOptions, {
 		// 	primitive: 'points',

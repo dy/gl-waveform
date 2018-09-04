@@ -264,7 +264,7 @@ tick()
 
 
 // handle pan/zoom
-panzoom(document, e => {
+panzoom(ctx2d.canvas, e => {
 	// clear pick markers
 	ctx2d.clearRect(0, 0, w, h)
 

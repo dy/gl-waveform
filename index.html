@@ -9,14 +9,12 @@
 <meta name="twitter:title" content="gl-waveform">
 <meta name="description" content="Performant waveform renderer with WebGL">
 <meta name="twitter:description" content="Performant waveform renderer with WebGL">
-<meta name="author" content="Dmitry Yv &lt;dfcreative&commat;gmail&period;com&gt;">
-<meta name="twitter:creator" content="Dmitry Yv &lt;dfcreative&commat;gmail&period;com&gt;">
+<meta name="author" content="Dmitry Yv &lt;dfcreative@gmail.com&gt;">
+<meta name="twitter:creator" content="Dmitry Yv &lt;dfcreative@gmail.com&gt;">
 <meta name="twitter:card" content="summary">
-<meta itemprop="title" content="gl-waveform">
-<meta itemprop="description" content="Performant waveform renderer with WebGL">
 <meta property="og:title" content="gl-waveform">
 <meta property="og:description" content="Performant waveform renderer with WebGL">
-<meta property="article:author" content="Dmitry Yv &lt;dfcreative&commat;gmail&period;com&gt;">
+<meta property="article:author" content="Dmitry Yv &lt;dfcreative@gmail.com&gt;">
 </head>
 <body></body>
 <script>
@@ -222,7 +220,7 @@ function typedArraySupport () {
   // Can typed array instances can be augmented?
   try {
     var arr = new Uint8Array(1)
-    arr.__proto__ = {__proto__: Uint8Array.prototype, foo: function () { return 42 }}
+    arr.__proto__ = { __proto__: Uint8Array.prototype, foo: function () { return 42 } }
     return arr.foo() === 42
   } catch (e) {
     return false
@@ -230,26 +228,24 @@ function typedArraySupport () {
 }
 
 Object.defineProperty(Buffer.prototype, 'parent', {
+  enumerable: true,
   get: function () {
-    if (!(this instanceof Buffer)) {
-      return undefined
-    }
+    if (!Buffer.isBuffer(this)) { return undefined }
     return this.buffer
   }
 })
 
 Object.defineProperty(Buffer.prototype, 'offset', {
+  enumerable: true,
   get: function () {
-    if (!(this instanceof Buffer)) {
-      return undefined
-    }
+    if (!Buffer.isBuffer(this)) { return undefined }
     return this.byteOffset
   }
 })
 
 function createBuffer (length) {
   if (length > K_MAX_LENGTH) {
-    throw new RangeError('Invalid typed array length')
+    throw new RangeError('The value "' + length + '" is invalid for option "size"')
   }
   // Return an augmented `Uint8Array` instance
   var buf = new Uint8Array(length)
@@ -271,8 +267,8 @@ function Buffer (arg, encodingOrOffset, length) {
   // Common case.
   if (typeof arg === 'number') {
     if (typeof encodingOrOffset === 'string') {
-      throw new Error(
-        'If encoding is specified then the first argument must be a string'
+      throw new TypeError(
+        'The "string" argument must be of type string. Received type number'
       )
     }
     return allocUnsafe(arg)
@@ -281,7 +277,7 @@ function Buffer (arg, encodingOrOffset, length) {
 }
 
 // Fix subarray() in ES2016. See: https://github.com/feross/buffer/pull/97
-if (typeof Symbol !== 'undefined' && Symbol.species &&
+if (typeof Symbol !== 'undefined' && Symbol.species != null &&
     Buffer[Symbol.species] === Buffer) {
   Object.defineProperty(Buffer, Symbol.species, {
     value: null,
@@ -294,19 +290,51 @@ if (typeof Symbol !== 'undefined' && Symbol.species &&
 Buffer.poolSize = 8192 // not used by this implementation
 
 function from (value, encodingOrOffset, length) {
-  if (typeof value === 'number') {
-    throw new TypeError('"value" argument must not be a number')
-  }
-
-  if (isArrayBuffer(value) || (value && isArrayBuffer(value.buffer))) {
-    return fromArrayBuffer(value, encodingOrOffset, length)
-  }
-
   if (typeof value === 'string') {
     return fromString(value, encodingOrOffset)
   }
 
-  return fromObject(value)
+  if (ArrayBuffer.isView(value)) {
+    return fromArrayLike(value)
+  }
+
+  if (value == null) {
+    throw TypeError(
+      'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
+      'or Array-like Object. Received type ' + (typeof value)
+    )
+  }
+
+  if (isInstance(value, ArrayBuffer) ||
+      (value && isInstance(value.buffer, ArrayBuffer))) {
+    return fromArrayBuffer(value, encodingOrOffset, length)
+  }
+
+  if (typeof value === 'number') {
+    throw new TypeError(
+      'The "value" argument must not be of type number. Received type number'
+    )
+  }
+
+  var valueOf = value.valueOf && value.valueOf()
+  if (valueOf != null && valueOf !== value) {
+    return Buffer.from(valueOf, encodingOrOffset, length)
+  }
+
+  var b = fromObject(value)
+  if (b) { return b }
+
+  if (typeof Symbol !== 'undefined' && Symbol.toPrimitive != null &&
+      typeof value[Symbol.toPrimitive] === 'function') {
+    return Buffer.from(
+      value[Symbol.toPrimitive]('string'), encodingOrOffset, length
+    )
+  }
+
+  throw new TypeError(
+    'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
+    'or Array-like Object. Received type ' + (typeof value)
+  )
 }
 
 /**
@@ -330,7 +358,7 @@ function assertSize (size) {
   if (typeof size !== 'number') {
     throw new TypeError('"size" argument must be of type number')
   } else if (size < 0) {
-    throw new RangeError('"size" argument must not be negative')
+    throw new RangeError('The value "' + size + '" is invalid for option "size"')
   }
 }
 
@@ -445,20 +473,16 @@ function fromObject (obj) {
     return buf
   }
 
-  if (obj) {
-    if (ArrayBuffer.isView(obj) || 'length' in obj) {
-      if (typeof obj.length !== 'number' || numberIsNaN(obj.length)) {
-        return createBuffer(0)
-      }
-      return fromArrayLike(obj)
+  if (obj.length !== undefined) {
+    if (typeof obj.length !== 'number' || numberIsNaN(obj.length)) {
+      return createBuffer(0)
     }
-
-    if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
-      return fromArrayLike(obj.data)
-    }
+    return fromArrayLike(obj)
   }
 
-  throw new TypeError('The first argument must be one of type string, Buffer, ArrayBuffer, Array, or Array-like Object.')
+  if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
+    return fromArrayLike(obj.data)
+  }
 }
 
 function checked (length) {
@@ -479,12 +503,17 @@ function SlowBuffer (length) {
 }
 
 Buffer.isBuffer = function isBuffer (b) {
-  return b != null && b._isBuffer === true
+  return b != null && b._isBuffer === true &&
+    b !== Buffer.prototype // so Buffer.isBuffer(Buffer.prototype) will be false
 }
 
 Buffer.compare = function compare (a, b) {
+  if (isInstance(a, Uint8Array)) { a = Buffer.from(a, a.offset, a.byteLength) }
+  if (isInstance(b, Uint8Array)) { b = Buffer.from(b, b.offset, b.byteLength) }
   if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
-    throw new TypeError('Arguments must be Buffers')
+    throw new TypeError(
+      'The "buf1", "buf2" arguments must be one of type Buffer or Uint8Array'
+    )
   }
 
   if (a === b) { return 0 }
@@ -545,7 +574,7 @@ Buffer.concat = function concat (list, length) {
   var pos = 0
   for (i = 0; i < list.length; ++i) {
     var buf = list[i]
-    if (ArrayBuffer.isView(buf)) {
+    if (isInstance(buf, Uint8Array)) {
       buf = Buffer.from(buf)
     }
     if (!Buffer.isBuffer(buf)) {
@@ -561,15 +590,19 @@ function byteLength (string, encoding) {
   if (Buffer.isBuffer(string)) {
     return string.length
   }
-  if (ArrayBuffer.isView(string) || isArrayBuffer(string)) {
+  if (ArrayBuffer.isView(string) || isInstance(string, ArrayBuffer)) {
     return string.byteLength
   }
   if (typeof string !== 'string') {
-    string = '' + string
+    throw new TypeError(
+      'The "string" argument must be one of type string, Buffer, or ArrayBuffer. ' +
+      'Received type ' + typeof string
+    )
   }
 
   var len = string.length
-  if (len === 0) { return 0 }
+  var mustMatch = (arguments.length > 2 && arguments[2] === true)
+  if (!mustMatch && len === 0) { return 0 }
 
   // Use a for loop to avoid recursion
   var loweredCase = false
@@ -581,7 +614,6 @@ function byteLength (string, encoding) {
         return len
       case 'utf8':
       case 'utf-8':
-      case undefined:
         return utf8ToBytes(string).length
       case 'ucs2':
       case 'ucs-2':
@@ -593,7 +625,9 @@ function byteLength (string, encoding) {
       case 'base64':
         return base64ToBytes(string).length
       default:
-        if (loweredCase) { return utf8ToBytes(string).length } // assume utf8
+        if (loweredCase) {
+          return mustMatch ? -1 : utf8ToBytes(string).length // assume utf8
+        }
         encoding = ('' + encoding).toLowerCase()
         loweredCase = true
     }
@@ -748,16 +782,20 @@ Buffer.prototype.equals = function equals (b) {
 Buffer.prototype.inspect = function inspect () {
   var str = ''
   var max = exports.INSPECT_MAX_BYTES
-  if (this.length > 0) {
-    str = this.toString('hex', 0, max).match(/.{2}/g).join(' ')
-    if (this.length > max) { str += ' ... ' }
-  }
+  str = this.toString('hex', 0, max).replace(/(.{2})/g, '$1 ').trim()
+  if (this.length > max) { str += ' ... ' }
   return '<Buffer ' + str + '>'
 }
 
 Buffer.prototype.compare = function compare (target, start, end, thisStart, thisEnd) {
+  if (isInstance(target, Uint8Array)) {
+    target = Buffer.from(target, target.offset, target.byteLength)
+  }
   if (!Buffer.isBuffer(target)) {
-    throw new TypeError('Argument must be a Buffer')
+    throw new TypeError(
+      'The "target" argument must be one of type Buffer or Uint8Array. ' +
+      'Received type ' + (typeof target)
+    )
   }
 
   if (start === undefined) {
@@ -836,7 +874,7 @@ function bidirectionalIndexOf (buffer, val, byteOffset, encoding, dir) {
   } else if (byteOffset < -0x80000000) {
     byteOffset = -0x80000000
   }
-  byteOffset = +byteOffset  // Coerce to Number.
+  byteOffset = +byteOffset // Coerce to Number.
   if (numberIsNaN(byteOffset)) {
     // byteOffset: it it's undefined, null, NaN, "foo", etc, search whole buffer
     byteOffset = dir ? 0 : (buffer.length - 1)
@@ -1090,8 +1128,8 @@ function utf8Slice (buf, start, end) {
     var codePoint = null
     var bytesPerSequence = (firstByte > 0xEF) ? 4
       : (firstByte > 0xDF) ? 3
-      : (firstByte > 0xBF) ? 2
-      : 1
+        : (firstByte > 0xBF) ? 2
+          : 1
 
     if (i + bytesPerSequence <= end) {
       var secondByte, thirdByte, fourthByte, tempCodePoint
@@ -1774,7 +1812,7 @@ Buffer.prototype.fill = function fill (val, start, end, encoding) {
   } else {
     var bytes = Buffer.isBuffer(val)
       ? val
-      : new Buffer(val, encoding)
+      : Buffer.from(val, encoding)
     var len = bytes.length
     if (len === 0) {
       throw new TypeError('The value "' + val +
@@ -1929,15 +1967,16 @@ function blitBuffer (src, dst, offset, length) {
   return i
 }
 
-// ArrayBuffers from another context (i.e. an iframe) do not pass the `instanceof` check
-// but they should be treated as valid. See: https://github.com/feross/buffer/issues/166
-function isArrayBuffer (obj) {
-  return obj instanceof ArrayBuffer ||
-    (obj != null && obj.constructor != null && obj.constructor.name === 'ArrayBuffer' &&
-      typeof obj.byteLength === 'number')
+// ArrayBuffer or Uint8Array objects from other contexts (i.e. iframes) do not pass
+// the `instanceof` check but they should be treated as of that type.
+// See: https://github.com/feross/buffer/issues/166
+function isInstance (obj, type) {
+  return obj instanceof type ||
+    (obj != null && obj.constructor != null && obj.constructor.name != null &&
+      obj.constructor.name === type.name)
 }
-
 function numberIsNaN (obj) {
+  // For IE11 support
   return obj !== obj // eslint-disable-line no-self-compare
 }
 
@@ -2791,7 +2830,7 @@ function oscillate(l, type) {
 
 // basic trace/panel config
 var config = {
-	thickness: 3,
+	thickness: 1,
 	thicknessRange: [.5, 100],
 
 	// step: 1,
@@ -2803,7 +2842,7 @@ var config = {
 	opacityRange: [0, 1],
 
 	// size: 2e7,
-	// size: 512 * 30,
+	// size: 512 * 300,
 	size: 1024,
 	sizeRange: [64, 8192],
 	paused: false,
@@ -2831,6 +2870,7 @@ var config = {
 
 	// rate: 12,
 	// block: 1024
+	// pxStep: .5
 
 
 	// create waveform traces
@@ -2876,6 +2916,8 @@ document.addEventListener('mousemove', function (e) {
 		var y = o.y;
 		var x = o.x;
 		var sdev = o.sdev;
+
+		if (average == null) { return; }
 
 		ctx2d.fillStyle = 'rgba(255,0,0,.5)';
 		ctx2d.fillRect(x - 3, y - 3, 6, 6);
@@ -3002,7 +3044,7 @@ function tick() {
 tick();
 
 // handle pan/zoom
-panzoom(document, function (e) {
+panzoom(ctx2d.canvas, function (e) {
 	// clear pick markers
 	ctx2d.clearRect(0, 0, w, h);
 
@@ -3034,6 +3076,23 @@ panzoom(document, function (e) {
 
 	raf.cancel(frame);
 	frame = raf(function () { return waveforms.forEach(function (wf) { return wf.render(); }); });
+});
+
+window.addEventListener('resize', function () {
+	var canvas = waveform0.canvas;
+
+	// take over canvas2d size
+	canvas2d.width = canvas.width;
+	canvas2d.height = canvas.height;
+
+	waveforms.forEach(function (waveform, i) {
+		var vp = waveform.viewport;
+		vp.width = canvas2d.width;
+		waveform.update({
+			viewport: vp
+		});
+		waveform.render();
+	});
 });
 
 },{"./":7,"controlkit":17,"fps-indicator":135,"object-assign":147,"pan-zoom":148,"performance-now":151,"periodic-function":154,"prettysize":164,"raf":165}],7:[function(require,module,exports){
@@ -3076,40 +3135,56 @@ var shaderCache = new WeakMap();
 function Waveform(o) {
 	if (!(this instanceof Waveform)) { return new Waveform(o); }
 
-	if (isRegl(o)) {
-		o = { regl: o };
-		this.gl = o.regl._gl;
-	} else {
-		this.gl = createGl(o);
-	}
-	if (!o) { o = {}; }else if (o) {
-		if (o.pick != null) { this.storeData = !!o.pick; }
-		if (o.fade != null) { this.fade = !!o.fade; }
-	}
 	// stack of textures with sample data
 	this.textures = [];
 	this.textureLength = this.textureSize[0] * this.textureSize[1];
 	// total number of samples
 	this.total = 0;
 
-	this.shader = shaderCache.get(this.gl);
-	if (!this.shader) {
-		this.shader = this.createShader(o);
-		shaderCache.set(this.gl, this.shader);
-	}
+	this.shader = this.createShader(o);
 
+	this.gl = this.shader.gl;
 	this.regl = this.shader.regl;
 	this.canvas = this.gl.canvas;
+
+	// FIXME: add beter recognition
+	// if (o.pick != null) this.storeData = !!o.pick
+	// if (o.fade != null) this.fade = !!o.fade
 
 	this.update(o);
 }
 
 // create waveform shader, called once per gl context
 Waveform.prototype.createShader = function (o) {
-	var regl = o.regl || createRegl({
-		gl: this.gl,
-		extensions: ['oes_texture_float', 'oes_texture_float_linear']
-	});
+	var regl, gl, shader;
+
+	if (!o) { o = {}; }
+
+	// check shader cache
+	shader = shaderCache.get(o);
+	if (shader) { return shader; }
+
+	if (isRegl(o)) { o = { regl: o
+
+		// we let regl init window/container in default case
+		// because it binds resize event to window
+	}; }if (isObj(o) && !o.canvas && !o.gl && !o.regl) {
+		regl = createRegl(extend({
+			extensions: 'oes_texture_float'
+		}, pick(o, {})));
+		gl = regl._gl;
+
+		shader = shaderCache.get(gl);
+		if (shader) { return shader; }
+	} else {
+		gl = createGl(o);
+		shader = shaderCache.get(gl);
+		if (shader) { return shader; }
+
+		regl = createRegl({
+			gl: gl, extensions: 'oes_texture_float'
+		});
+	}
 
 	var idBuffer = regl.buffer({
 		usage: 'static',
@@ -3154,12 +3229,11 @@ Waveform.prototype.createShader = function (o) {
 			},
 			dataShape: this.textureSize,
 			dataLength: this.textureLength,
-			textureId: regl.prop('currTexture'),
 
 			// number of samples per viewport
 			span: regl.prop('span'),
 			// total number of samples
-			total: regl.this('total'),
+			total: regl.prop('total'),
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
 			// number of pixels per sample step
@@ -3173,16 +3247,17 @@ Waveform.prototype.createShader = function (o) {
 			translatei: regl.prop('translatei'),
 			// rotated translatei
 			translateri: regl.prop('translateri'),
+			translateriFract: regl.prop('translateriFract'),
 			// translate in terms of sample steps
 			translates: regl.prop('translates'),
 			// number of sample steps
 			totals: regl.prop('totals'),
 
 			// min/max amplitude
-			amp: regl.this('amp'),
+			amp: regl.prop('amp'),
 
 			viewport: regl.prop('viewport'),
-			opacity: regl.this('opacity'),
+			opacity: regl.prop('opacity'),
 			color: regl.prop('color'),
 			thickness: regl.prop('thickness')
 		},
@@ -3234,11 +3309,11 @@ Waveform.prototype.createShader = function (o) {
 	};
 
 	var drawRanges = regl(extend({
-		vert: glsl(["// output range-average samples line with sdev weighting\n\nprecision highp float;\n#define GLSLIFY 1\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\n// pick texture sample linearly interpolated:\n// default webgl interpolation is more broken\n\nuniform sampler2D data0, data1;\nuniform vec2 dataShape;\nuniform float sum, sum2;\nuniform float textureId;\n\nvec4 pick (float offset_0, float baseOffset_0) {\n\toffset_0 = max(offset_0, 0.);\n\n\tvec2 uv = vec2(\n\t\tmod(offset_0, dataShape.x) + .5,\n\t\tfloor(offset_0 / dataShape.x) + .5\n\t) / dataShape;\n\n\t// uv.y -= textureId;\n\n\t// use last sample for textures past 2nd\n\tif (uv.y > 2.) {\n\t\tvec4 sample = texture2D(data1, vec2(1, 1));\n\t\tsample.x = 0.;\n\t\treturn sample;\n\t}\n\n\telse if (uv.y > 1.) {\n\t\tuv.y = uv.y - 1.;\n\n\t\tvec4 sample = texture2D(data1, uv);\n\n\t\t// if right sample is from the next texture - align it to left texture\n\t\tif (offset_0 >= dataShape.x * dataShape.y &&\n\t\t\tbaseOffset_0 < dataShape.x * dataShape.y) {\n\t\t\tsample.y += sum;\n\t\t\tsample.z += sum2;\n\t\t}\n\n\t\treturn sample;\n\t}\n\n\telse return texture2D(data0, uv);\n}\n\n// shift is passed separately for higher float32 precision of offset\n// export pickLinear for the case of emulating texture linear interpolation\nvec4 pickLinear(float offset, float baseOffset) {\n\tfloat offsetLeft = floor(offset);\n\tfloat offsetRight = ceil(offset);\n\tfloat t = offset - offsetLeft;\n\tif (offsetLeft == offsetRight) {\n\t\toffsetRight = ceil(offset + .5);\n\t\tt = 0.;\n\t}\n\n\tvec4 left = pick(offsetLeft, baseOffset);\n\tvec4 right = pick(offsetRight, baseOffset);\n\n\treturn lerp(left, right, t);\n}\n\n// linear interpolation\n\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nattribute float id, sign;\n\nuniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;\nuniform vec4 viewport, color;\nuniform  vec2 amp;\n\nvarying vec4 fragColor;\nvarying float avgPrev, avgCurr, avgNext, sdev;\n\nvoid main() {\n\tgl_PointSize = 1.5;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\t// float id = id - 1.;\n\tfloat offset = id * sampleStep + translateri;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = pxPerSample < 1. ? 0. : id + (translater - offset) / sampleStep;\n\n\tbool isStart = id <= -translates;\n\tbool isEnd = id >= floor(totals - translates - 1.);\n\n\tfloat baseOffset = offset - sampleStep * 2.;\n\t// if (isEnd) offset = total - 1.;\n\n\t// DEBUG: mark adjacent texture with different color\n\t// if (translate + (id + 1.) * sampleStep > 64. * 64.) {\n\t// \tfragColor.x *= .5;\n\t// }\n\t// if (isEnd) fragColor = vec4(0,0,1,1);\n\t// if (isStart) fragColor = vec4(0,0,1,1);\n\n\t// calc average of curr..next sampling points\n\tvec4 sample0 = isStart ? vec4(0) : pickLinear(offset - sampleStep, baseOffset);\n\tvec4 sample1 = pickLinear(offset, baseOffset);\n\tvec4 samplePrev = pickLinear(baseOffset, baseOffset);\n\tvec4 sampleNext = pickLinear(offset + sampleStep, baseOffset);\n\n\tavgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;\n\tavgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;\n\tavgNext = (sampleNext.y - sample1.y) / sampleStep;\n\n\t// σ(x)² = M(x²) - M(x)²\n\tfloat variance = abs(\n\t\t(sample1.z - sample0.z) / sampleStep - avgCurr * avgCurr\n\t);\n\tsdev = sqrt(variance);\n\tsdev /= abs(amp.y - amp.x);\n\n\tavgCurr = reamp(avgCurr, amp);\n\tavgNext = reamp(avgNext, amp);\n\tavgPrev = reamp(avgPrev, amp);\n\n\t// compensate for sampling rounding\n\tvec2 position = vec2(\n\t\t(pxStep * (id - posShift) ) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tfloat x = pxStep / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 bisec = normalize(normalLeft + normalRight);\n\tvec2 vert = vec2(0, 1);\n\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\tfloat vertRightLen = abs(1. / dot(normalRight, vert));\n\tfloat vertLeftLen = abs(1. / dot(normalLeft, vert));\n\tfloat maxVertLen = max(vertLeftLen, vertRightLen);\n\tfloat minVertLen = min(vertLeftLen, vertRightLen);\n\tfloat vertSdev = 2. * sdev * viewport.w / thickness;\n\n\tvec2 join;\n\n\tif (isStart) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd) {\n\t\tjoin = normalLeft;\n\t}\n\t// sdev less than projected to vertical shows simple line\n\t// FIXME: sdev should be compensated by curve bend\n\telse if (vertSdev < maxVertLen) {\n\t\t// sdev more than normal but less than vertical threshold\n\t\t// rotates join towards vertical\n\t\tif (vertSdev > minVertLen) {\n\t\t\tfloat t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);\n\t\t\tjoin = lerp(bisec * bisecLen, vert * maxVertLen, t);\n\t\t}\n\t\telse {\n\t\t\tjoin = bisec * bisecLen;\n\t\t}\n\t}\n\t// sdev more than projected to vertical modifies only y coord\n\telse {\n\t\tjoin = vert * vertSdev;\n\t}\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n\n}\n"])
+		vert: glsl(["// output range-average samples line with sdev weighting\n\nprecision highp float;\n#define GLSLIFY 1\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\n// pick texture sample linearly interpolated:\n// default webgl interpolation is more broken\n\nuniform sampler2D data0, data1;\nuniform vec2 dataShape;\nuniform float sum, sum2;\n\n// pick integer offset\nvec4 picki (float offset_0, float baseOffset_0, float translate_0) {\n\toffset_0 = max(offset_0, 0.);\n\n\toffset_0 += translate_0;\n\tbaseOffset_0 += translate_0;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset_0, dataShape.x)) + .5,\n\t\tfloor(offset_0 / dataShape.x) + .5\n\t) / dataShape;\n\n\tvec4 sample;\n\n\t// use last sample for textures past 2nd\n\tif (uv.y > 2.) {\n\t\tsample = texture2D(data1, vec2(1, 1));\n\t\tsample.x = 0.;\n\t}\n\telse if (uv.y > 1.) {\n\t\tuv.y = uv.y - 1.;\n\n\t\tsample = texture2D(data1, uv);\n\n\t\t// if right sample is from the next texture - align it to left texture\n\t\tif (offset_0 >= dataShape.x * dataShape.y &&\n\t\t\tbaseOffset_0 < dataShape.x * dataShape.y) {\n\t\t\tsample.y += sum;\n\t\t\tsample.z += sum2;\n\t\t}\n\n\t}\n\telse {\n\t\tsample = texture2D(data0, uv);\n\t}\n\n\treturn sample;\n}\n\n// shift is passed separately for higher float32 precision of offset\n// export pickLinear for the case of emulating texture linear interpolation\nvec4 pick (float offset_0, float baseOffset_0, float translate_0) {\n\tfloat offsetLeft = floor(offset_0);\n\tfloat offsetRight = ceil(offset_0);\n\tfloat t = offset_0 - offsetLeft;\n\tvec4 left = picki(offsetLeft, baseOffset_0, translate_0);\n\n\tif (t == 0. || offsetLeft == offsetRight) return left;\n\telse {\n\t\tvec4 right = picki(offsetRight, baseOffset_0, translate_0);\n\n\t\treturn lerp(left, right, t);\n\t}\n}\n\nvec4 pick (float a_0, float b_0) {\n\treturn pick(a_0, b_0, 0.);\n}\n\n// linear interpolation\n\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nattribute float id, sign;\n\nuniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translateriFract, translater, translatei, translates;\nuniform vec4 viewport, color;\nuniform  vec2 amp;\n\nvarying vec4 fragColor;\nvarying float avgPrev, avgCurr, avgNext, sdev;\n\nvoid main() {\n\tgl_PointSize = 1.5;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tfloat offset = id * sampleStep + translateriFract;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;\n\n\tbool isStart = id <= -translates;\n\tbool isEnd = id >= floor(totals - translates - 1.);\n\n\tfloat baseOffset = offset - sampleStep * 2.;\n\tfloat offset0 = offset - sampleStep;\n\tfloat offset1 = offset;\n\tif (isEnd) offset = total - 1.;\n\n\t// DEBUG: mark adjacent texture with different color\n\t// if (translate + (id + 1.) * sampleStep > 8192. * 2.) {\n\t// \tfragColor.x *= .5;\n\t// }\n\t// if (isEnd) fragColor = vec4(0,0,1,1);\n\t// if (isStart) fragColor = vec4(0,0,1,1);\n\n\t// calc average of curr..next sampling points\n\tvec4 sample0 = isStart ? vec4(0) : pick(offset0, baseOffset, translateri);\n\tvec4 sample1 = pick(offset1, baseOffset, translateri);\n\tvec4 samplePrev = pick(baseOffset, baseOffset, translateri);\n\tvec4 sampleNext = pick(offset + sampleStep, baseOffset, translateri);\n\n\tavgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;\n\tavgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;\n\tavgNext = (sampleNext.y - sample1.y) / sampleStep;\n\n\t// error proof variance calculation\n\tfloat offset0l = floor(offset0);\n\tfloat offset1l = floor(offset1);\n\tfloat t0 = offset0 - offset0l;\n\tfloat t1 = offset1 - offset1l;\n\tfloat offset0r = offset0l + 1.;\n\tfloat offset1r = offset1l + 1.;\n\n\tavgCurr = (\n\t\t+ pick(offset1l, baseOffset, translateri).y * (1. - t1)\n\t\t+ pick(offset1r, baseOffset, translateri).y * t1\n\t\t- pick(offset0l, baseOffset, translateri).y * (1. - t0)\n\t\t- pick(offset0r, baseOffset, translateri).y * t0\n\t) / sampleStep;\n\n\t// ALERT: this formula took 7 days\n\t// the order of operations is important to provide precision\n\t// that comprises linear interpolation and range calculation\n\tfloat mx2 = (\n\t\t+ pick(offset1l, baseOffset, translateri).z\n\t\t- pick(offset0l, baseOffset, translateri).z\n\t\t+ pick(offset1l, baseOffset, translateri).w\n\t\t- pick(offset0l, baseOffset, translateri).w\n\t\t+ t1 * (pick(offset1r, baseOffset, translateri).z - pick(offset1l, baseOffset, translateri).z)\n\t\t- t0 * (pick(offset0r, baseOffset, translateri).z - pick(offset0l, baseOffset, translateri).z)\n\t\t+ t1 * (pick(offset1r, baseOffset, translateri).w - pick(offset1l, baseOffset, translateri).w)\n\t\t- t0 * (pick(offset0r, baseOffset, translateri).w - pick(offset0l, baseOffset, translateri).w)\n\t)  / sampleStep;\n\tfloat m2 = avgCurr * avgCurr;\n\n\t// σ(x)² = M(x²) - M(x)²\n\tfloat variance = abs(mx2 - m2);\n\n\tsdev = sqrt(variance);\n\tsdev /= abs(amp.y - amp.x);\n\n\tavgCurr = reamp(avgCurr, amp);\n\tavgNext = reamp(avgNext, amp);\n\tavgPrev = reamp(avgPrev, amp);\n\n\t// compensate for sampling rounding\n\tvec2 position = vec2(\n\t\t(pxStep * (id - posShift) ) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tfloat x = pxStep / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 bisec = normalize(normalLeft + normalRight);\n\tvec2 vert = vec2(0, 1);\n\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\tfloat vertRightLen = abs(1. / dot(normalRight, vert));\n\tfloat vertLeftLen = abs(1. / dot(normalLeft, vert));\n\tfloat maxVertLen = max(vertLeftLen, vertRightLen);\n\tfloat minVertLen = min(vertLeftLen, vertRightLen);\n\tfloat vertSdev = 2. * sdev * viewport.w / thickness;\n\n\tvec2 join;\n\n\tif (isStart) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd) {\n\t\tjoin = normalLeft;\n\t}\n\t// sdev less than projected to vertical shows simple line\n\t// FIXME: sdev should be compensated by curve bend\n\telse if (vertSdev < maxVertLen) {\n\t\t// sdev more than normal but less than vertical threshold\n\t\t// rotates join towards vertical\n\t\tif (vertSdev > minVertLen) {\n\t\t\tfloat t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);\n\t\t\tjoin = lerp(bisec * bisecLen, vert * maxVertLen, t);\n\t\t}\n\t\telse {\n\t\t\tjoin = bisec * bisecLen;\n\t\t}\n\t}\n\t// sdev more than projected to vertical modifies only y coord\n\telse {\n\t\tjoin = vert * vertSdev;\n\t}\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
 	}, shaderOptions));
 
 	var drawLine = regl(extend({
-		vert: glsl(["// direct sample output, connected by line, to the contrary to range\n\nprecision highp float;\n#define GLSLIFY 1\n\n// pick texture sample linearly interpolated:\n// default webgl interpolation is more broken\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\nuniform sampler2D data0, data1;\nuniform vec2 dataShape;\nuniform float sum, sum2;\nuniform float textureId;\n\nvec4 pick (float offset_0, float baseOffset_0) {\n\toffset_0 = max(offset_0, 0.);\n\n\tvec2 uv = vec2(\n\t\tmod(offset_0, dataShape.x) + .5,\n\t\tfloor(offset_0 / dataShape.x) + .5\n\t) / dataShape;\n\n\t// uv.y -= textureId;\n\n\t// use last sample for textures past 2nd\n\tif (uv.y > 2.) {\n\t\tvec4 sample = texture2D(data1, vec2(1, 1));\n\t\tsample.x = 0.;\n\t\treturn sample;\n\t}\n\n\telse if (uv.y > 1.) {\n\t\tuv.y = uv.y - 1.;\n\n\t\tvec4 sample = texture2D(data1, uv);\n\n\t\t// if right sample is from the next texture - align it to left texture\n\t\tif (offset_0 >= dataShape.x * dataShape.y &&\n\t\t\tbaseOffset_0 < dataShape.x * dataShape.y) {\n\t\t\tsample.y += sum;\n\t\t\tsample.z += sum2;\n\t\t}\n\n\t\treturn sample;\n\t}\n\n\telse return texture2D(data0, uv);\n}\n\n// shift is passed separately for higher float32 precision of offset\n// export pickLinear for the case of emulating texture linear interpolation\nvec4 pickLinear(float offset, float baseOffset) {\n\tfloat offsetLeft = floor(offset);\n\tfloat offsetRight = ceil(offset);\n\tfloat t = offset - offsetLeft;\n\tif (offsetLeft == offsetRight) {\n\t\toffsetRight = ceil(offset + .5);\n\t\tt = 0.;\n\t}\n\n\tvec4 left = pick(offsetLeft, baseOffset);\n\tvec4 right = pick(offsetRight, baseOffset);\n\n\treturn lerp(left, right, t);\n}\n\n// linear interpolation\n\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nattribute float id, sign;\n\nuniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;\nuniform vec4 viewport, color;\nuniform vec2 amp;\n\nvarying vec4 fragColor;\nvarying float avgPrev, avgCurr, avgNext, sdev;\n\nvoid main () {\n\tgl_PointSize = 1.5;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\t// float id = id - 1.;\n\tfloat offset = id * sampleStep + translateri;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = pxPerSample < 1. ? 0. : id + (translater - offset) / sampleStep;\n\n\tbool isStart = id <= -translates;\n\tbool isEnd = id >= floor(totals - translates - 1.);\n\n\t// DEBUG: mark adjacent texture with different color\n\t// if (translate + (id) * sampleStep > 64. * 64.) {\n\t// \tfragColor.x *= .5;\n\t// }\n\t// if (isEnd) fragColor = vec4(0,0,1,1);\n\t// if (isStart) fragColor = vec4(0,0,1,1);\n\n\t// calc average of curr..next sampling points\n\tvec4 sampleCurr = pickLinear(offset, offset - sampleStep);\n\tvec4 sampleNext = pickLinear(offset + sampleStep, offset - sampleStep);\n\tvec4 samplePrev = pickLinear(offset - sampleStep, offset - sampleStep);\n\n\tavgCurr = reamp(sampleCurr.x, amp);\n\tavgNext = reamp(sampleNext.x, amp);\n\tavgPrev = reamp(samplePrev.x, amp);\n\n\tsdev = 0.;\n\n\tvec2 position = vec2(\n\t\tpxStep * (id - posShift) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tfloat x = pxStep / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 join;\n\tif (isStart) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd) {\n\t\tjoin = normalLeft;\n\t}\n\telse {\n\t\tvec2 bisec = normalize(normalLeft + normalRight);\n\t\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\t\tjoin = bisec * bisecLen;\n\t}\n\n\t// FIXME: limit join by prev vertical\n\t// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;\n\t// join.x *= maxJoinX / join.x;\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
+		vert: glsl(["// direct sample output, connected by line, to the contrary to range\n\nprecision highp float;\n#define GLSLIFY 1\n\n// pick texture sample linearly interpolated:\n// default webgl interpolation is more broken\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\nuniform sampler2D data0, data1;\nuniform vec2 dataShape;\nuniform float sum, sum2;\n\n// pick integer offset\nvec4 picki (float offset_0, float baseOffset, float translate_0) {\n\toffset_0 = max(offset_0, 0.);\n\n\toffset_0 += translate_0;\n\tbaseOffset += translate_0;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset_0, dataShape.x)) + .5,\n\t\tfloor(offset_0 / dataShape.x) + .5\n\t) / dataShape;\n\n\tvec4 sample;\n\n\t// use last sample for textures past 2nd\n\tif (uv.y > 2.) {\n\t\tsample = texture2D(data1, vec2(1, 1));\n\t\tsample.x = 0.;\n\t}\n\telse if (uv.y > 1.) {\n\t\tuv.y = uv.y - 1.;\n\n\t\tsample = texture2D(data1, uv);\n\n\t\t// if right sample is from the next texture - align it to left texture\n\t\tif (offset_0 >= dataShape.x * dataShape.y &&\n\t\t\tbaseOffset < dataShape.x * dataShape.y) {\n\t\t\tsample.y += sum;\n\t\t\tsample.z += sum2;\n\t\t}\n\n\t}\n\telse {\n\t\tsample = texture2D(data0, uv);\n\t}\n\n\treturn sample;\n}\n\n// shift is passed separately for higher float32 precision of offset\n// export pickLinear for the case of emulating texture linear interpolation\nvec4 pick (float offset_0, float baseOffset, float translate_0) {\n\tfloat offsetLeft = floor(offset_0);\n\tfloat offsetRight = ceil(offset_0);\n\tfloat t = offset_0 - offsetLeft;\n\tvec4 left = picki(offsetLeft, baseOffset, translate_0);\n\n\tif (t == 0. || offsetLeft == offsetRight) return left;\n\telse {\n\t\tvec4 right = picki(offsetRight, baseOffset, translate_0);\n\n\t\treturn lerp(left, right, t);\n\t}\n}\n\nvec4 pick (float a_0, float b_0) {\n\treturn pick(a_0, b_0, 0.);\n}\n\n// linear interpolation\n\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nattribute float id, sign;\n\nuniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;\nuniform vec4 viewport, color;\nuniform vec2 amp;\n\nvarying vec4 fragColor;\nvarying float avgPrev, avgCurr, avgNext, sdev;\n\nvoid main () {\n\tgl_PointSize = 1.5;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tfloat offset = id * sampleStep;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;\n\n\tbool isStart = id <= -translates;\n\tbool isEnd = id >= floor(totals - translates - 1.);\n\n\t// DEBUG: mark adjacent texture with different color\n\t// if (translate + (id) * sampleStep > 64. * 64.) {\n\t// \tfragColor.x *= .5;\n\t// }\n\t// if (isEnd) fragColor = vec4(0,0,1,1);\n\t// if (isStart) fragColor = vec4(0,0,1,1);\n\n\t// calc average of curr..next sampling points\n\tvec4 sampleCurr = pick(offset, offset - sampleStep, translateri);\n\tvec4 sampleNext = pick(offset + sampleStep, offset - sampleStep, translateri);\n\tvec4 samplePrev = pick(offset - sampleStep, offset - sampleStep, translateri);\n\n\tavgCurr = reamp(sampleCurr.x, amp);\n\tavgNext = reamp(sampleNext.x, amp);\n\tavgPrev = reamp(samplePrev.x, amp);\n\n\tsdev = 0.;\n\n\tvec2 position = vec2(\n\t\tpxStep * (id - posShift) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tfloat x = pxStep / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 join;\n\tif (isStart) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd) {\n\t\tjoin = normalLeft;\n\t}\n\telse {\n\t\tvec2 bisec = normalize(normalLeft + normalRight);\n\t\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\t\tjoin = bisec * bisecLen;\n\t}\n\n\t// FIXME: limit join by prev vertical\n\t// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;\n\t// join.x *= maxJoinX / join.x;\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
 	}, shaderOptions));
 
 	var blankTexture = regl.texture({
@@ -3248,16 +3323,23 @@ Waveform.prototype.createShader = function (o) {
 		type: 'float'
 	});
 
-	return { drawRanges: drawRanges, drawLine: drawLine, regl: regl, idBuffer: idBuffer, blankTexture: blankTexture };
+	shader = { drawRanges: drawRanges, drawLine: drawLine, regl: regl, idBuffer: idBuffer, blankTexture: blankTexture, gl: gl };
+	shaderCache.set(gl, shader);
+
+	return shader;
 };
 
 // calculate draw options
 Waveform.prototype.calc = function () {
 	var r = this.range;
+	var ref = this;
+	var total = ref.total;
+	var opacity = ref.opacity;
+	var amp = ref.amp;
 
 	// FIXME: remove
 	// r[0] = -4
-	// r[2] = 40
+	// r[1] = 40
 
 	var color = this.color;
 	var thickness = this.thickness;
@@ -3276,10 +3358,11 @@ Waveform.prototype.calc = function () {
 
 	var dataLength = this.textureLength;
 
-	var pxStep = this.pxStep || Math.pow(thickness, .25) * .25;
-	var minStep = viewport[2] / Math.abs(span);
-	// min 1. pxStep reduces jittering on panning
-	pxStep = Math.max(pxStep, minStep, 1.);
+	var pxStep = Math.max(
+	// width / span makes step correspond to texture samples
+	viewport[2] / Math.abs(span),
+	// pxStep affects jittering on panning, .5 is good value
+	this.pxStep || Math.pow(thickness, .1) * .1);
 
 	var sampleStep = pxStep * span / viewport[2];
 	var pxPerSample = pxStep / sampleStep;
@@ -3295,7 +3378,8 @@ Waveform.prototype.calc = function () {
 	var translater = translate % dataLength;
 	var translates = Math.floor(translate / sampleStep);
 	var translatei = translates * sampleStep;
-	var translateri = translatei % dataLength;
+	var translateri = Math.floor(translatei % dataLength);
+	var translateriFract = translatei % dataLength - translateri;
 
 	// correct translater to always be under translateri
 	// for correct posShift in shader
@@ -3328,7 +3412,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	var drawOptions = {
-		offset: offset, count: count, thickness: thickness, color: color, pxStep: pxStep, pxPerSample: pxPerSample, viewport: viewport, translate: translate, translater: translater, totals: totals, translatei: translatei, translateri: translateri, translates: translates, currTexture: currTexture, sampleStep: sampleStep, span: span
+		offset: offset, count: count, thickness: thickness, color: color, pxStep: pxStep, pxPerSample: pxPerSample, viewport: viewport, translate: translate, translater: translater, totals: totals, translatei: translatei, translateri: translateri, translateriFract: translateriFract, translates: translates, currTexture: currTexture, sampleStep: sampleStep, span: span, total: total, opacity: opacity, amp: amp
 	};
 
 	return drawOptions;
@@ -3339,8 +3423,7 @@ Waveform.prototype.render = function () {
 	var o = this.calc();
 
 	// range case
-	if (o.pxPerSample < 1) {
-		// console.log('range')
+	if (o.pxPerSample <= 1.) {
 		this.shader.drawRanges.call(this, o);
 		// this.shader.drawRanges.call(this, extend(drawOptions, {
 		// 	primitive: 'points',
@@ -3355,7 +3438,7 @@ Waveform.prototype.render = function () {
 
 	// line case
 	else {
-			// console.log('line')
+			console.log('draw line');
 			this.shader.drawLine.call(this, o);
 			// this.shader.drawLine.call(this, extend(drawOptions, {
 			// 	primitive: 'points',
@@ -3386,6 +3469,7 @@ Waveform.prototype.pick = function (x) {
 	var sampleStep = ref.sampleStep;
 	var pxPerSample = ref.pxPerSample;
 	var pxStep = ref.pxStep;
+	var amp = ref.amp;
 
 	var txt = this.textures[currTexture];
 
@@ -3402,8 +3486,6 @@ Waveform.prototype.pick = function (x) {
 
 	var samples = data.subarray(offset * ch, offset * ch + ch);
 
-	var amp = this.amp;
-
 	// single-value pick
 	// if (pxPerSample >= 1) {
 	var avg = samples[0];
@@ -3417,7 +3499,7 @@ Waveform.prototype.pick = function (x) {
 
 		// FIXME: multi-value pick
 
-	};console.log(2);
+	};
 };
 
 // update visual state
@@ -3464,7 +3546,7 @@ Waveform.prototype.update = function (o) {
 	}
 
 	if (o.pxStep != null) {
-		this.thickness = toPx(o.pxStep);
+		this.pxStep = toPx(o.pxStep);
 	}
 
 	if (o.opacity != null) {
@@ -3506,6 +3588,16 @@ Waveform.prototype.update = function (o) {
 			this.amp = [o.amp[0], o.amp[1]];
 		}
 	}
+
+	// if (o.lineMode != null) {
+	// 	if (typeof o.lineMode === 'number' || typeof o.lineMode === 'string') {
+	// 		this.lineMode = toPx(o.lineMode)
+	// 	}
+	// 	else {
+	// 		this.lineMode = !!o.lineMode
+	// 	}
+	// }
+
 
 	// flatten colors to a single uint8 array
 	if (o.color != null) {
@@ -3629,7 +3721,7 @@ Waveform.prototype.push = function (samples) {
 		if (y === txtH) {
 			if (!this.storeData) { pool.freeFloat(data); }
 			this.push(samples.subarray(firstRowWidth));
-			pool.freeFloat(samples64);
+			pool.freeFloat(samples);
 			return;
 		}
 
@@ -3697,7 +3789,7 @@ Waveform.prototype.storeData = true;
 // - max number of textures
 Waveform.prototype.textureSize = [512, 512];
 Waveform.prototype.textureChannels = 4;
-Waveform.prototype.maxSampleCount = 8192;
+Waveform.prototype.maxSampleCount = 8192 * 2;
 
 function isRegl(o) {
 	return typeof o === 'function' && o._gl && o.prop && o.texture && o.buffer;

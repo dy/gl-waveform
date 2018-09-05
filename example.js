@@ -48,10 +48,10 @@ let config = {
 	opacityRange: [0, 1],
 
 	// size: 2e7,
-	size: 512 * 300,
-	// size: 1024,
+	// size: 512 * 300,
+	size: 1024,
 	sizeRange: [64, 8192],
-	paused: true,
+	paused: false,
 
 	frequency: 150,
 	frequencyRange: [1, 3000],
@@ -124,6 +124,8 @@ document.addEventListener('mousemove', e => {
 		if (!o) return
 
 		let {average, offset, y, x, sdev} = o
+
+		if (average == null) return
 
 		ctx2d.fillStyle = 'rgba(255,0,0,.5)'
 		ctx2d.fillRect(x - 3, y - 3, 6, 6)

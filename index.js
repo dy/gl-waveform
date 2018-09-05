@@ -669,7 +669,7 @@ Waveform.prototype.storeData = true
 // - max number of textures
 Waveform.prototype.textureSize = [512, 512]
 Waveform.prototype.textureChannels = 4
-Waveform.prototype.maxSampleCount = 8192
+Waveform.prototype.maxSampleCount = 8192 * 2
 
 
 function isRegl (o) {

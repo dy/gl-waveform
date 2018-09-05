@@ -298,3 +298,20 @@ panzoom(ctx2d.canvas, e => {
 	frame = raf(() => waveforms.forEach(wf => wf.render()))
 })
 
+
+window.addEventListener('resize', () => {
+	let canvas = waveform0.canvas
+
+	// take over canvas2d size
+	canvas2d.width = canvas.width
+	canvas2d.height = canvas.height
+
+	waveforms.forEach((waveform, i) => {
+		let vp = waveform.viewport
+		vp.width = canvas2d.width
+		waveform.update({
+			viewport: vp,
+		})
+		waveform.render()
+	})
+})

@@ -26,43 +26,57 @@ let shaderCache = new WeakMap()
 function Waveform (o) {
 	if (!(this instanceof Waveform)) return new Waveform(o)
 
-	if (isRegl(o)) {
-		o = {regl: o}
-		this.gl = o.regl._gl
-	}
-	else {
-		this.gl = createGl(o)
-	}
-	if (!o) o = {}
-	else if (o) {
-		if (o.pick != null) this.storeData = !!o.pick
-		if (o.fade != null) this.fade = !!o.fade
-	}
 	// stack of textures with sample data
 	this.textures = []
 	this.textureLength = this.textureSize[0] * this.textureSize[1]
 	// total number of samples
 	this.total = 0
 
-	this.shader = shaderCache.get(this.gl)
-	if (!this.shader) {
-		this.shader = this.createShader(o)
-		shaderCache.set(this.gl, this.shader)
-	}
+	this.shader = this.createShader(o)
 
+	this.gl = this.shader.gl
 	this.regl = this.shader.regl
 	this.canvas = this.gl.canvas
 
+	// FIXME: add beter recognition
+	// if (o.pick != null) this.storeData = !!o.pick
+	// if (o.fade != null) this.fade = !!o.fade
 
 	this.update(o)
 }
 
 // create waveform shader, called once per gl context
 Waveform.prototype.createShader = function (o) {
-	let regl = o.regl || createRegl({
-		gl: this.gl,
-		extensions: ['oes_texture_float', 'oes_texture_float_linear']
-	})
+	let regl, gl, shader
+
+	if (!o) o = {}
+
+	// check shader cache
+	shader = shaderCache.get(o)
+	if (shader) return shader
+
+	if (isRegl(o)) o = {regl: o}
+
+	// we let regl init window/container in default case
+	// because it binds resize event to window
+	if (isObj(o) && !o.canvas && !o.gl && !o.regl) {
+		regl = createRegl(extend({
+			extensions: 'oes_texture_float'
+		}, pick(o, {})))
+		gl = regl._gl
+
+		shader = shaderCache.get(gl)
+		if (shader) return shader
+	}
+	else {
+		gl = createGl(o)
+		shader = shaderCache.get(gl)
+		if (shader) return shader
+
+		regl = createRegl({
+			gl, extensions: 'oes_texture_float'
+		})
+	}
 
 	let idBuffer = regl.buffer({
 		usage: 'static',
@@ -199,7 +213,10 @@ Waveform.prototype.createShader = function (o) {
 		type: 'float'
 	})
 
-	return { drawRanges, drawLine, regl, idBuffer, blankTexture }
+	shader = { drawRanges, drawLine, regl, idBuffer, blankTexture, gl }
+	shaderCache.set(gl, shader)
+
+	return shader
 }
 
 // calculate draw options

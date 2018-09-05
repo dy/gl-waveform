@@ -62,12 +62,12 @@
     "controlkit": "^0.1.9",
     "fps-indicator": "^1.2.1",
     "glslify": "^6.2.1",
+    "indexhtmlify": "^1.3.1",
+    "metadataify": "^2.0.0",
+    "mobilify": "^1.0.1",
     "pan-zoom": "^3.2.1",
     "performance-now": "^2.1.0",
     "periodic-function": "^1.1.4",
-    "prettysize": "^1.1.0",
-    "react": "^16.4.1",
-    "react-dom": "^16.4.1",
-    "react-powerplug": "^1.0.0-rc.1"
+    "prettysize": "^1.1.0"
   }
 }

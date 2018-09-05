@@ -76,6 +76,7 @@ let config = {
 
 	// rate: 12,
 	// block: 1024
+	// pxStep: .5
 }
 
 

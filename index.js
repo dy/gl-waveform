@@ -247,10 +247,12 @@ Waveform.prototype.calc = function () {
 
 	let dataLength = this.textureLength
 
-	let pxStep = this.pxStep || (Math.pow(thickness, .25) * .25)
-	let minStep = viewport[2] / Math.abs(span)
-	// min 1. pxStep reduces jittering on panning
-	pxStep = Math.max(pxStep, minStep, 1.)
+	let pxStep = Math.max(
+		// width / span makes step correspond to texture samples
+		viewport[2] / Math.abs(span),
+		// pxStep affects jittering on panning, .5 is good value
+		this.pxStep || Math.pow(thickness, .1) * .1
+	)
 
 	let sampleStep = pxStep * span / viewport[2]
 	let pxPerSample = pxStep / sampleStep
@@ -314,7 +316,7 @@ Waveform.prototype.render = function () {
 	let o = this.calc()
 
 	// range case
-	if (o.pxPerSample <= 1) {
+	if (o.pxPerSample <= 1.) {
 		this.shader.drawRanges.call(this, o)
 		// this.shader.drawRanges.call(this, extend(drawOptions, {
 		// 	primitive: 'points',
@@ -329,6 +331,7 @@ Waveform.prototype.render = function () {
 
 	// line case
 	else {
+		console.log('draw line')
 		this.shader.drawLine.call(this, o)
 		// this.shader.drawLine.call(this, extend(drawOptions, {
 		// 	primitive: 'points',
@@ -397,7 +400,7 @@ Waveform.prototype.update = function (o) {
 		line: 'line line-style lineStyle linestyle',
 		viewport: 'vp viewport viewBox viewbox viewPort',
 		opacity: 'opacity alpha transparency visible visibility opaque',
-		iviewport: 'iviewport invertViewport inverseViewport'
+		iviewport: 'iviewport invertViewport inverseViewport',
 	})
 
 	// parse line style
@@ -426,7 +429,7 @@ Waveform.prototype.update = function (o) {
 	}
 
 	if (o.pxStep != null) {
-		this.thickness = toPx(o.pxStep)
+		this.pxStep = toPx(o.pxStep)
 	}
 
 	if (o.opacity != null) {
@@ -470,6 +473,15 @@ Waveform.prototype.update = function (o) {
 			this.amp = [o.amp[0], o.amp[1]]
 		}
 	}
+
+	// if (o.lineMode != null) {
+	// 	if (typeof o.lineMode === 'number' || typeof o.lineMode === 'string') {
+	// 		this.lineMode = toPx(o.lineMode)
+	// 	}
+	// 	else {
+	// 		this.lineMode = !!o.lineMode
+	// 	}
+	// }
 
 
 	// flatten colors to a single uint8 array

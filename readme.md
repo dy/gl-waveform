@@ -66,6 +66,7 @@ Property | Meaning
 `amplitude` 	| Amplitudes range, number or array `[min, max]`, by default considered `[-1, +1]`.
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).
 `thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.
+`pxStep`        | <em>advanced</em> Redefine minimum pixel step. Can enhance zooming precision.
 
 ### `waveform.push(data)`
 

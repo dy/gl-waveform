@@ -6,7 +6,7 @@
   "scripts": {
     "test": "budo test.js",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
-    "build": "browserify index.js -s gl-waveform -x regl -x pick-by-alias -x object-assign -x negative-index -x es6-weak-map -x parse-rect -x gl-util -x is-plain-obj -x typedarray-pool -x color-normalize -x is-negative-zero -x to-float32 -x parse-unit -x to-px -t glslify -g bubleify > dist/index.js",
+    "build": "browserify index.js -s gl-waveform -x regl -x pick-by-alias -x object-assign -x negative-index -x weak-map -x parse-rect -x gl-util -x is-plain-obj -x typedarray-pool -x color-normalize -x is-negative-zero -x to-float32 -x parse-unit -x to-px -t glslify -g bubleify > dist/index.js",
     "demo": "browserify example.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
   },
   "browserify": {

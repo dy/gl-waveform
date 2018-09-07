@@ -2,10 +2,12 @@
   "name": "gl-waveform",
   "version": "4.1.0",
   "description": "Performant waveform renderer with WebGL",
+  "main": "dist/index.js",
   "scripts": {
     "test": "budo test.js",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
-    "build": "browserify example.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
+    "build": "browserify index.js -s gl-waveform -x regl -x pick-by-alias -x object-assign -x negative-index -x es6-weak-map -x parse-rect -x gl-util -x is-plain-obj -x typedarray-pool -x color-normalize -x is-negative-zero -x to-float32 -x parse-unit -x to-px -t glslify -g bubleify > dist/index.js",
+    "demo": "browserify example.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
   },
   "browserify": {
     "transform": [
@@ -41,7 +43,7 @@
   "homepage": "https://github.com/a-vis/gl-waveform#readme",
   "dependencies": {
     "color-normalize": "^1.3.0",
-    "gl-util": "^3.0.8",
+    "gl-util": "^3.0.9",
     "is-plain-obj": "^1.1.0",
     "negative-index": "^1.0.2",
     "object-assign": "^4.1.1",
@@ -51,7 +53,8 @@
     "regl": "^1.3.7",
     "to-float32": "^1.0.0",
     "to-px": "^1.0.1",
-    "typedarray-pool": "^1.1.0"
+    "typedarray-pool": "^1.1.0",
+    "weak-map": "^1.0.5"
   },
   "devDependencies": {
     "babel-core": "^6.26.3",

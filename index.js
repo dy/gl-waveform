@@ -1,21 +1,20 @@
 'use strict'
 
-
-import pick from 'pick-by-alias'
-import extend from 'object-assign'
-import nidx from 'negative-index'
-import WeakMap from 'weak-map'
-import createRegl from 'regl'
-import parseRect from 'parse-rect'
-import createGl from 'gl-util/context'
-import isObj from 'is-plain-obj'
-import pool from 'typedarray-pool'
-import glsl from 'glslify'
-import rgba from 'color-normalize'
-import nz from 'is-negative-zero'
-import f32 from 'to-float32'
-import parseUnit from 'parse-unit'
-import px from 'to-px'
+let pick = require('pick-by-alias')
+let extend = require('object-assign')
+let nidx = require('negative-index')
+let WeakMap = require('weak-map')
+let createRegl = require('regl')
+let parseRect = require('parse-rect')
+let createGl = require('gl-util/context')
+let isObj = require('is-plain-obj')
+let pool = require('typedarray-pool')
+let glsl = require('glslify')
+let rgba = require('color-normalize')
+let neg0 = require('is-negative-zero')
+let f32 = require('to-float32')
+let parseUnit = require('parse-unit')
+let px = require('to-px')
 
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
@@ -25,6 +24,8 @@ let shaderCache = new WeakMap()
 
 function Waveform (o) {
 	if (!(this instanceof Waveform)) return new Waveform(o)
+
+	if ('drawingBufferWidth' in o) o = {gl: o}
 
 	// stack of textures with sample data
 	this.textures = []
@@ -45,10 +46,10 @@ function Waveform (o) {
 	this.update(o)
 }
 
+
 // create waveform shader, called once per gl context
 Waveform.prototype.createShader = function (o) {
 	let regl, gl, shader
-
 	if (!o) o = {}
 
 	// check shader cache
@@ -56,6 +57,7 @@ Waveform.prototype.createShader = function (o) {
 	if (shader) return shader
 
 	if (isRegl(o)) o = {regl: o}
+
 
 	// we let regl init window/container in default case
 	// because it binds resize event to window
@@ -98,7 +100,7 @@ Waveform.prototype.createShader = function (o) {
 		offset: regl.prop('offset'),
 		count: regl.prop('count'),
 
-		frag: this.fade ? glsl('./shader/fade.glsl') : `
+		frag: this.fade ? glsl('./shader/fade-frag.glsl') : `
 		precision highp float;
 		varying vec4 fragColor;
 		void main() {
@@ -199,12 +201,16 @@ Waveform.prototype.createShader = function (o) {
 	}
 
 	let drawRanges = regl(extend({
-		vert: glsl('./shader/range.glsl')
+		vert: glsl('./shader/range-vert.glsl')
+	}, shaderOptions))
+	let drawLine = regl(extend({
+		vert: glsl('./shader/line-vert.glsl')
 	}, shaderOptions))
 
-	let drawLine = regl(extend({
-		vert: glsl('./shader/line.glsl')
-	}, shaderOptions))
+
+	// let drawPick = regl(extend({
+	// 	frag: glsl('./shader/pick-frag.glsl')
+	// }))
 
 	let blankTexture = regl.texture({
 		width: 1,
@@ -212,10 +218,8 @@ Waveform.prototype.createShader = function (o) {
 		channels: this.textureChannels,
 		type: 'float'
 	})
-
 	shader = { drawRanges, drawLine, regl, idBuffer, blankTexture, gl }
-	shaderCache.set(gl, shader)
-
+	shaderCache.set( gl, shader )
 	return shader
 }
 
@@ -253,7 +257,6 @@ Waveform.prototype.calc = function () {
 		// pxStep affects jittering on panning, .5 is good value
 		this.pxStep || Math.pow(thickness, .1) * .1
 	)
-
 	let sampleStep = pxStep * span / viewport[2]
 	let pxPerSample = pxStep / sampleStep
 
@@ -331,7 +334,6 @@ Waveform.prototype.render = function () {
 
 	// line case
 	else {
-		console.log('draw line')
 		this.shader.drawLine.call(this, o)
 		// this.shader.drawLine.call(this, extend(drawOptions, {
 		// 	primitive: 'points',
@@ -383,8 +385,8 @@ Waveform.prototype.pick = function (x) {
 	// }
 
 	// FIXME: multi-value pick
-
 }
+
 
 // update visual state
 Waveform.prototype.update = function (o) {
@@ -651,6 +653,7 @@ Waveform.prototype.destroy = function () {
 	})
 }
 
+
 // Default instance values
 Waveform.prototype.color = new Uint8Array([0,0,0,255])
 Waveform.prototype.opacity = 1
@@ -681,7 +684,7 @@ function isRegl (o) {
 }
 
 function isNeg(v) {
-	return v < 0 || nz(v)
+	return v < 0 || neg0(v)
 }
 
 function toPx(str) {

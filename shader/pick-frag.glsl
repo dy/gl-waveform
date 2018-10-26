@@ -1,4 +1,4 @@
-// fragment shader with fading based on distance from average
+﻿// pick fragment shader with color as sdev/avg
 
 precision highp float;
 

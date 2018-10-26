@@ -2,24 +2,15 @@
   "name": "gl-waveform",
   "version": "4.1.1",
   "description": "Performant waveform renderer with WebGL",
-  "main": "dist/index.js",
+  "main": "./index.js",
   "scripts": {
     "test": "budo test.js",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
-    "build": "browserify index.js -s gl-waveform -x regl -x pick-by-alias -x object-assign -x negative-index -x weak-map -x parse-rect -x gl-util -x is-plain-obj -x typedarray-pool -x color-normalize -x is-negative-zero -x to-float32 -x parse-unit -x to-px -t glslify -g bubleify > dist/index.js",
+    "build": "babel index.js > dist/index.js",
     "demo": "browserify example.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
   },
   "browserify": {
     "transform": [
-      [
-        "babelify",
-        {
-          "plugins": [
-            "import-to-require",
-            "transform-react-jsx"
-          ]
-        }
-      ],
       "glslify"
     ]
   },
@@ -47,6 +38,7 @@
     "is-plain-obj": "^1.1.0",
     "negative-index": "^1.0.2",
     "object-assign": "^4.1.1",
+    "glslify": "^6.2.1",
     "parse-rect": "^1.2.0",
     "parse-unit": "^1.0.1",
     "pick-by-alias": "^1.2.0",
@@ -57,20 +49,25 @@
     "weak-map": "^1.0.5"
   },
   "devDependencies": {
+    "babel": "^6.23.0",
+    "babel-cli": "^6.26.0",
     "babel-core": "^6.26.3",
+    "babel-plugin-glslify": "^2.0.0",
     "babel-plugin-import-to-require": "^1.0.0",
     "babel-plugin-transform-react-jsx": "^6.24.1",
+    "babel-preset-es2015": "^6.24.1",
     "babelify": "^8.0.0",
     "bubleify": "^1.2.0",
     "controlkit": "^0.1.9",
     "fps-indicator": "^1.2.1",
-    "glslify": "^6.2.1",
+    "gl": "^4.1.1",
     "indexhtmlify": "^1.3.1",
     "metadataify": "^2.0.0",
     "mobilify": "^1.0.1",
     "pan-zoom": "^3.2.1",
     "performance-now": "^2.1.0",
     "periodic-function": "^1.1.4",
-    "prettysize": "^1.1.0"
+    "prettysize": "^1.1.0",
+    "pxls": "^1.0.0"
   }
 }

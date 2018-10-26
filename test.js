@@ -1,5 +1,42 @@
 'use strict'
 
+const t = require('tape')
+const createWaveform = require('./')
+const panzoom = require('pan-zoom')
+const pxls = require('../pxls')
+const gl = require('gl')(400, 300)
+const sameImg = require('../image-equal')
+
+
+t.only('empty data chunks are not being displayed', async t => {
+	document.body.appendChild(gl.canvas)
+
+	var wf = createWaveform(gl)
+	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
+	wf.update({
+		width: 3,
+		amplitude: [-5, 5],
+		range: [0,15]
+	})
+
+	wf.render()
+
+	interactive(wf)
+	// await sameImg(wf, './test/fixture/empty.png')
+
+	t.end()
+})
+
+t.skip('arbitrary timestamp', async t => {
+	var wf = createWaveform(gl)
+
+	t.end()
+})
+
+t('axis and grids', async t => {
+	t.end()
+})
+
 t('null-canvas instances does not create multiple canvases')
 
 t('calibrate step to pixels')
@@ -20,7 +57,19 @@ t('line/range mode is switched properly')
 
 t('2σ thickness scheme')
 
-t('multipass rendering for large zoom levels')
+t.skip('multipass rendering for large zoom levels', t => {
+	let wf = createWaveform()
+
+	interactive(wf)
+
+	wf.update({
+		data: generate.sine(1e5, {frequency: 50})
+	})
+
+	wf.destroy()
+
+	t.end()
+})
 
 t('tail rendering')
 
@@ -36,3 +85,31 @@ t('panning does not change image')
 
 t('empty data does not break rendering')
 
+
+
+
+function interactive(wf, o) {
+	panzoom(wf.canvas, e => {
+		let range = wf.range.slice()
+
+		let w = wf.canvas.offsetWidth
+		let h = wf.canvas.offsetHeight
+
+		let rx = e.x / w
+		let ry = e.y / h
+
+		let xrange = range[1] - range[0]
+
+		if (e.dz) {
+			let dz = e.dz / w
+			range[0] -= rx * xrange * dz
+			range[1] += (1 - rx) * xrange * dz
+		}
+
+		range[0] -= xrange * e.dx / w
+		range[1] -= xrange * e.dx / w
+
+		wf.update({ range })
+		wf.render()
+	})
+}

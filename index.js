@@ -2,7 +2,6 @@
 
 let pick = require('pick-by-alias')
 let extend = require('object-assign')
-let nidx = require('negative-index')
 let WeakMap = require('weak-map')
 let createRegl = require('regl')
 let parseRect = require('parse-rect')

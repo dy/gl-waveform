@@ -563,7 +563,7 @@ Waveform.prototype.push = function (samples) {
 			// mag: 'linear',
 			wrap: ['clamp', 'clamp']
 		})
-		txt.sum = txt.sum2 = 0
+		txt.lastSample = txt.sum = txt.sum2 = 0
 
 		if (this.storeData) txt.data = pool.mallocFloat(txtLen * ch)
 	}
@@ -572,9 +572,16 @@ Waveform.prototype.push = function (samples) {
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
 	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
-		data[i * ch] = samples[i]
-		txt.sum += samples[i]
-		txt.sum2 += samples[i] * samples[i]
+		if (isNaN(samples[i])) {
+			data[i * ch] = NaN
+		}
+		else {
+			data[i * ch] = txt.lastSample = samples[i]
+		}
+
+		txt.sum += txt.lastSample
+		txt.sum2 += txt.lastSample * txt.lastSample
+
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
 		data[i * ch + 3] = f32.fract(txt.sum2)

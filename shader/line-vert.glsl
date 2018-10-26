@@ -20,9 +20,6 @@ varying float avgPrev, avgCurr, avgNext, sdev;
 bool isNaN( float val ){
   return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
 }
-bool isNaN( vec4 val ){
-  return isNaN(val.x) && isNaN(val.y) && isNaN(val.z) && isNaN(val.w);
-}
 
 void main () {
 	gl_PointSize = 1.5;
@@ -50,12 +47,9 @@ void main () {
 	vec4 sampleNext = pick(offset + sampleStep, offset - sampleStep, translateri);
 	vec4 samplePrev = pick(offset - sampleStep, offset - sampleStep, translateri);
 
-	if (isNaN(sampleNext)) sampleNext = sampleCurr;
-	if (isNaN(samplePrev)) samplePrev = sampleCurr;
-
 	avgCurr = reamp(sampleCurr.x, amp);
-	avgNext = reamp(sampleNext.x, amp);
-	avgPrev = reamp(samplePrev.x, amp);
+	avgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);
+	avgPrev = reamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amp);
 
 	sdev = 0.;
 
@@ -73,10 +67,10 @@ void main () {
 	) / viewport.zw);
 
 	vec2 join;
-	if (isStart) {
+	if (isStart || isNaN(samplePrev.x)) {
 		join = normalRight;
 	}
-	else if (isEnd) {
+	else if (isEnd || isNaN(sampleNext.x)) {
 		join = normalLeft;
 	}
 	else {

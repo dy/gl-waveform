@@ -14,7 +14,7 @@ t.only('empty data chunks are not being displayed', async t => {
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
 	wf.update({
-		width: 3,
+		width: 10,
 		amplitude: [-5, 5],
 		range: [0,15]
 	})
@@ -24,11 +24,15 @@ t.only('empty data chunks are not being displayed', async t => {
 	interactive(wf)
 	// await sameImg(wf, './test/fixture/empty.png')
 
+	// TODO: add condensed empty data test
+
 	t.end()
 })
 
-t.skip('arbitrary timestamp', async t => {
+t('arbitrary timestamp', async t => {
 	var wf = createWaveform(gl)
+
+	wf.push([{x: 0, y: 0}, {x: 10, y: 10}])
 
 	t.end()
 })

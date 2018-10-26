@@ -10,11 +10,10 @@ let isObj = require('is-plain-obj')
 let pool = require('typedarray-pool')
 let glsl = require('glslify')
 let rgba = require('color-normalize')
-let neg0 = require('is-negative-zero')
 let f32 = require('to-float32')
 let parseUnit = require('parse-unit')
 let px = require('to-px')
-
+// let flatten = require('flatten-vertex-data')
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
@@ -24,13 +23,16 @@ let shaderCache = new WeakMap()
 function Waveform (o) {
 	if (!(this instanceof Waveform)) return new Waveform(o)
 
-	if ('drawingBufferWidth' in o) o = {gl: o}
-
 	// stack of textures with sample data
 	this.textures = []
 	this.textureLength = this.textureSize[0] * this.textureSize[1]
+
 	// total number of samples
 	this.total = 0
+
+	// pointer to the last value, detected from the first data
+	// used for organizing data gaps
+	this.lastId
 
 	this.shader = this.createShader(o)
 
@@ -42,7 +44,7 @@ function Waveform (o) {
 	// if (o.pick != null) this.storeData = !!o.pick
 	// if (o.fade != null) this.fade = !!o.fade
 
-	this.update(o)
+	if (isObj(o)) this.update(o)
 }
 
 
@@ -61,9 +63,9 @@ Waveform.prototype.createShader = function (o) {
 	// we let regl init window/container in default case
 	// because it binds resize event to window
 	if (isObj(o) && !o.canvas && !o.gl && !o.regl) {
-		regl = createRegl(extend({
+		regl = createRegl({
 			extensions: 'oes_texture_float'
-		}, pick(o, {})))
+		})
 		gl = regl._gl
 
 		shader = shaderCache.get(gl)
@@ -532,6 +534,16 @@ Waveform.prototype.update = function (o) {
 // put new samples into texture
 Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
+
+	// [{x, y}, {x, y}, ...]
+	// [[x, y], [x, y], ...]
+	if (typeof samples[0] !== 'number') {
+		if (typeof samples[0].x !== null) {
+			// normalize {x, y} objects to flat array
+			// let max = 0
+			// for (let idx in samples)
+		}
+	}
 
 	if (Array.isArray(samples)) {
 		let floatSamples = pool.mallocFloat64(samples.length)

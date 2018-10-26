@@ -3,9 +3,8 @@
 const t = require('tape')
 const createWaveform = require('./')
 const panzoom = require('pan-zoom')
-const pxls = require('../pxls')
 const gl = require('gl')(400, 300)
-const sameImg = require('../image-equal')
+const eq = require('image-equal')
 
 
 t.only('empty data chunks are not being displayed', async t => {
@@ -22,7 +21,8 @@ t.only('empty data chunks are not being displayed', async t => {
 	wf.render()
 
 	interactive(wf)
-	// await sameImg(wf, './test/fixture/empty.png')
+
+	t.ok(await eq(wf, './test/fixture/empty.png'))
 
 	// TODO: add condensed empty data test
 
@@ -30,9 +30,19 @@ t.only('empty data chunks are not being displayed', async t => {
 })
 
 t('arbitrary timestamp', async t => {
-	var wf = createWaveform(gl)
+	var wf = createWaveform({gl})
 
-	wf.push([{x: 0, y: 0}, {x: 10, y: 10}])
+	wf.push([
+		{x: 10, y: 0},
+		{x: 11, y: 10},
+		{x: 20, y: 20},
+		{x: 21, y: 30}
+	])
+	wf.update({
+		width: 10,
+		amplitude: 30,
+		range: [0, 30]
+	})
 
 	t.end()
 })

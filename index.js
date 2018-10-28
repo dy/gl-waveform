@@ -10,10 +10,12 @@ let isObj = require('is-plain-obj')
 let pool = require('typedarray-pool')
 let glsl = require('glslify')
 let rgba = require('color-normalize')
+let neg0 = require('negative-zero')
 let f32 = require('to-float32')
 let parseUnit = require('parse-unit')
 let px = require('to-px')
-// let flatten = require('flatten-vertex-data')
+let flatten = require('flatten-vertex-data')
+let lerp = require('lerp')
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
@@ -30,9 +32,9 @@ function Waveform (o) {
 	// total number of samples
 	this.total = 0
 
-	// pointer to the last value, detected from the first data
+	// pointer to the first/last x values, detected from the first data
 	// used for organizing data gaps
-	this.lastId
+	this.firstX, this.lastY, this.lastX
 
 	this.shader = this.createShader(o)
 
@@ -538,11 +540,42 @@ Waveform.prototype.push = function (samples) {
 	// [{x, y}, {x, y}, ...]
 	// [[x, y], [x, y], ...]
 	if (typeof samples[0] !== 'number') {
-		if (typeof samples[0].x !== null) {
-			// normalize {x, y} objects to flat array
-			// let max = 0
-			// for (let idx in samples)
+		let data = []
+
+		// normalize {x, y} objects to flat array
+		for (let i = 0; i < samples.length; i++) {
+			let coord = samples[i], x, y
+
+			// [x, y]
+			if (coord.length) {
+				[x, y] = coord
+			}
+			// {x, y}
+			else if (coord.x != null) {
+				x = coord.x
+				y = coord.y
+			}
+
+			if (this.firstX == null) {
+				this.firstX = x
+				data.push(y)
+			}
+			if (x <= this.lastX) throw Error(`Passed x value ${x} is <= the last x value ${this.lastX}.`)
+
+			// push interpolated samples
+			let n = x - this.lastX
+			for (let j = 1; j <= n; j++) {
+				if (y == null || isNaN(y)) data.push(NaN)
+				else data.push(lerp(this.lastY, y, j / n))
+			}
+
+			this.lastX = x
+			this.lastY = y
 		}
+		samples = data
+	}
+	else {
+		if (this.firstX == null) this.firstX = 0
 	}
 
 	if (Array.isArray(samples)) {
@@ -575,7 +608,7 @@ Waveform.prototype.push = function (samples) {
 			// mag: 'linear',
 			wrap: ['clamp', 'clamp']
 		})
-		txt.lastSample = txt.sum = txt.sum2 = 0
+		this.lastY = txt.sum = txt.sum2 = 0
 
 		if (this.storeData) txt.data = pool.mallocFloat(txtLen * ch)
 	}
@@ -584,15 +617,15 @@ Waveform.prototype.push = function (samples) {
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
 	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
-		if (isNaN(samples[i])) {
+		if (samples[i] == null || isNaN(samples[i])) {
 			data[i * ch] = NaN
 		}
 		else {
-			data[i * ch] = txt.lastSample = samples[i]
+			data[i * ch] = this.lastY = samples[i]
 		}
 
-		txt.sum += txt.lastSample
-		txt.sum2 += txt.lastSample * txt.lastSample
+		txt.sum += this.lastY
+		txt.sum2 += this.lastY * this.lastY
 
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2

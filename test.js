@@ -7,8 +7,7 @@ const gl = require('gl')(400, 300)
 const eq = require('image-equal')
 
 
-t.only('empty data chunks are not being displayed', async t => {
-	document.body.appendChild(gl.canvas)
+t('empty data chunks are not being displayed', async t => {
 
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
@@ -22,27 +21,46 @@ t.only('empty data chunks are not being displayed', async t => {
 
 	interactive(wf)
 
+	// document.body.appendChild(gl.canvas)
 	t.ok(await eq(wf, './test/fixture/empty.png'))
-
-	// TODO: add condensed empty data test
 
 	t.end()
 })
 
-t('arbitrary timestamp', async t => {
+t.skip('empty data chunks in range mode do not add variance', async t => {
+	// TODO: add range-render empty data test
+	t.end()
+})
+
+t('clear method')
+
+t('timestamp gaps get interpolated by edge values', async t => {
 	var wf = createWaveform({gl})
 
+	// FIXME: avoid depth here
+	wf.regl.clear({color: [0,0,0,0], depth: 1})
+
+	// document.body.appendChild(gl.canvas)
+
 	wf.push([
-		{x: 10, y: 0},
-		{x: 11, y: 10},
+		{x: 0, y: 0},
+		{x: 11, y: 11},
 		{x: 20, y: 20},
-		{x: 21, y: 30}
+		{x: 21, y: 30},
+		{x: 22, y: null},
+		{x: 30, y: null},
+		{x: 31, y: 30},
+		{x: 32, y: 40}
 	])
 	wf.update({
 		width: 10,
-		amplitude: 30,
-		range: [0, 30]
+		amplitude: 40,
+		range: [0, 40]
 	})
+
+	wf.render()
+
+	t.ok(await eq(wf, './test/fixture/interpolate.png'))
 
 	t.end()
 })

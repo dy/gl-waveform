@@ -61,7 +61,7 @@ Update state of the renderer instance. Possible `options`:
 
 Property | Meaning
 ---|---
-`data`			| Array or typed array with sample data. Usually it contains values from `-1..+1` range, but that can be adjusted via `range` property.
+`data`			| Array or typed array with sample data. Usually it contains values from `-1..+1` range, but that can be adjusted via `range` property. An array can be as set of `{x, y}` or `[x, y]` pairs, where skipped values get interpolated eg. `[{x: 10, y: 1}, {x: 20, y: 2}]`.
 `range`			| Visible data range, an array with `[start, end]` offsets or a number with samples count of the last added data. Negative numbers use data from the end.
 `amplitude` 	| Amplitudes range, number or array `[min, max]`, by default considered `[-1, +1]`.
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).

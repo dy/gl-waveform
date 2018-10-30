@@ -1,8 +1,6 @@
 # gl-waveform [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges)
 
-Display time-domain data with WebGL. Provides fair performance / quality among other renderers.
-
-[Demonstration](https://a-vis.github.io/gl-waveform).
+Display time-domain data with WebGL. Provides fair performance / quality among other renderers. [Demo](https://a-vis.github.io/gl-waveform).
 
 ## Usage
 
@@ -35,7 +33,7 @@ waveform.render()
 
 ## API
 
-### `waveform = new Waveform(gl|regl|canvas|container|options?)`
+### `waveform = new Waveform(gl|options?)`
 
 Create waveform instance. Argument can specify the way instance is created, can be one of:
 
@@ -87,9 +85,13 @@ Property | Meaning
 `x`, `y` | Actual coordinates of picking value relative to canvas.
 `offset` | An array with `[left, right]` offsets within data.
 
+### `waveform.clear()`
+
+Clear viewport area disposed for the instance.
+
 ### `waveform.destroy()`
 
-Dispose waveform instance.
+Dispose waveform instance, data and all assiciated resources.
 
 ### Properties
 

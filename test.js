@@ -9,7 +9,6 @@ const isBrowser = require('is-browser')
 
 
 t('empty data chunks are not being displayed', async t => {
-
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
 	wf.update({
@@ -40,9 +39,6 @@ t('clear method')
 t('timestamp gaps get interpolated by edge values', async t => {
 	var wf = createWaveform({gl})
 
-
-	// document.body.appendChild(gl.canvas)
-
 	wf.push([
 		{x: 0, y: 0},
 		{x: 11, y: 11},
@@ -63,7 +59,7 @@ t('timestamp gaps get interpolated by edge values', async t => {
 
 	var out = {}
 	t.ok(await eq(wf, './test/fixture/interpolate.png', out, {threshold: .3}))
-
+	// document.body.appendChild(gl.canvas)
 	wf.clear()
 
 	t.end()

@@ -16,6 +16,7 @@ let parseUnit = require('parse-unit')
 let px = require('to-px')
 let flatten = require('flatten-vertex-data')
 let lerp = require('lerp')
+let isBrowser = require('is-browser')
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
@@ -245,7 +246,7 @@ Waveform.prototype.calc = function () {
 
 	// invert viewport if necessary
 	if (!this.iviewport) {
-		viewport[1] = this.canvas.height - viewport[1] - viewport[3]
+		viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3]
 	}
 
 	let span
@@ -697,6 +698,20 @@ Waveform.prototype.push = function (samples) {
 	}
 }
 
+// clear viewport area occupied by the renderer
+Waveform.prototype.clear = function () {
+	let {gl, regl} = this
+	let {x, y, width, height} = this.viewport
+    gl.enable(gl.SCISSOR_TEST)
+    gl.scissor(x, y, width, height)
+
+	// FIXME: avoid depth here
+    regl.clear({color: [0, 0, 0, 0], depth: 1})
+
+    return this
+}
+
+// dispose all resources
 Waveform.prototype.destroy = function () {
 	this.textures.forEach(txt => {
 		if (this.storeData) pool.freeFloat(txt.data)
@@ -739,8 +754,10 @@ function isNeg(v) {
 }
 
 function toPx(str) {
+	if (!isBrowser) return parseFloat(str)
 	let unit = parseUnit(str)
 	return unit[0] * px(unit[1])
 }
+
 
 module.exports = Waveform

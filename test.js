@@ -5,6 +5,7 @@ const createWaveform = require('./')
 const panzoom = require('pan-zoom')
 const gl = require('gl')(400, 300)
 const eq = require('image-equal')
+const isBrowser = require('is-browser')
 
 
 t('empty data chunks are not being displayed', async t => {
@@ -24,6 +25,8 @@ t('empty data chunks are not being displayed', async t => {
 	// document.body.appendChild(gl.canvas)
 	t.ok(await eq(wf, './test/fixture/empty.png'))
 
+	wf.clear()
+
 	t.end()
 })
 
@@ -37,8 +40,6 @@ t('clear method')
 t('timestamp gaps get interpolated by edge values', async t => {
 	var wf = createWaveform({gl})
 
-	// FIXME: avoid depth here
-	wf.regl.clear({color: [0,0,0,0], depth: 1})
 
 	// document.body.appendChild(gl.canvas)
 
@@ -60,7 +61,10 @@ t('timestamp gaps get interpolated by edge values', async t => {
 
 	wf.render()
 
-	t.ok(await eq(wf, './test/fixture/interpolate.png'))
+	var out = {}
+	t.ok(await eq(wf, './test/fixture/interpolate.png', out, {threshold: .3}))
+
+	wf.clear()
 
 	t.end()
 })
@@ -121,6 +125,8 @@ t('empty data does not break rendering')
 
 
 function interactive(wf, o) {
+	if (!isBrowser) return
+
 	panzoom(wf.canvas, e => {
 		let range = wf.range.slice()
 

@@ -2,17 +2,14 @@
   "name": "gl-waveform",
   "version": "4.1.1",
   "description": "Performant waveform renderer with WebGL",
-  "main": "./index.js",
+  "main": "./bundle.js",
   "scripts": {
-    "test": "budo test.js",
+    "test": "node test",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
-    "build": "babel index.js > dist/index.js",
-    "demo": "browserify example.js -g bubleify | indexhtmlify | metadataify > demo/index.html"
-  },
-  "browserify": {
-    "transform": [
-      "glslify"
-    ]
+    "test-browser": "budo test -- -t glslify",
+    "prepublishOnly": "npm run build",
+    "build": "rollup -c rollup.config.js",
+    "build-demo": "browserify demo/index.js -g | indexhtmlify | metadataify > demo/index.html"
   },
   "repository": {
     "type": "git",
@@ -46,31 +43,26 @@
     "pick-by-alias": "^1.2.0",
     "regl": "^1.3.7",
     "to-float32": "^1.0.0",
-    "to-px": "^1.0.1",
+    "to-px": "^1.1.0",
     "typedarray-pool": "^1.1.0",
     "weak-map": "^1.0.5"
   },
   "devDependencies": {
-    "babel": "^6.23.0",
-    "babel-cli": "^6.26.0",
-    "babel-core": "^6.26.3",
-    "babel-plugin-glslify": "^2.0.0",
-    "babel-plugin-import-to-require": "^1.0.0",
-    "babel-plugin-transform-react-jsx": "^6.24.1",
-    "babel-preset-es2015": "^6.24.1",
-    "babelify": "^8.0.0",
-    "bubleify": "^1.2.0",
+    "@babel/core": "^7.1.6",
+    "@babel/preset-env": "^7.1.6",
     "controlkit": "^0.1.9",
-    "fps-indicator": "^1.2.1",
     "gl": "^4.1.1",
-    "image-equal": "^3.1.0",
-    "image-pixels": "^1.0.2",
-    "indexhtmlify": "^1.3.1",
-    "metadataify": "^2.0.0",
-    "mobilify": "^1.0.1",
+    "image-equal": "^4.3.0",
+    "image-pixels": "^2.2.0",
     "pan-zoom": "^3.4.0",
     "performance-now": "^2.1.0",
     "periodic-function": "^1.1.4",
-    "prettysize": "^1.1.0"
+    "prettysize": "^1.1.0",
+    "pxls": "^2.3.0",
+    "rollup-plugin-babel": "^4.0.3",
+    "rollup-plugin-browserify-transform": "^1.0.1",
+    "rollup-plugin-commonjs": "^9.2.0",
+    "rollup-plugin-node-resolve": "^3.4.0",
+    "seed-random": "^2.2.0"
   }
 }

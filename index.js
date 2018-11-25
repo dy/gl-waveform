@@ -395,6 +395,8 @@ Waveform.prototype.pick = function (x) {
 // update visual state
 Waveform.prototype.update = function (o) {
 	if (!o) return this
+	if (o.length != null) o = {data: o}
+
 	o = pick(o, {
 		data: 'data value values sample samples',
 		push: 'add append push insert concat',
@@ -404,7 +406,7 @@ Waveform.prototype.update = function (o) {
 		pxStep: 'step pxStep',
 		color: 'color colour colors colours fill fillColor fill-color',
 		line: 'line line-style lineStyle linestyle',
-		viewport: 'vp viewport viewBox viewbox viewPort',
+		viewport: 'vp viewport viewBox viewbox viewPort area',
 		opacity: 'opacity alpha transparency visible visibility opaque',
 		iviewport: 'iviewport invertViewport inverseViewport',
 	})
@@ -754,6 +756,7 @@ function isNeg(v) {
 }
 
 function toPx(str) {
+	if (typeof str === 'number') return str
 	if (!isBrowser) return parseFloat(str)
 	let unit = parseUnit(str)
 	return unit[0] * px(unit[1])

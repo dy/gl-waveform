@@ -42,15 +42,16 @@ void main() {
 	// 	fragColor.x *= .5;
 	// }
 	// if (isEnd) fragColor = vec4(0,0,1,1);
-	// if (isStart) fragColor = vec4(0,0,1,1);
+	if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = isStart ? vec4(0) : pick(offset0, baseOffset, translateri);
+	// vec4 sample0 = isStart ? vec4(0) : pick(offset0, baseOffset, translateri);
+	vec4 sample0 = pick(offset0, baseOffset, translateri);
 	vec4 sample1 = pick(offset1, baseOffset, translateri);
 	vec4 samplePrev = pick(baseOffset, baseOffset, translateri);
 	vec4 sampleNext = pick(offset + sampleStep, baseOffset, translateri);
 
-	avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
+	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
 	avgNext = (sampleNext.y - sample1.y) / sampleStep;
 
@@ -62,12 +63,15 @@ void main() {
 	float offset0r = offset0l + 1.;
 	float offset1r = offset1l + 1.;
 
-	avgCurr = (
-		+ pick(offset1l, baseOffset, translateri).y * (1. - t1)
-		+ pick(offset1r, baseOffset, translateri).y * t1
-		- pick(offset0l, baseOffset, translateri).y * (1. - t0)
-		- pick(offset0r, baseOffset, translateri).y * t0
-	) / sampleStep;
+	if (isStart) avgCurr = sample1.x;
+	else {
+		avgCurr = (
+			+ pick(offset1l, baseOffset, translateri).y * (1. - t1)
+			+ pick(offset1r, baseOffset, translateri).y * t1
+			- pick(offset0l, baseOffset, translateri).y * (1. - t0)
+			- pick(offset0r, baseOffset, translateri).y * t0
+		) / sampleStep;
+	}
 
 	// ALERT: this formula took 7 days
 	// the order of operations is important to provide precision
@@ -142,7 +146,6 @@ void main() {
 	else {
 		join = vert * vertSdev;
 	}
-
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

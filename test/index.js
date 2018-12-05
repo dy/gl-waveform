@@ -8,6 +8,8 @@ const gl = require('gl')(400, 300)
 const eq = require('image-equal')
 const isBrowser = require('is-browser')
 const img = require('image-pixels')
+const oscillate = require('audio-oscillator')
+const show = require('image-output')
 
 
 t('empty data chunks are not being displayed', async t => {
@@ -26,12 +28,12 @@ t('empty data chunks are not being displayed', async t => {
 	// document.body.appendChild(gl.canvas)
 	t.ok(eq(wf, await img('./test/fixture/empty.png')))
 
-	// wf.clear()
+	wf.clear()
 
 	t.end()
 })
 
-t.only('xy noises case', async t => {
+t('xy noises case', async t => {
 	var wf = createWaveform(gl)
 	wf.push([
 		{x: 1013, y: 137},
@@ -60,6 +62,46 @@ t.only('xy noises case', async t => {
 	wf.render()
 
 	t.ok(eq(wf, await img('./test/fixture/xy-1.png')))
+
+	wf.clear()
+
+	t.end()
+})
+
+t('first point displays correctly', async t => {
+	var wf = createWaveform(gl)
+	wf.push(oscillate.sin(1024).map(x => x + 10))
+
+	wf.update({
+		width: 2,
+		amplitude: [1, 12],
+		range: [0, 400]
+	})
+
+	wf.render()
+
+	t.ok(eq(wf, await img('./test/fixture/first-point.png')))
+
+	wf.clear()
+
+	t.end()
+})
+
+t.only('>1 values noise is fidex', async t => {
+	var wf = createWaveform(gl)
+	var data = oscillate.sin(2048*4)
+	wf.push(data.map(x => x + 10))
+
+	wf.update({
+		width: 1,
+		amplitude: [1, 12],
+		range: [2048*4 - 2048, 2048*4]
+	})
+
+	wf.render()
+
+	show(wf.canvas, document)
+	// t.ok(eq(wf, await img('./test/fixture/xy-1.png')))
 
 	wf.clear()
 

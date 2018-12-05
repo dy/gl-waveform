@@ -1,4 +1,4 @@
-# gl-waveform [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges)
+# gl-waveform [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges) [![Build Status](https://img.shields.io/travis/gl-vis/gl-waveform.svg)](https://travis-ci.org/gl-vis/gl-waveform)
 
 Display time-domain data with WebGL. Provides fair performance / quality among other renderers. [Demo](https://a-vis.github.io/gl-waveform).
 

@@ -26,6 +26,41 @@ t('empty data chunks are not being displayed', async t => {
 	// document.body.appendChild(gl.canvas)
 	t.ok(eq(wf, await img('./test/fixture/empty.png')))
 
+	// wf.clear()
+
+	t.end()
+})
+
+t.only('xy noises case', async t => {
+	var wf = createWaveform(gl)
+	wf.push([
+		{x: 1013, y: 137},
+		{x: 1014, y: 137},
+		{x: 1015, y: 138},
+		{x: 1016, y: 151},
+		{x: 1017, y: 151},
+		{x: 1018, y: 151},
+		{x: 1019, y: 151},
+		{x: 1020, y: 151},
+		{x: 1021, y: 182},
+		{x: 1022, y: 182},
+		{x: 1023, y: 182},
+		{x: 1024, y: 182},
+		{x: 1025, y: 182},
+		{x: 1026, y: 182},
+		{x: 1027, y: 182},
+		{x: 1028, y: 182}])
+
+	wf.update({
+		width: 10,
+		amplitude: [0, 200],
+		range: [1013, 1029]
+	})
+
+	wf.render()
+
+	t.ok(eq(wf, await img('./test/fixture/xy-1.png')))
+
 	wf.clear()
 
 	t.end()

@@ -17,6 +17,7 @@ let px = require('to-px')
 let flatten = require('flatten-vertex-data')
 let lerp = require('lerp')
 let isBrowser = require('is-browser')
+let elOffset = require('offset')
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
@@ -229,7 +230,7 @@ Waveform.prototype.createShader = function (o) {
 
 // calculate draw options
 Waveform.prototype.calc = function () {
-	let r = this.range
+	let range = [this.range[0] - this.firstX, this.range[1] - this.firstX]
 	let {total, opacity, amp} = this
 
 	// FIXME: remove
@@ -245,13 +246,13 @@ Waveform.prototype.calc = function () {
 	else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
 
 	// invert viewport if necessary
-	if (!this.iviewport) {
+	if (!this.flip) {
 		viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3]
 	}
 
 	let span
-	if (!r) span = viewport[2]
-	else span = r[1] - r[0]
+	if (!range) span = viewport[2]
+	else span = range[1] - range[0]
 
 	let dataLength = this.textureLength
 
@@ -271,7 +272,7 @@ Waveform.prototype.calc = function () {
 	// - to reduce error for big translate, it is rotated by textureLength
 	// - panning is always perceived smooth
 
-	let translate = r[0]
+	let translate = range[0]
 	let translater = translate % dataLength
 	let translates = Math.floor(translate / sampleStep)
 	let translatei = translates * sampleStep
@@ -357,7 +358,9 @@ Waveform.prototype.render = function () {
 Waveform.prototype.pick = function (x) {
 	if (!this.storeData) throw Error('Picking is disabled. Enable it via constructor options.')
 
-	if (typeof x !== 'number') x = x.x
+	if (typeof x !== 'number') {
+		x = Math.max(x.clientX - elOffset(this.canvas).left, 0)
+	}
 
 	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep, amp} = this.calc()
 
@@ -406,9 +409,9 @@ Waveform.prototype.update = function (o) {
 		pxStep: 'step pxStep',
 		color: 'color colour colors colours fill fillColor fill-color',
 		line: 'line line-style lineStyle linestyle',
-		viewport: 'vp viewport viewBox viewbox viewPort area',
+		viewport: 'clip vp viewport viewBox viewbox viewPort area',
 		opacity: 'opacity alpha transparency visible visibility opaque',
-		iviewport: 'iviewport invertViewport inverseViewport',
+		flip: 'flip iviewport invertViewport inverseViewport',
 	})
 
 	// parse line style
@@ -455,8 +458,12 @@ Waveform.prototype.update = function (o) {
 		}
 	}
 
-	if (o.iviewport) {
-		this.iviewport = !!o.viewport
+	if (o.flip) {
+		this.flip = !!o.viewport
+	}
+
+	if (!this.range && !o.range) {
+		o.range = [0, Math.min(this.viewport.width, this.textureLength)]
 	}
 
 	// custom/default visible data window
@@ -469,9 +476,6 @@ Waveform.prototype.update = function (o) {
 		}
 	}
 
-	if (!this.range && !o.range) {
-		this.range = [0, Math.min(this.viewport.width, this.textureLength)]
-	}
 
 	if (o.amp) {
 		if (typeof o.amp === 'number') {
@@ -727,7 +731,7 @@ Waveform.prototype.color = new Uint8Array([0,0,0,255])
 Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.viewport = null
-Waveform.prototype.iviewport = false
+Waveform.prototype.flip = false
 Waveform.prototype.range = null
 Waveform.prototype.fade = false
 Waveform.prototype.amp = [-1, 1]

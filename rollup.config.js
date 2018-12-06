@@ -8,7 +8,7 @@ import resolve from 'rollup-plugin-node-resolve'
 export default {
   input: 'index.js',
   output: {
-    file: 'bundle.js',
+    file: 'dist/index.js',
     format: 'cjs'
   },
   plugins: [
@@ -16,7 +16,7 @@ export default {
     resolve(),
     commonjs({
       sourceMap: false,
-      include: ['index.js', 'scatter.js'],
+      include: ['index.js'],
       ignore: [
         'pick-by-alias',
         'object-assign',

@@ -24,9 +24,9 @@ t('empty data chunks are not being displayed', async t => {
 	wf.render()
 
 	// interactive(wf)
-	// show(wf.canvas, document)
+	// show(wf.canvas)
 
-	t.ok(eq(wf, await img('./test/fixture/empty.png'), document))
+	t.ok(eq(wf, await img('./test/fixture/empty.png'), 'empty-diff'))
 
 	wf.clear()
 
@@ -82,7 +82,7 @@ t('first point displays correctly', async t => {
 
 	wf.render()
 
-	// show(wf.canvas, document)
+	// show(wf.canvas)
 	t.ok(eq(wf, await img('./test/fixture/first-point.png')))
 
 	wf.clear()
@@ -104,7 +104,7 @@ t('>1 values does not create float32 noise', async t => {
 
 	wf.render()
 
-	// show(wf.canvas, document)
+	// show(wf.canvas)
 	t.ok(eq(wf, await img('./test/fixture/additive-noises.png')))
 
 	// TODO: test line mode
@@ -192,7 +192,6 @@ t('step is automatically detected from the x-y input data', async t => {
 
 	wf.render()
 
-	show(wf, document)
 	// t.ok(eq(wf, await img('./test/fixture/interpolate-step.png'), {threshold: .3}))
 	// wf.clear()
 

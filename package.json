@@ -2,13 +2,13 @@
   "name": "gl-waveform",
   "version": "4.1.1",
   "description": "Performant waveform renderer with WebGL",
-  "main": "./index.js",
+  "main": "./dist/index.js",
   "scripts": {
     "test": "node test",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
     "test-browser": "budo test -- -t --transform-key=test",
     "prepublishOnly": "npm run build",
-    "build": "browserify-transform index.js -t glslify > dist/index.js &&  ncc build dist/index.js -o dist -e pick-by-alias -e object-assign -e weak-map -e regl -e parse-rect -e gl-util/context -e is-plain-obj -e typedarray-pool -e glslify -e color-normalize -e negative-zero -e to-float32 -e parse-unit -e to-px -e flatten-vertex-data -e lerp -e is-browser",
+    "build": "rollup -c rollup.config.js",
     "build-demo": "browserify demo/index.js -g | indexhtmlify | metadataify > demo/index.html"
   },
   "browserify": {

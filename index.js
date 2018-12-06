@@ -402,7 +402,6 @@ Waveform.prototype.pick = function (x) {
 	// FIXME: multi-value pick
 }
 
-
 // update visual state
 Waveform.prototype.update = function (o) {
 	if (!o) return this
@@ -557,6 +556,13 @@ Waveform.prototype.push = function (samples) {
 	// [[x, y], [x, y], ...]
 	if (typeof samples[0] !== 'number') {
 		let data = []
+
+		// detect xStep
+		// TODO: cases: gradient, animation stops, continuous functions, lerp of array, span-array
+		if (!this.xStep) {
+			// for (let i = 1; i < samples.length; i++) {
+			// }
+		}
 
 		// normalize {x, y} objects to flat array
 		for (let i = 0; i < samples.length; i++) {
@@ -777,16 +783,19 @@ Waveform.prototype.destroy = function () {
 }
 
 
-// Default instance values
+// style
 Waveform.prototype.color = new Uint8Array([0,0,0,255])
 Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
+Waveform.prototype.fade = false
+
+// clip area
 Waveform.prototype.viewport = null
 Waveform.prototype.flip = false
+
+// data range
 Waveform.prototype.range = null
-Waveform.prototype.fade = false
 Waveform.prototype.amp = [-1, 1]
-Waveform.prototype.storeData = true
 
 // Texture size affects
 // - sdev error: bigger texture accumulate sum2 error so signal looks more fluffy
@@ -794,9 +803,17 @@ Waveform.prototype.storeData = true
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
 Waveform.prototype.textureSize = [512, 512]
-Waveform.prototype.textureChannels = 3
+Waveform.prototype.textureChannels = 4
 Waveform.prototype.maxSampleCount = 8192 * 2
 
+// interval between adjacen x values
+// we guess input data is homogenous and doesn't suddenly change type/direction
+// or does not have skipped samples
+// but sometimes step can vary a bit, ~3% of average, like measured time
+// so we detect the step from the first chunk of data
+Waveform.prototype.xStep = null
+
+Waveform.prototype.storeData = true
 
 function isRegl (o) {
 	return typeof o === 'function' &&

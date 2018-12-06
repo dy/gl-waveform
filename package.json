@@ -63,7 +63,7 @@
     "gl": "^4.1.1",
     "glslify": "^6.4.1",
     "image-equal": "^4.3.0",
-    "image-output": "^2.3.2",
+    "image-output": "^2.4.0",
     "image-pixels": "^2.2.0",
     "pan-zoom": "^3.4.0",
     "performance-now": "^2.1.0",

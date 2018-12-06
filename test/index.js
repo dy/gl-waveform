@@ -120,8 +120,6 @@ t.skip('empty data chunks in range mode do not add variance', async t => {
 	t.end()
 })
 
-t('clear method')
-
 t('timestamp gaps get interpolated by edge values', async t => {
 	var wf = createWaveform({gl})
 
@@ -144,8 +142,59 @@ t('timestamp gaps get interpolated by edge values', async t => {
 	wf.render()
 
 	t.ok(eq(wf, await img('./test/fixture/interpolate.png'), {threshold: .3}))
-	// document.body.appendChild(gl.canvas)
 	wf.clear()
+
+	t.end()
+})
+
+t('step is automatically detected from the x-y input data', async t => {
+	var wf = createWaveform({gl})
+
+	wf.push([
+		{x: 109.627085281, y: 206},
+		{x: 109.637030867, y: 206},
+		{x: 109.647035863, y: 206},
+		{x: 109.657047407, y: 206},
+		{x: 109.666189798, y: 230},
+		{x: 109.676121669, y: 230},
+		{x: 109.68640626, y: 230},
+		{x: 109.697049701, y: 230},
+		{x: 109.707013991, y: 230},
+		{x: 109.71643792, y: 230},
+		{x: 109.72678661, y: 230},
+		{x: 109.736006915, y: 230},
+		{x: 109.747039401, y: 230},
+		{x: 109.756636245, y: 230},
+		{x: 109.766007832, y: 230},
+		{x: 109.777052658, y: 230},
+		{x: 109.787051592, y: 230},
+		{x: 109.797054603, y: 230},
+		{x: 109.807053946, y: 230},
+		{x: 109.81705083599999, y: 230},
+		{x: 109.82705901, y: 230},
+		{x: 109.837079929, y: 230},
+		{x: 109.84708057, y: 230},
+		{x: 109.85704243, y: 230},
+		{x: 109.867106952, y: 230},
+		{x: 109.877085168, y: 230},
+		{x: 109.887081832, y: 230},
+		{x: 109.897062207, y: 230},
+		{x: 109.907058541, y: 230},
+		{x: 109.91703843, y: 230},
+		{x: 109.927058731, y: 230},
+		{x: 109.93706005, y: 230},
+		{x: 109.947060414, y: 230},
+	])
+	wf.update({
+		width: 10,
+		amplitude: [109, 110]
+	})
+
+	wf.render()
+
+	show(wf, document)
+	// t.ok(eq(wf, await img('./test/fixture/interpolate-step.png'), {threshold: .3}))
+	// wf.clear()
 
 	t.end()
 })

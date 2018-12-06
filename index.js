@@ -594,6 +594,7 @@ Waveform.prototype.push = function (samples) {
 	let [txtW, txtH] = this.textureSize
 	let txtLen = this.textureLength
 
+	let amp = this.amp[1] - this.amp[0]
 	let offset = this.total % txtLen
 	let id = Math.floor(this.total / txtLen)
 	let y = Math.floor(offset / txtW)
@@ -633,6 +634,12 @@ Waveform.prototype.push = function (samples) {
 
 		txt.sum += this.lastY
 		txt.sum2 += this.lastY * this.lastY
+
+		// rotate sum to reduce float32 error
+		if (txt.sum > amp) {
+			txt.sum %= amp
+		}
+		else if (txt.sum < amp) txt.sum %= amp
 
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2

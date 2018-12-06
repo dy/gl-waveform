@@ -87,15 +87,16 @@ t('first point displays correctly', async t => {
 	t.end()
 })
 
-t.only('>1 values noise is fidex', async t => {
+t.only('>1 values does not create float32 noise', async t => {
+	var data = oscillate.sin(2048).map(x => x + 10)
+
 	var wf = createWaveform(gl)
-	var data = oscillate.sin(2048*4)
-	wf.push(data.map(x => x + 10))
+	wf.push(data)
 
 	wf.update({
 		width: 1,
 		amplitude: [1, 12],
-		range: [2048*4 - 2048, 2048*4]
+		range: [0, 400]
 	})
 
 	wf.render()
@@ -195,7 +196,7 @@ t('panning does not change image')
 
 t('empty data does not break rendering')
 
-
+t('waveform creation is quick enough (faster than 200ms)')
 
 
 function interactive(wf, o) {

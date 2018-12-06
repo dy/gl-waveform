@@ -12,6 +12,7 @@ uniform float sum, sum2;
 vec4 picki (float offset, float baseOffset, float translate) {
 	offset = max(offset, 0.);
 
+	// translate is here in order to remove float32 error (at the latest stage)
 	offset += translate;
 	baseOffset += translate;
 
@@ -24,6 +25,7 @@ vec4 picki (float offset, float baseOffset, float translate) {
 	vec4 sample;
 
 	// use last sample for textures past 2nd
+	// TODO: remove when multipass rendering is implemented
 	if (uv.y > 2.) {
 		sample = texture2D(data1, vec2(1, 1));
 		sample.x = 0.;
@@ -39,10 +41,24 @@ vec4 picki (float offset, float baseOffset, float translate) {
 			sample.y += sum;
 			sample.z += sum2;
 		}
-
 	}
 	else {
 		sample = texture2D(data0, uv);
+	}
+
+	return sample;
+}
+
+// unloop possibly looped value
+vec4 unloop (vec4 sample, float offset, float baseOffset, float translate) {
+	// if sample + prev sample are not the same as sum
+	// consider that the sum was looped in order to reduce float32 error
+	// recalc sum as prev sum + prev sample
+	vec4 prev = picki(offset - 1., baseOffset, translate);
+
+	if (abs((prev.x + sample.x) - (sample.z - prev.z)) > 0.) {
+		sample.z = prev.z + sample.x;
+		sample.w = prev.w + sample.x * sample.x;
 	}
 
 	return sample;
@@ -56,12 +72,21 @@ vec4 pick (float offset, float baseOffset, float translate) {
 	float t = offset - offsetLeft;
 	vec4 left = picki(offsetLeft, baseOffset, translate);
 
-	if (t == 0. || offsetLeft == offsetRight) return left;
+	vec4 sample;
+	if (t == 0. || offsetLeft == offsetRight) {
+		sample = unloop(left, offsetLeft, baseOffset, translate);
+	}
 	else {
 		vec4 right = picki(offsetRight, baseOffset, translate);
 
-		return lerp(left, right, t);
+		sample = lerp(
+			unloop(left, offsetLeft, baseOffset, translate),
+			unloop(right, offsetRight, baseOffset, translate),
+		t);
 	}
+
+
+	return sample;
 }
 
 vec4 pick (float a, float b) {

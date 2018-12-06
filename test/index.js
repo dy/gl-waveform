@@ -68,14 +68,12 @@ t('xy noises case', async t => {
 	t.end()
 })
 
-
-
 t('first point displays correctly', async t => {
 	var wf = createWaveform(gl)
 	wf.push(oscillate.sin(1024).map(x => x + 10))
 
 	wf.update({
-		width: 2,
+		width: 5,
 		amplitude: [1, 12],
 		range: [0, 400]
 	})
@@ -83,7 +81,7 @@ t('first point displays correctly', async t => {
 	wf.render()
 
 	// show(wf.canvas, document)
-	t.ok(eq(wf, await img('./test/fixture/first-point.png'), document))
+	t.ok(eq(wf, await img('./test/fixture/first-point.png')))
 
 	wf.clear()
 
@@ -97,7 +95,7 @@ t('>1 values does not create float32 noise', async t => {
 	wf.push(data)
 
 	wf.update({
-		width: 2,
+		width: 5,
 		amplitude: [1, 12],
 		range: [2048*2*10 - 400, 2048*2*10]
 	})
@@ -120,7 +118,7 @@ t.skip('empty data chunks in range mode do not add variance', async t => {
 	t.end()
 })
 
-t.only('timestamp gaps get interpolated by edge values', async t => {
+t.skip('timestamp gaps get interpolated by edge values', async t => {
 	var wf = createWaveform({gl})
 
 	wf.push([
@@ -199,7 +197,7 @@ t('step is automatically detected from the x-y input data', async t => {
 
 	// show(wf, document)
 
-	t.ok(eq(wf, await img('./test/fixture/xstep.png')))
+	t.ok(eq(wf, await img('./test/fixture/xstep.png'), .3))
 	wf.clear()
 
 	t.end()

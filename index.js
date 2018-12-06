@@ -670,7 +670,7 @@ Waveform.prototype.push = function (samples) {
 
 	// calc sum, sum2 and form data for the samples
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
-	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat(dataLen * ch)
+	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat64(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
 		// put NaN samples as indicators of blank samples
 		if (samples[i] == null || isNaN(samples[i])) {
@@ -697,16 +697,8 @@ Waveform.prototype.push = function (samples) {
 	let firstRowWidth = 0
 	if (x) {
 		firstRowWidth = Math.min(txtW - x, dataLen)
-		txt.subimage({
-			width: firstRowWidth,
-			height: 1,
-			data: f32.float(data.subarray(0, firstRowWidth * ch))
-		}, x, y)
-		txtFract.subimage({
-			width: firstRowWidth,
-			height: 1,
-			data: f32.fract(data.subarray(0, firstRowWidth * ch))
-		}, x, y)
+
+		writeTexture(x, y, firstRowWidth, 1, data.subarray(0, firstRowWidth * ch))
 
 		// if data is shorter than the texture row - skip the rest
 		if (x + samples.length <= txtW) {
@@ -734,32 +726,15 @@ Waveform.prototype.push = function (samples) {
 	let blockLen = 0
 	if (h) {
 		blockLen = h * txtW
-		txt.subimage({
-			width: txtW,
-			height: h,
-			data: f32.float(data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch))
-		}, 0, y)
-		txtFract.subimage({
-			width: txtW,
-			height: h,
-			data: f32.fract(data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch))
-		}, 0, y)
+
+		writeTexture(0, y, txtW, h, data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch))
 		y += h
 	}
 
 	// put last row
 	let lastRowWidth = dataLen - firstRowWidth - blockLen
 	if (lastRowWidth) {
-		txt.subimage({
-			width: lastRowWidth,
-			height: 1,
-			data: f32.float(data.subarray(-lastRowWidth * ch))
-		}, 0, y)
-		txtFract.subimage({
-			width: lastRowWidth,
-			height: 1,
-			data: f32.fract(data.subarray(-lastRowWidth * ch))
-		}, 0, y)
+		writeTexture(0, y, lastRowWidth, 1, data.subarray(-lastRowWidth * ch))
 	}
 
 	// shorten block till the end of texture
@@ -771,6 +746,33 @@ Waveform.prototype.push = function (samples) {
 		if (!this.storeData) pool.freeFloat64(data)
 
 		return
+	}
+
+	// put data to texture, provide NaN transport & performant fractions calc
+	function writeTexture (x, y, w, h, data) {
+		let f32data = pool.mallocFloat32(data.length)
+		let f32fract = pool.mallocFloat32(data.length)
+		for (let i = 0; i < data.length; i++) {
+			f32data[i] = data[i]
+			f32fract[i] = data[i] - f32data[i]
+		}
+		// for (let i = 0; i < data.length; i+=4) {
+		// 	if (isNaN(data[i])) f32fract[i] = -1
+		// }
+
+		txt.subimage({
+			width: w,
+			height: h,
+			data: f32data
+		}, x, y)
+		txtFract.subimage({
+			width: w,
+			height: h,
+			data: f32fract
+		}, x, y)
+
+		pool.freeFloat32(f32data)
+		pool.freeFloat32(f32fract)
 	}
 }
 

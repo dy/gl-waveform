@@ -65,7 +65,7 @@ void main() {
 	float offset0r = offset0l + 1.;
 	float offset1r = offset1l + 1.;
 
-	// ALERT: this formula took 7 days
+	// ALERT: this formula took 8 days
 	// the order of operations is important to provide precision
 	// that comprises linear interpolation and range calculation
 	// x - amplitude, y - sum, z - sum2

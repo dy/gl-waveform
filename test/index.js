@@ -23,9 +23,9 @@ t('empty data chunks are not being displayed', async t => {
 
 	wf.render()
 
-	interactive(wf)
-
+	// interactive(wf)
 	// show(wf.canvas, document)
+
 	t.ok(eq(wf, await img('./test/fixture/empty.png'), document))
 
 	wf.clear()
@@ -61,14 +61,16 @@ t('xy noises case', async t => {
 
 	wf.render()
 
-	t.ok(eq(wf, await img('./test/fixture/xy-1.png')))
+	t.ok(eq(await img('./test/fixture/xy-1.png'), wf))
 
 	wf.clear()
 
 	t.end()
 })
 
-t.only('first point displays correctly', async t => {
+
+
+t('first point displays correctly', async t => {
 	var wf = createWaveform(gl)
 	wf.push(oscillate.sin(1024).map(x => x + 10))
 
@@ -80,7 +82,7 @@ t.only('first point displays correctly', async t => {
 
 	wf.render()
 
-	show(wf.canvas, document)
+	// show(wf.canvas, document)
 	t.ok(eq(wf, await img('./test/fixture/first-point.png')))
 
 	wf.clear()
@@ -230,3 +232,4 @@ function interactive(wf, o) {
 		wf.render()
 	})
 }
+

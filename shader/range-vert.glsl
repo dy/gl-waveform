@@ -30,6 +30,7 @@ void main() {
 	// compensate snapping for low scale levels
 	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
 
+	bool isPrevStart = id == 1.;
 	bool isStart = id <= 0.;//-translates;
 	bool isEnd = id >= floor(totals - translates - 1.);
 
@@ -68,7 +69,14 @@ void main() {
 	// the order of operations is important to provide precision
 	// that comprises linear interpolation and range calculation
 	// x - amplitude, y - sum, z - sum2
-	if (isStart) avgCurr = sample1.x;
+	if (isStart) {
+		avgCurr = sample1.x;
+	}
+	else if (isPrevStart) {
+	vec4 sample0f = pick(data0fract, data1fract, offset0, baseOffset, translateri);
+	vec4 sample1f = pick(data0fract, data1fract, offset1, baseOffset, translateri);
+		avgCurr = (sample1.y - sample0.y) / sampleStep;
+	}
 	else {
 		avgCurr = (
 			+ pick(data0, data1, offset1l, baseOffset, translateri).y
@@ -129,7 +137,7 @@ void main() {
 
 	vec2 join;
 
-	if (isStart) {
+	if (isStart || isPrevStart) {
 		join = normalRight;
 	}
 	else if (isEnd) {

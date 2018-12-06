@@ -758,6 +758,9 @@ Waveform.prototype.clear = function () {
 
 	// FIXME: avoid depth here
     regl.clear({color: [0, 0, 0, 0], depth: 1})
+    gl.clear(gl.COLOR_BUFFRE_BIT | gl.DEPTH_BUFFER_BIT)
+
+    gl.disable(gl.SCISSOR_TEST)
 
     return this
 }

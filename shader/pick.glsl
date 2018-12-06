@@ -63,10 +63,7 @@ vec4 pick (sampler2D data0, sampler2D data1, float offset, float baseOffset, flo
 	else {
 		vec4 right = picki(data0, data1, offsetRight, baseOffset, translate);
 
-		sample = lerp(
-			left,
-			right,
-		t);
+		sample = lerp(left, right, t);
 	}
 
 	return sample;

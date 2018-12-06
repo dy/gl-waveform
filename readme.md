@@ -2,10 +2,11 @@
 
 Display time-domain data with WebGL. Provides fair performance / quality among other renderers:
 
-* no performance deterioration - O(n) for update, O(c) for rendering
-* no memory limit - O(c * n)
-* no float32 error introduced by shader
-* floating step compensation for non-regular sample sets
+* no performance deterioration - O(n) for update, O(c) for rendering.
+* no memory limit - O(c * n).
+* no float32 error introduced by shader, at any scale/range/amount of data.
+* floating step compensation for non-regular sample sets.
+* unique render method of adjustable join-width via sample range sdev.
 
 [Demo](https://a-vis.github.io/gl-waveform).
 

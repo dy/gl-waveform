@@ -52,8 +52,6 @@ void main () {
 	avgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);
 	avgPrev = reamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amp);
 
-	if (isNaN(samplePrev.x)) fragColor = vec4(0,0,1,1);
-
 	sdev = 0.;
 
 	vec2 position = vec2(

@@ -54,13 +54,14 @@ vec4 pick (sampler2D data0, sampler2D data1, float offset, float baseOffset, flo
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;
-	vec4 left = picki(data0, data1, offsetLeft, baseOffset, translate);
 
 	vec4 sample;
 	if (t == 0. || offsetLeft == offsetRight) {
+		vec4 left = picki(data0, data1, offsetLeft, baseOffset, translate);
 		sample = left;
 	}
 	else {
+		vec4 left = picki(data0, data1, offsetLeft, baseOffset, translate);
 		vec4 right = picki(data0, data1, offsetRight, baseOffset, translate);
 
 		sample = lerp(left, right, t);

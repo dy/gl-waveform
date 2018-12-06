@@ -12,7 +12,7 @@ const oscillate = require('audio-oscillator')
 const show = require('image-output')
 
 
-t.only('empty data chunks are not being displayed', async t => {
+t('empty data chunks are not being displayed', async t => {
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
 	wf.update({
@@ -25,8 +25,8 @@ t.only('empty data chunks are not being displayed', async t => {
 
 	interactive(wf)
 
-	show(wf.canvas, document)
-	// t.ok(eq(wf, await img('./test/fixture/empty.png'), document))
+	// show(wf.canvas, document)
+	t.ok(eq(wf, await img('./test/fixture/empty.png'), document))
 
 	wf.clear()
 
@@ -68,7 +68,7 @@ t('xy noises case', async t => {
 	t.end()
 })
 
-t('first point displays correctly', async t => {
+t.only('first point displays correctly', async t => {
 	var wf = createWaveform(gl)
 	wf.push(oscillate.sin(1024).map(x => x + 10))
 
@@ -80,6 +80,7 @@ t('first point displays correctly', async t => {
 
 	wf.render()
 
+	show(wf.canvas, document)
 	t.ok(eq(wf, await img('./test/fixture/first-point.png')))
 
 	wf.clear()

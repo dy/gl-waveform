@@ -29,6 +29,7 @@ function Waveform (o) {
 
 	// stack of textures with sample data
 	this.textures = []
+	this.texturesFract = []
 	this.textureLength = this.textureSize[0] * this.textureSize[1]
 
 	// total number of samples
@@ -124,6 +125,12 @@ Waveform.prototype.createShader = function (o) {
 			},
 			data1: function (c, p) {
 				return this.textures[p.currTexture + 1] || this.shader.blankTexture
+			},
+			data0fract: function (c, p) {
+				return this.texturesFract[p.currTexture] || this.shader.blankTexture
+			},
+			data1fract: function (c, p) {
+				return this.texturesFract[p.currTexture + 1] || this.shader.blankTexture
 			},
 			// data0 texture sums
 			sum: function (c, p) {
@@ -378,6 +385,7 @@ Waveform.prototype.pick = function (x) {
 	let data = txt.data
 
 	let samples = data.subarray(offset * ch, offset * ch + ch)
+	let samplesFract = dataFract.subarray(offset * ch, offset * ch + ch)
 
 	// single-value pick
 	// if (pxPerSample >= 1) {
@@ -528,6 +536,7 @@ Waveform.prototype.update = function (o) {
 	// reset sample textures if new samples data passed
 	if (o.data) {
 		this.textures.forEach(txt => txt.destroy())
+		this.texturesFract.forEach(txt => txt.destroy())
 		this.total = 0
 		this.push(o.data)
 	}
@@ -603,7 +612,9 @@ Waveform.prototype.push = function (samples) {
 	let ch = this.textureChannels
 
 	// get current texture
-	let txt = this.textures[id], prevTxt = this.textures[id - 1]
+	let txt = this.textures[id]
+	let txtFract = this.texturesFract[id]
+
 	if (!txt) {
 		txt = this.textures[id] = this.regl.texture({
 			width: this.textureSize[0],
@@ -618,13 +629,28 @@ Waveform.prototype.push = function (samples) {
 		})
 		this.lastY = txt.sum = txt.sum2 = 0
 
-		if (this.storeData) txt.data = pool.mallocFloat(txtLen * ch)
+		txtFract = this.texturesFract[id] = this.regl.texture({
+			width: this.textureSize[0],
+			height: this.textureSize[1],
+			channels: this.textureChannels,
+			type: 'float',
+			min: 'nearest',
+			mag: 'nearest',
+			// min: 'linear',
+			// mag: 'linear',
+			wrap: ['clamp', 'clamp']
+		})
+
+		if (this.storeData) {
+			txt.data = pool.mallocFloat64(txtLen * ch)
+		}
 	}
 
 	// calc sum, sum2 and form data for the samples
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
 	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
+		// put NaN samples as indicators of blank samples
 		if (samples[i] == null || isNaN(samples[i])) {
 			data[i * ch] = NaN
 		}
@@ -635,15 +661,12 @@ Waveform.prototype.push = function (samples) {
 		txt.sum += this.lastY
 		txt.sum2 += this.lastY * this.lastY
 
-		// rotate sum to reduce float32 error
-		if (txt.sum > amp) {
-			txt.sum %= amp
-		}
-		else if (txt.sum < amp) txt.sum %= amp
+		// we cannot rotate sums here because there can be any number of rotations between two edge samples
+		// also that is hard to guess correct rotation limit, that can change at any new data
+		// so we just keep precise secondary texture and hope the sum is not huge enough to reset at the next texture
 
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
-		data[i * ch + 3] = f32.fract(txt.sum2)
 	}
 	this.total += dataLen
 
@@ -654,13 +677,18 @@ Waveform.prototype.push = function (samples) {
 		txt.subimage({
 			width: firstRowWidth,
 			height: 1,
-			data: data.subarray(0, firstRowWidth * ch)
+			data: f32.float(data.subarray(0, firstRowWidth * ch))
+		}, x, y)
+		txtFract.subimage({
+			width: firstRowWidth,
+			height: 1,
+			data: f32.fract(data.subarray(0, firstRowWidth * ch))
 		}, x, y)
 
 		// if data is shorter than the texture row - skip the rest
 		if (x + samples.length <= txtW) {
 			pool.freeFloat64(samples)
-			if (!this.storeData) pool.freeFloat(data)
+			if (!this.storeData) pool.freeFloat64(data)
 			return
 		}
 
@@ -668,7 +696,7 @@ Waveform.prototype.push = function (samples) {
 
 		// shortcut next texture block
 		if (y === txtH) {
-			if (!this.storeData) pool.freeFloat(data)
+			if (!this.storeData) pool.freeFloat64(data)
 			this.push(samples.subarray(firstRowWidth))
 			pool.freeFloat(samples)
 			return
@@ -685,7 +713,12 @@ Waveform.prototype.push = function (samples) {
 		txt.subimage({
 			width: txtW,
 			height: h,
-			data: data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch)
+			data: f32.float(data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch))
+		}, 0, y)
+		txtFract.subimage({
+			width: txtW,
+			height: h,
+			data: f32.fract(data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch))
 		}, 0, y)
 		y += h
 	}
@@ -696,7 +729,12 @@ Waveform.prototype.push = function (samples) {
 		txt.subimage({
 			width: lastRowWidth,
 			height: 1,
-			data: data.subarray(-lastRowWidth * ch)
+			data: f32.float(data.subarray(-lastRowWidth * ch))
+		}, 0, y)
+		txtFract.subimage({
+			width: lastRowWidth,
+			height: 1,
+			data: f32.fract(data.subarray(-lastRowWidth * ch))
 		}, 0, y)
 	}
 
@@ -705,7 +743,7 @@ Waveform.prototype.push = function (samples) {
 		this.push(samples.subarray(tillEndOfTxt))
 
 		pool.freeFloat64(samples)
-		if (!this.storeData) pool.freeFloat(data)
+		if (!this.storeData) pool.freeFloat64(data)
 
 		return
 	}
@@ -727,7 +765,10 @@ Waveform.prototype.clear = function () {
 // dispose all resources
 Waveform.prototype.destroy = function () {
 	this.textures.forEach(txt => {
-		if (this.storeData) pool.freeFloat(txt.data)
+		if (this.storeData) pool.freeFloat64(txt.data)
+		txt.destroy()
+	})
+	this.texturesFract.forEach(txt => {
 		txt.destroy()
 	})
 }
@@ -750,7 +791,7 @@ Waveform.prototype.storeData = true
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
 Waveform.prototype.textureSize = [512, 512]
-Waveform.prototype.textureChannels = 4
+Waveform.prototype.textureChannels = 3
 Waveform.prototype.maxSampleCount = 8192 * 2
 
 

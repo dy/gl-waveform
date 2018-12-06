@@ -9,6 +9,7 @@ precision highp float;
 attribute float id, sign;
 
 
+uniform sampler2D data0, data1, data0fract, data1fract;
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translateriFract, translater, translatei, translates;
 uniform vec4 viewport, color;
 uniform  vec2 amp;
@@ -29,7 +30,7 @@ void main() {
 	// compensate snapping for low scale levels
 	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
 
-	bool isStart = id <= -translates;
+	bool isStart = id <= 0.;//-translates;
 	bool isEnd = id >= floor(totals - translates - 1.);
 
 	float baseOffset = offset - sampleStep * 2.;
@@ -42,14 +43,14 @@ void main() {
 	// 	fragColor.x *= .5;
 	// }
 	// if (isEnd) fragColor = vec4(0,0,1,1);
-	if (isStart) fragColor = vec4(0,0,1,1);
+	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	// vec4 sample0 = isStart ? vec4(0) : pick(offset0, baseOffset, translateri);
-	vec4 sample0 = pick(offset0, baseOffset, translateri);
-	vec4 sample1 = pick(offset1, baseOffset, translateri);
-	vec4 samplePrev = pick(baseOffset, baseOffset, translateri);
-	vec4 sampleNext = pick(offset + sampleStep, baseOffset, translateri);
+	// vec4 sample0 = isStart ? vec4(0) : pick(data0, data1, offset0, baseOffset, translateri);
+	vec4 sample0 = pick(data0, data1, offset0, baseOffset, translateri);
+	vec4 sample1 = pick(data0, data1, offset1, baseOffset, translateri);
+	vec4 samplePrev = pick(data0, data1, baseOffset, baseOffset, translateri);
+	vec4 sampleNext = pick(data0, data1, offset + sampleStep, baseOffset, translateri);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
@@ -63,28 +64,33 @@ void main() {
 	float offset0r = offset0l + 1.;
 	float offset1r = offset1l + 1.;
 
-	if (isStart) avgCurr = sample1.x;
-	else {
-		avgCurr = (
-			+ pick(offset1l, baseOffset, translateri).y * (1. - t1)
-			+ pick(offset1r, baseOffset, translateri).y * t1
-			- pick(offset0l, baseOffset, translateri).y * (1. - t0)
-			- pick(offset0r, baseOffset, translateri).y * t0
-		) / sampleStep;
-	}
-
 	// ALERT: this formula took 7 days
 	// the order of operations is important to provide precision
 	// that comprises linear interpolation and range calculation
+	// x - amplitude, y - sum, z - sum2
+	if (isStart) avgCurr = sample1.x;
+	else {
+		avgCurr = (
+			+ pick(data0, data1, offset1l, baseOffset, translateri).y
+			- pick(data0, data1, offset0l, baseOffset, translateri).y
+			+ pick(data0fract, data1fract, offset1l, baseOffset, translateri).y
+			- pick(data0fract, data1fract, offset0l, baseOffset, translateri).y
+			+ t1 * (pick(data0, data1, offset1r, baseOffset, translateri).y - pick(data0, data1, offset1l, baseOffset, translateri).y)
+			- t0 * (pick(data0, data1, offset0r, baseOffset, translateri).y - pick(data0, data1, offset0l, baseOffset, translateri).y)
+			+ t1 * (pick(data0fract, data1fract, offset1r, baseOffset, translateri).y - pick(data0, data1, offset1l, baseOffset, translateri).y)
+			- t0 * (pick(data0fract, data1fract, offset0r, baseOffset, translateri).y - pick(data0, data1, offset0l, baseOffset, translateri).y)
+		) / sampleStep;
+	}
+
 	float mx2 = (
-		+ pick(offset1l, baseOffset, translateri).z
-		- pick(offset0l, baseOffset, translateri).z
-		+ pick(offset1l, baseOffset, translateri).w
-		- pick(offset0l, baseOffset, translateri).w
-		+ t1 * (pick(offset1r, baseOffset, translateri).z - pick(offset1l, baseOffset, translateri).z)
-		- t0 * (pick(offset0r, baseOffset, translateri).z - pick(offset0l, baseOffset, translateri).z)
-		+ t1 * (pick(offset1r, baseOffset, translateri).w - pick(offset1l, baseOffset, translateri).w)
-		- t0 * (pick(offset0r, baseOffset, translateri).w - pick(offset0l, baseOffset, translateri).w)
+		+ pick(data0, data1, offset1l, baseOffset, translateri).z
+		- pick(data0, data1, offset0l, baseOffset, translateri).z
+		+ pick(data0fract, data1fract, offset1l, baseOffset, translateri).z
+		- pick(data0fract, data1fract, offset0l, baseOffset, translateri).z
+		+ t1 * (pick(data0, data1, offset1r, baseOffset, translateri).z - pick(data0, data1, offset1l, baseOffset, translateri).z)
+		- t0 * (pick(data0, data1, offset0r, baseOffset, translateri).z - pick(data0, data1, offset0l, baseOffset, translateri).z)
+		+ t1 * (pick(data0fract, data1fract, offset1r, baseOffset, translateri).z - pick(data0, data1, offset1l, baseOffset, translateri).z)
+		- t0 * (pick(data0fract, data1fract, offset0r, baseOffset, translateri).z - pick(data0, data1, offset0l, baseOffset, translateri).z)
 	)  / sampleStep;
 	float m2 = avgCurr * avgCurr;
 

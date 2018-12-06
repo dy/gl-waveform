@@ -3,13 +3,12 @@
 
 #pragma glslify: lerp = require('./lerp.glsl')
 
-uniform sampler2D data0, data1;
 uniform vec2 dataShape;
 uniform float sum, sum2;
 
 
 // pick integer offset
-vec4 picki (float offset, float baseOffset, float translate) {
+vec4 picki (sampler2D data0, sampler2D data1, float offset, float baseOffset, float translate) {
 	offset = max(offset, 0.);
 
 	// translate is here in order to remove float32 error (at the latest stage)
@@ -49,48 +48,32 @@ vec4 picki (float offset, float baseOffset, float translate) {
 	return sample;
 }
 
-// unloop possibly looped value
-vec4 unloop (vec4 sample, float offset, float baseOffset, float translate) {
-	// if sample + prev sample are not the same as sum
-	// consider that the sum was looped in order to reduce float32 error
-	// recalc sum as prev sum + prev sample
-	vec4 prev = picki(offset - 1., baseOffset, translate);
-
-	if (abs((prev.x + sample.x) - (sample.z - prev.z)) > 0.) {
-		sample.z = prev.z + sample.x;
-		sample.w = prev.w + sample.x * sample.x;
-	}
-
-	return sample;
-}
-
 // shift is passed separately for higher float32 precision of offset
 // export pickLinear for the case of emulating texture linear interpolation
-vec4 pick (float offset, float baseOffset, float translate) {
+vec4 pick (sampler2D data0, sampler2D data1, float offset, float baseOffset, float translate) {
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;
-	vec4 left = picki(offsetLeft, baseOffset, translate);
+	vec4 left = picki(data0, data1, offsetLeft, baseOffset, translate);
 
 	vec4 sample;
 	if (t == 0. || offsetLeft == offsetRight) {
-		sample = unloop(left, offsetLeft, baseOffset, translate);
+		sample = left;
 	}
 	else {
-		vec4 right = picki(offsetRight, baseOffset, translate);
+		vec4 right = picki(data0, data1, offsetRight, baseOffset, translate);
 
 		sample = lerp(
-			unloop(left, offsetLeft, baseOffset, translate),
-			unloop(right, offsetRight, baseOffset, translate),
+			left,
+			right,
 		t);
 	}
-
 
 	return sample;
 }
 
-vec4 pick (float a, float b) {
-	return pick(a, b, 0.);
+vec4 pick (sampler2D data0, sampler2D data1, float a, float b) {
+	return pick(data0, data1, a, b, 0.);
 }
 
 

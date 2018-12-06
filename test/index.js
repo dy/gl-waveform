@@ -12,7 +12,7 @@ const oscillate = require('audio-oscillator')
 const show = require('image-output')
 
 
-t('empty data chunks are not being displayed', async t => {
+t.only('empty data chunks are not being displayed', async t => {
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
 	wf.update({
@@ -25,8 +25,8 @@ t('empty data chunks are not being displayed', async t => {
 
 	interactive(wf)
 
-	// document.body.appendChild(gl.canvas)
-	t.ok(eq(wf, await img('./test/fixture/empty.png')))
+	show(wf.canvas, document)
+	// t.ok(eq(wf, await img('./test/fixture/empty.png'), document))
 
 	wf.clear()
 
@@ -87,22 +87,25 @@ t('first point displays correctly', async t => {
 	t.end()
 })
 
-t.only('>1 values does not create float32 noise', async t => {
-	var data = oscillate.sin(2048).map(x => x + 10)
+t('>1 values does not create float32 noise', async t => {
+	var data = oscillate.sin(2048*2*10).map(x => x + 10)
 
 	var wf = createWaveform(gl)
 	wf.push(data)
 
 	wf.update({
-		width: 1,
+		width: 2,
 		amplitude: [1, 12],
-		range: [0, 400]
+		range: [2048*2*10 - 400, 2048*2*10]
 	})
 
 	wf.render()
 
-	show(wf.canvas, document)
-	// t.ok(eq(wf, await img('./test/fixture/xy-1.png')))
+	// show(wf.canvas, document)
+	t.ok(eq(wf, await img('./test/fixture/additive-noises.png')))
+
+	// TODO: test line mode
+	// TODO: test negative noise
 
 	wf.clear()
 

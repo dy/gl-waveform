@@ -73,10 +73,10 @@ void main() {
 		avgCurr = sample1.x;
 	}
 	else if (isPrevStart) {
-	vec4 sample0f = pick(data0fract, data1fract, offset0, baseOffset, translateri);
-	vec4 sample1f = pick(data0fract, data1fract, offset1, baseOffset, translateri);
-		avgCurr = (sample1.y - sample0.y) / sampleStep;
-	}
+		vec4 sample0f = pick(data0fract, data1fract, offset0, baseOffset, translateri);
+		vec4 sample1f = pick(data0fract, data1fract, offset1, baseOffset, translateri);
+			avgCurr = (sample1.y - sample0.y) / sampleStep;
+		}
 	else {
 		avgCurr = (
 			+ pick(data0, data1, offset1l, baseOffset, translateri).y

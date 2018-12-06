@@ -198,6 +198,7 @@ t('step is automatically detected from the x-y input data', async t => {
 	t.end()
 })
 
+t('offset bug from demo')
 t('axis and grids', async t => {
 	t.end()
 })

@@ -385,7 +385,6 @@ Waveform.prototype.pick = function (x) {
 	let data = txt.data
 
 	let samples = data.subarray(offset * ch, offset * ch + ch)
-	let samplesFract = dataFract.subarray(offset * ch, offset * ch + ch)
 
 	// single-value pick
 	// if (pxPerSample >= 1) {

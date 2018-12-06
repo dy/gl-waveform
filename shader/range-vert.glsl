@@ -85,8 +85,8 @@ void main() {
 			- pick(data0fract, data1fract, offset0l, baseOffset, translateri).y
 			+ t1 * (pick(data0, data1, offset1r, baseOffset, translateri).y - pick(data0, data1, offset1l, baseOffset, translateri).y)
 			- t0 * (pick(data0, data1, offset0r, baseOffset, translateri).y - pick(data0, data1, offset0l, baseOffset, translateri).y)
-			+ t1 * (pick(data0fract, data1fract, offset1r, baseOffset, translateri).y - pick(data0, data1, offset1l, baseOffset, translateri).y)
-			- t0 * (pick(data0fract, data1fract, offset0r, baseOffset, translateri).y - pick(data0, data1, offset0l, baseOffset, translateri).y)
+			+ t1 * (pick(data0fract, data1fract, offset1r, baseOffset, translateri).y - pick(data0fract, data1fract, offset1l, baseOffset, translateri).y)
+			- t0 * (pick(data0fract, data1fract, offset0r, baseOffset, translateri).y - pick(data0fract, data1fract, offset0l, baseOffset, translateri).y)
 		) / sampleStep;
 	}
 
@@ -97,8 +97,8 @@ void main() {
 		- pick(data0fract, data1fract, offset0l, baseOffset, translateri).z
 		+ t1 * (pick(data0, data1, offset1r, baseOffset, translateri).z - pick(data0, data1, offset1l, baseOffset, translateri).z)
 		- t0 * (pick(data0, data1, offset0r, baseOffset, translateri).z - pick(data0, data1, offset0l, baseOffset, translateri).z)
-		+ t1 * (pick(data0fract, data1fract, offset1r, baseOffset, translateri).z - pick(data0, data1, offset1l, baseOffset, translateri).z)
-		- t0 * (pick(data0fract, data1fract, offset0r, baseOffset, translateri).z - pick(data0, data1, offset0l, baseOffset, translateri).z)
+		+ t1 * (pick(data0fract, data1fract, offset1r, baseOffset, translateri).z - pick(data0fract, data1fract, offset1l, baseOffset, translateri).z)
+		- t0 * (pick(data0fract, data1fract, offset0r, baseOffset, translateri).z - pick(data0fract, data1fract, offset0l, baseOffset, translateri).z)
 	)  / sampleStep;
 	float m2 = avgCurr * avgCurr;
 

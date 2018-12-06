@@ -1,8 +1,8 @@
 'use strict'
 
 const t = require('tape')
-// const createWaveform = require('../index')
-const createWaveform = require('../')
+const createWaveform = require('../index')
+// const createWaveform = require('../')
 const panzoom = require('pan-zoom')
 const gl = require('gl')(400, 300)
 const eq = require('image-equal')
@@ -82,8 +82,8 @@ t('first point displays correctly', async t => {
 
 	wf.render()
 
-	// show(wf.canvas)
-	t.ok(eq(wf, await img('./test/fixture/first-point.png')))
+	// show(wf.canvas, document)
+	t.ok(eq(wf, await img('./test/fixture/first-point.png'), document))
 
 	wf.clear()
 
@@ -104,7 +104,7 @@ t('>1 values does not create float32 noise', async t => {
 
 	wf.render()
 
-	// show(wf.canvas)
+	show(wf.canvas, document)
 	t.ok(eq(wf, await img('./test/fixture/additive-noises.png')))
 
 	// TODO: test line mode

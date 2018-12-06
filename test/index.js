@@ -104,7 +104,7 @@ t('>1 values does not create float32 noise', async t => {
 
 	wf.render()
 
-	show(wf.canvas, document)
+	// show(wf.canvas, document)
 	t.ok(eq(wf, await img('./test/fixture/additive-noises.png')))
 
 	// TODO: test line mode
@@ -120,7 +120,7 @@ t.skip('empty data chunks in range mode do not add variance', async t => {
 	t.end()
 })
 
-t('timestamp gaps get interpolated by edge values', async t => {
+t.only('timestamp gaps get interpolated by edge values', async t => {
 	var wf = createWaveform({gl})
 
 	wf.push([
@@ -147,33 +147,37 @@ t('timestamp gaps get interpolated by edge values', async t => {
 	t.end()
 })
 
+t('huge zoom out value does not create mess with noise', async t => {
+	t.end()
+})
+
 t('step is automatically detected from the x-y input data', async t => {
 	var wf = createWaveform({gl})
 
 	wf.push([
 		{x: 109.627085281, y: 206},
-		{x: 109.637030867, y: 206},
+		{x: 109.637030867, y: 200},
 		{x: 109.647035863, y: 206},
 		{x: 109.657047407, y: 206},
-		{x: 109.666189798, y: 230},
-		{x: 109.676121669, y: 230},
+		{x: 109.666189798, y: 233},
+		{x: 109.676121669, y: 234},
 		{x: 109.68640626, y: 230},
 		{x: 109.697049701, y: 230},
 		{x: 109.707013991, y: 230},
 		{x: 109.71643792, y: 230},
-		{x: 109.72678661, y: 230},
+		{x: 109.72678661, y: 233},
 		{x: 109.736006915, y: 230},
 		{x: 109.747039401, y: 230},
 		{x: 109.756636245, y: 230},
-		{x: 109.766007832, y: 230},
-		{x: 109.777052658, y: 230},
-		{x: 109.787051592, y: 230},
-		{x: 109.797054603, y: 230},
-		{x: 109.807053946, y: 230},
-		{x: 109.81705083599999, y: 230},
-		{x: 109.82705901, y: 230},
-		{x: 109.837079929, y: 230},
-		{x: 109.84708057, y: 230},
+		{x: 109.766007832, y: 240},
+		{x: 109.777052658, y: 240},
+		{x: 109.787051592, y: 240},
+		{x: 109.797054603, y: 245},
+		{x: 109.807053946, y: 245},
+		{x: 109.81705083599999, y: 245},
+		{x: 109.82705901, y: 245},
+		{x: 109.837079929, y: 245},
+		{x: 109.84708057, y: 245},
 		{x: 109.85704243, y: 230},
 		{x: 109.867106952, y: 230},
 		{x: 109.877085168, y: 230},
@@ -186,14 +190,17 @@ t('step is automatically detected from the x-y input data', async t => {
 		{x: 109.947060414, y: 230},
 	])
 	wf.update({
-		width: 10,
-		amplitude: [109, 110]
+		width: 5,
+		amplitude: [200, 250],
+		range: [109.6, 110]
 	})
 
 	wf.render()
 
-	// t.ok(eq(wf, await img('./test/fixture/interpolate-step.png'), {threshold: .3}))
-	// wf.clear()
+	// show(wf, document)
+
+	t.ok(eq(wf, await img('./test/fixture/xstep.png')))
+	wf.clear()
 
 	t.end()
 })

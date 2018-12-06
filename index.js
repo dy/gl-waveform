@@ -28,8 +28,13 @@ function Waveform (o) {
 	if (!(this instanceof Waveform)) return new Waveform(o)
 
 	// stack of textures with sample data
+	// for a single pass we provide 2 textures, covering the screen
+	// every new texture resets accumulated sum/sum2 values
+	// textures store [amp, sum, sum2, xOffset] values
+	// textures2 store [ampFract, sumFract, sum2Fract, _] values
+	// ampFract has util values: -1 for NaN amplitude
 	this.textures = []
-	this.texturesFract = []
+	this.textures2 = []
 	this.textureLength = this.textureSize[0] * this.textureSize[1]
 
 	// total number of samples
@@ -127,10 +132,10 @@ Waveform.prototype.createShader = function (o) {
 				return this.textures[p.currTexture + 1] || this.shader.blankTexture
 			},
 			data0fract: function (c, p) {
-				return this.texturesFract[p.currTexture] || this.shader.blankTexture
+				return this.textures2[p.currTexture] || this.shader.blankTexture
 			},
 			data1fract: function (c, p) {
-				return this.texturesFract[p.currTexture + 1] || this.shader.blankTexture
+				return this.textures2[p.currTexture + 1] || this.shader.blankTexture
 			},
 			// data0 texture sums
 			sum: function (c, p) {
@@ -237,7 +242,7 @@ Waveform.prototype.createShader = function (o) {
 
 // calculate draw options
 Waveform.prototype.calc = function () {
-	let range = [this.range[0] - this.firstX, this.range[1] - this.firstX]
+	let range = [(this.range[0] - this.firstX) / this.stepX, (this.range[1] - this.firstX) / this.stepX]
 	let {total, opacity, amp} = this
 
 	// FIXME: remove
@@ -259,7 +264,7 @@ Waveform.prototype.calc = function () {
 
 	let span
 	if (!range) span = viewport[2]
-	else span = range[1] - range[0]
+	else span = (range[1] - range[0])
 
 	let dataLength = this.textureLength
 
@@ -269,6 +274,7 @@ Waveform.prototype.calc = function () {
 		// pxStep affects jittering on panning, .5 is good value
 		this.pxStep || Math.pow(thickness, .1) * .1
 	)
+
 	let sampleStep = pxStep * span / viewport[2]
 	let pxPerSample = pxStep / sampleStep
 
@@ -413,6 +419,7 @@ Waveform.prototype.update = function (o) {
 		amp: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
 		thickness: 'thickness width linewidth lineWidth line-width',
 		pxStep: 'step pxStep',
+		stepX: 'xStep xstep interval stepX stepx',
 		color: 'color colour colors colours fill fillColor fill-color',
 		line: 'line line-style lineStyle linestyle',
 		viewport: 'clip vp viewport viewBox viewbox viewPort area',
@@ -448,6 +455,8 @@ Waveform.prototype.update = function (o) {
 	if (o.pxStep != null) {
 		this.pxStep = toPx(o.pxStep)
 	}
+
+	if (o.stepX && this.stepX != null) this.stepX = o.stepX
 
 	if (o.opacity != null) {
 		this.opacity = parseFloat(o.opacity)
@@ -534,7 +543,7 @@ Waveform.prototype.update = function (o) {
 	// reset sample textures if new samples data passed
 	if (o.data) {
 		this.textures.forEach(txt => txt.destroy())
-		this.texturesFract.forEach(txt => txt.destroy())
+		this.textures2.forEach(txt => txt.destroy())
 		this.total = 0
 		this.push(o.data)
 	}
@@ -551,16 +560,24 @@ Waveform.prototype.update = function (o) {
 Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
 
+	// x shifts from the central xStep-based value for x correction
+	let xOffsets = pool.mallocFloat64(samples.length)
+
 	// [{x, y}, {x, y}, ...]
 	// [[x, y], [x, y], ...]
 	if (typeof samples[0] !== 'number') {
-		let data = []
+		let data = pool.mallocFloat64(samples.length)
 
 		// detect xStep
-		// TODO: cases: gradient, animation stops, continuous functions, lerp of array, span-array
-		if (!this.xStep) {
-			// for (let i = 1; i < samples.length; i++) {
-			// }
+		// TODO: do xStep correction for every new texture to compensate accumulated shift
+		if (!this.stepX) {
+			let sum = 0
+			for (let i = 1; i < samples.length; i++) {
+				let b = samples[i].length ? samples[i][0] : samples[i].x
+				let a = samples[i-1].length ? samples[i-1][0] : samples[i-1].x
+				sum += b-a
+			}
+			this.stepX = sum / (samples.length - 1)
 		}
 
 		// normalize {x, y} objects to flat array
@@ -579,16 +596,15 @@ Waveform.prototype.push = function (samples) {
 
 			if (this.firstX == null) {
 				this.firstX = x
-				data.push(y)
 			}
 			if (x <= this.lastX) throw Error(`Passed x value ${x} is <= the last x value ${this.lastX}.`)
 
-			// push interpolated samples
-			let n = x - this.lastX
-			for (let j = 1; j <= n; j++) {
-				if (y == null || isNaN(y)) data.push(NaN)
-				else data.push(lerp(this.lastY, y, j / n))
-			}
+			// reset firstX every new texture
+			let origX = this.firstX + i * this.stepX
+
+			data[i] = y
+
+			xOffsets[i] = origX - x
 
 			this.lastX = x
 			this.lastY = y
@@ -597,6 +613,7 @@ Waveform.prototype.push = function (samples) {
 	}
 	else {
 		if (this.firstX == null) this.firstX = 0
+		if (!this.stepX) this.stepX = 1
 	}
 
 	if (Array.isArray(samples)) {
@@ -618,7 +635,7 @@ Waveform.prototype.push = function (samples) {
 
 	// get current texture
 	let txt = this.textures[id]
-	let txtFract = this.texturesFract[id]
+	let txtFract = this.textures2[id]
 
 	if (!txt) {
 		txt = this.textures[id] = this.regl.texture({
@@ -634,7 +651,7 @@ Waveform.prototype.push = function (samples) {
 		})
 		this.lastY = txt.sum = txt.sum2 = 0
 
-		txtFract = this.texturesFract[id] = this.regl.texture({
+		txtFract = this.textures2[id] = this.regl.texture({
 			width: this.textureSize[0],
 			height: this.textureSize[1],
 			channels: this.textureChannels,
@@ -672,6 +689,7 @@ Waveform.prototype.push = function (samples) {
 
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
+		data[i * ch + 3] = xOffsets[i]
 	}
 	this.total += dataLen
 
@@ -693,6 +711,7 @@ Waveform.prototype.push = function (samples) {
 		// if data is shorter than the texture row - skip the rest
 		if (x + samples.length <= txtW) {
 			pool.freeFloat64(samples)
+			pool.freeFloat64(xOffsets)
 			if (!this.storeData) pool.freeFloat64(data)
 			return
 		}
@@ -748,6 +767,7 @@ Waveform.prototype.push = function (samples) {
 		this.push(samples.subarray(tillEndOfTxt))
 
 		pool.freeFloat64(samples)
+		pool.freeFloat64(xOffsets)
 		if (!this.storeData) pool.freeFloat64(data)
 
 		return
@@ -776,7 +796,7 @@ Waveform.prototype.destroy = function () {
 		if (this.storeData) pool.freeFloat64(txt.data)
 		txt.destroy()
 	})
-	this.texturesFract.forEach(txt => {
+	this.textures2.forEach(txt => {
 		txt.destroy()
 	})
 }
@@ -802,15 +822,15 @@ Waveform.prototype.amp = [-1, 1]
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
 Waveform.prototype.textureSize = [512, 512]
+
 Waveform.prototype.textureChannels = 4
 Waveform.prototype.maxSampleCount = 8192 * 2
 
-// interval between adjacen x values
-// we guess input data is homogenous and doesn't suddenly change type/direction
-// or does not have skipped samples
-// but sometimes step can vary a bit, ~3% of average, like measured time
+// interval between adjacent x values
+// we guess input data is homogenous and doesn't suddenly change direction
+// sometimes step can vary a bit, ~3% of average, like measured time
 // so we detect the step from the first chunk of data
-Waveform.prototype.xStep = null
+Waveform.prototype.stepX = null
 
 Waveform.prototype.storeData = true
 

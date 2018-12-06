@@ -22,7 +22,7 @@ document.body.innerHTML = `
 			color: #F6F6F6;
 			margin: 0;
 			height: 100vh;
-			background: radial-gradient(80vw at 33% 0%, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0) 100%), #4f5252;
+			background: radial-gradient(80vw at 33% 0%, rgba(250, 250, 255, 0.13) 0%, rgba(255, 255, 255, 0) 100%), #4f5252;
 		}
 		.container {
 			overflow: hidden;
@@ -41,7 +41,7 @@ document.body.innerHTML = `
 
 			background: radial-gradient(660.00px at 50% 102.92%, rgba(157, 173, 167, 0.465) 0%, rgba(139, 157, 170, 0.035) 100%), #3A3939;
 			/* paper */
-			box-shadow: 0px 8px 28px rgba(52, 57, 72, 0.5), 0px 1px 10px rgba(43, 42, 42, 0.17);
+			box-shadow: 0px 8px 28px rgba(52, 57, 62, 0.5), 0px 1px 10px rgba(43, 42, 42, 0.17);
 			border-radius: 6px;
 		}
 		.canvas {
@@ -79,6 +79,7 @@ document.body.innerHTML = `
 			line-height: 1.25rem;
 			display: block;
 			padding-right: .8rem;
+			letter-spacing: .02ex;
 			text-transform: lowercase;
 		}
 		.nav a.active {
@@ -90,6 +91,7 @@ document.body.innerHTML = `
 			width: .16rem;
 			background: #808080;
 			height: 1.2rem;
+			margin-top: .2rem;
 			left: 0;
 			position: absolute;
 		}
@@ -105,6 +107,7 @@ document.body.innerHTML = `
 			font-weight: 200;
 		}
 		.footer {
+			letter-spacing: .02ex;
 			color: #d0d0d0;
 			font-weight: 200;
 			font-size: .8rem;
@@ -115,8 +118,7 @@ document.body.innerHTML = `
 		}
 		.footer a {
 			color: #f0f0f0;
-			font-weight: 400;
-			font-style: italic;
+			font-weight: 500;
 		}
 		.small-caps {
 			font-size: .875em;
@@ -129,7 +131,7 @@ document.body.innerHTML = `
 
 	<section class="container">
 		<header class="header">
-			<h1>gl-waveform</h1>
+			<h1>A/gl-waveform</h1>
 			<nav class="nav">
 				<a href="#about">About</a>
 				<a class="active" href="#examples">example</a>

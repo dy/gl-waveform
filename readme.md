@@ -67,12 +67,13 @@ Update state of the renderer instance. Possible `options`:
 
 Property | Meaning
 ---|---
-`data`			| Array or typed array with sample data. Usually it contains values from `-1..+1` range, but that can be adjusted via `range` property. An array can be as set of `{x, y}` or `[x, y]` pairs, where x step is detected from the values, eg. `[{x: 10, y: 1}, {x: 20, y: 2}]`, `xStep == 10`. Pass custom `xStep` option to avoid detection.
-`range`			| Visible data x-range, an array with `[start, end]` offsets or a number with samples count of the last added data. Negative numbers use data from the end.
-`amplitude` 	| Amplitudes range, number or array `[min, max]`, by default considered `[-1, +1]`.
+`data`			| Array or typed array with sample values. Usually it contains values from `-1..+1` range, but that can be adjusted via `amplitude` property. An array can be as sequence of `{x, y}` or `[x, y]` pairs, eg. `[{x: 10, y: 1}, {x: 20, y: 2}]`.
+`range`			| Visible data x-range, an array `[start, end]` offsets or a number of the last samples to show. Can also be a 4-value array `[xStart, minAmplitude, xEnd, maxAmplityde]` compatible with other gl-components, in this case `amplitude` property is ignored. Negative x-offsets use data from the end.
+`amplitude` 	| Amplitudes range, number or array `[min, max]`. `null` value will detect range from data.
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).
 `thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.
 `pxStep`        | <em>advanced</em> Redefine minimum pixel step. Can enhance zooming precision.
+`xStep` | <em>advanced</em> Set data interval manually. By default detected from the data.
 
 ### `waveform.push(data)`
 

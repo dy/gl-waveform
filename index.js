@@ -42,7 +42,8 @@ function Waveform (o) {
 
 	// pointer to the first/last x values, detected from the first data
 	// used for organizing data gaps
-	this.firstX, this.lastY, this.lastX
+	this.firstX, this.lastY, this.lastX,
+	this.minY = Infinity, this.maxY = -Infinity
 
 	this.shader = this.createShader(o)
 
@@ -171,7 +172,7 @@ Waveform.prototype.createShader = function (o) {
 			totals: regl.prop('totals'),
 
 			// min/max amplitude
-			amp: regl.prop('amp'),
+			amp: regl.prop('amplitude'),
 
 			viewport: regl.prop('viewport'),
 			opacity: regl.prop('opacity'),
@@ -242,8 +243,17 @@ Waveform.prototype.createShader = function (o) {
 
 // calculate draw options
 Waveform.prototype.calc = function () {
-	let range = [(this.range[0] - this.firstX) / this.stepX, (this.range[1] - this.firstX) / this.stepX]
-	let {total, opacity, amp} = this
+	let {total, opacity, amplitude} = this
+	let range
+
+	// null-range spans the whole data range
+	if (!this.range) range = [-this.firstX / this.stepX, (this.lastX - this.firstX) / this.stepX]
+	else {
+		range = [(this.range[0] - this.firstX) / this.stepX, (this.range[1] - this.firstX) / this.stepX]
+	}
+
+
+	if (!amplitude) amplitude = [this.minY, this.maxY]
 
 	// FIXME: remove
 	// r[0] = -4
@@ -326,7 +336,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amp
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude
 	}
 
 	return drawOptions
@@ -339,29 +349,11 @@ Waveform.prototype.render = function () {
 	// range case
 	if (o.pxPerSample <= 1.) {
 		this.shader.drawRanges.call(this, o)
-		// this.shader.drawRanges.call(this, extend(drawOptions, {
-		// 	primitive: 'points',
-		// 	color: [0,0,0,255]
-		// }))
-		// this.shader.drawRanges.call(this, extend(drawOptions, {
-		// 	primitive: 'points',
-		// 	thickness: 0,
-		// 	color: [0,0,0,255]
-		// }))
 	}
 
 	// line case
 	else {
 		this.shader.drawLine.call(this, o)
-		// this.shader.drawLine.call(this, extend(drawOptions, {
-		// 	primitive: 'points',
-		// 	color: [0,0,0,255]
-		// }))
-		// this.shader.drawLine.call(this, extend(drawOptions, {
-		// 	primitive: 'points',
-		// 	thickness: 0,
-		// 	color: [0,0,0,255]
-		// }))
 	}
 
 	return this
@@ -375,7 +367,7 @@ Waveform.prototype.pick = function (x) {
 		x = Math.max(x.clientX - elOffset(this.canvas).left, 0)
 	}
 
-	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep, amp} = this.calc()
+	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep, amplitude} = this.calc()
 
 	let txt = this.textures[currTexture]
 
@@ -400,7 +392,7 @@ Waveform.prototype.pick = function (x) {
 			sdev: 0,
 			offset: [offset, offset],
 			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
-			y: ((-avg - amp[0]) / (amp[1] - amp[0])) * this.viewport.height + this.viewport.y
+			y: ((-avg - amplitude[0]) / (amplitude[1] - amplitude[0])) * this.viewport.height + this.viewport.y
 		}
 	// }
 
@@ -416,7 +408,7 @@ Waveform.prototype.update = function (o) {
 		data: 'data value values sample samples',
 		push: 'add append push insert concat',
 		range: 'range dataRange dataBox dataBounds dataLimits',
-		amp: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
+		amplitude: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
 		thickness: 'thickness width linewidth lineWidth line-width',
 		pxStep: 'step pxStep',
 		stepX: 'xStep xstep interval stepX stepx',
@@ -424,7 +416,7 @@ Waveform.prototype.update = function (o) {
 		line: 'line line-style lineStyle linestyle',
 		viewport: 'clip vp viewport viewBox viewbox viewPort area',
 		opacity: 'opacity alpha transparency visible visibility opaque',
-		flip: 'flip iviewport invertViewport inverseViewport',
+		flip: 'flip iviewport invertViewport inverseViewport'
 	})
 
 	// parse line style
@@ -484,7 +476,14 @@ Waveform.prototype.update = function (o) {
 	// custom/default visible data window
 	if (o.range != null) {
 		if (o.range.length) {
-			this.range = [o.range[0], o.range[1]]
+			// support vintage 4-value range
+			if (o.range.length === 4) {
+				this.range = [o.range[0], o.range[2]]
+				o.amplitude = [o.range[1], o.range[3]]
+			}
+			else {
+				this.range = [o.range[0], o.range[1]]
+			}
 		}
 		else if (typeof o.range === 'number') {
 			this.range = [-o.range, -0]
@@ -492,23 +491,17 @@ Waveform.prototype.update = function (o) {
 	}
 
 
-	if (o.amp) {
-		if (typeof o.amp === 'number') {
-			this.amp = [-o.amp, +o.amp]
+	if (o.amplitude != null) {
+		if (typeof o.amplitude === 'number') {
+			this.amplitude = [-o.amplitude, +o.amplitude]
 		}
-		else if (o.amp.length) {
-			this.amp = [o.amp[0], o.amp[1]]
+		else if (o.amplitude.length) {
+			this.amplitude = [o.amplitude[0], o.amplitude[1]]
+		}
+		else {
+			this.amplitude = o.amplitude
 		}
 	}
-
-	// if (o.lineMode != null) {
-	// 	if (typeof o.lineMode === 'number' || typeof o.lineMode === 'string') {
-	// 		this.lineMode = toPx(o.lineMode)
-	// 	}
-	// 	else {
-	// 		this.lineMode = !!o.lineMode
-	// 	}
-	// }
 
 
 	// flatten colors to a single uint8 array
@@ -622,10 +615,15 @@ Waveform.prototype.push = function (samples) {
 		samples = floatSamples
 	}
 
+	// detect min/maxY
+	for (let i = 0; i < samples.length; i++) {
+		if (this.minY > samples[i]) this.minY = samples[i]
+		if (this.maxY < samples[i]) this.maxY = samples[i]
+	}
+
 	let [txtW, txtH] = this.textureSize
 	let txtLen = this.textureLength
 
-	let amp = this.amp[1] - this.amp[0]
 	let offset = this.total % txtLen
 	let id = Math.floor(this.total / txtLen)
 	let y = Math.floor(offset / txtW)
@@ -816,7 +814,7 @@ Waveform.prototype.flip = false
 
 // data range
 Waveform.prototype.range = null
-Waveform.prototype.amp = [-1, 1]
+Waveform.prototype.amplitude = null
 
 // Texture size affects
 // - sdev error: bigger texture accumulate sum2 error so signal looks more fluffy

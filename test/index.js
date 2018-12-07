@@ -203,12 +203,41 @@ t('step is automatically detected from the x-y input data', async t => {
 	t.end()
 })
 
-t('offset bug from demo')
+t.only('x-offset fluctuations are ok', async t => {
+	let wf = createWaveform(gl)
+
+	wf.push([[1,1], [1.1,2], [2.8, 3], [4, 4]])
+
+	wf.render()
+	show(wf, document)
+
+	t.end()
+})
+
+t('support 4-value classical range', async t => {
+	let wf = createWaveform(gl)
+
+	wf.push([0,1,2,3])
+	wf.update({range: [1,0,3,2]})
+	wf.render()
+
+	t.deepEqual(wf.amplitude, [0, 2])
+
+	let shot = img(wf)
+
+	wf.update({range:[1,3], amplitude: [0,2]})
+	wf.render()
+
+	t.ok(eq(shot, wf))
+
+	t.end()
+})
+
 t('axis and grids', async t => {
 	t.end()
 })
 
-t('null-canvas instances does not create multiple canvases')
+t('null-canvas instances do not create multiple canvases')
 
 t('calibrate step to pixels')
 

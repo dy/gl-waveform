@@ -206,7 +206,7 @@ t('step is automatically detected from the x-y input data', async t => {
 t.only('x-offset fluctuations are ok', async t => {
 	let wf = createWaveform(gl)
 
-	wf.push([[1,1], [1.1,2], [2.8, 3], [4, 4]])
+	wf.push([[1,1], [1.1,2], [2.8, 3], [4, 2]])
 
 	wf.render()
 	show(wf, document)

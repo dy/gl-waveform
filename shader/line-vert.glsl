@@ -30,8 +30,6 @@ void main () {
 
 	float offset = id * sampleStep;
 
-	// compensate snapping for low scale levels
-	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
 
 	bool isStart = id <= -translates;
 	bool isEnd = id >= floor(totals - translates - 1.);
@@ -53,6 +51,9 @@ void main () {
 	avgPrev = reamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amp);
 
 	sdev = 0.;
+
+	// compensate snapping for low scale levels
+	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep + sampleCurr.w;
 
 	vec2 position = vec2(
 		pxStep * (id - posShift) / viewport.z,

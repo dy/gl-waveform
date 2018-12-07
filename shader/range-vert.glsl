@@ -65,10 +65,10 @@ void main() {
 	float offset0r = offset0l + 1.;
 	float offset1r = offset1l + 1.;
 
-	// ALERT: this formula took 8 days
+	// ALERT: this formula took 9 days
 	// the order of operations is important to provide precision
 	// that comprises linear interpolation and range calculation
-	// x - amplitude, y - sum, z - sum2
+	// x - amplitude, y - sum, z - sum2, w - x offset
 	vec4 sample0l = pick(data0, data1, offset0l, baseOffset, translateri);
 	vec4 sample0r = pick(data0, data1, offset0r, baseOffset, translateri);
 	vec4 sample1r = pick(data0, data1, offset1r, baseOffset, translateri);
@@ -82,8 +82,6 @@ void main() {
 		avgCurr = sample1.x;
 	}
 	else if (isPrevStart) {
-		vec4 sample0f = pick(data0fract, data1fract, offset0, baseOffset, translateri);
-		vec4 sample1f = pick(data0fract, data1fract, offset1, baseOffset, translateri);
 			avgCurr = (sample1.y - sample0.y) / sampleStep;
 		}
 	else {

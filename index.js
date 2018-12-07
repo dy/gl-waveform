@@ -247,11 +247,10 @@ Waveform.prototype.calc = function () {
 	let range
 
 	// null-range spans the whole data range
-	if (!this.range) range = [-this.firstX / this.stepX, (this.lastX - this.firstX) / this.stepX]
+	if (!this.range) range = [0, (this.lastX + 1 - this.firstX) / this.stepX]
 	else {
 		range = [(this.range[0] - this.firstX) / this.stepX, (this.range[1] - this.firstX) / this.stepX]
 	}
-
 
 	if (!amplitude) amplitude = [this.minY, this.maxY]
 
@@ -469,10 +468,6 @@ Waveform.prototype.update = function (o) {
 		this.flip = !!o.viewport
 	}
 
-	if (!this.range && !o.range) {
-		o.range = [0, Math.min(this.viewport.width, this.textureLength)]
-	}
-
 	// custom/default visible data window
 	if (o.range != null) {
 		if (o.range.length) {
@@ -535,9 +530,12 @@ Waveform.prototype.update = function (o) {
 
 	// reset sample textures if new samples data passed
 	if (o.data) {
-		this.textures.forEach(txt => txt.destroy())
-		this.textures2.forEach(txt => txt.destroy())
 		this.total = 0
+		this.firstX = null
+		this.lastX = null
+		this.lastY = null
+		this.minY = Infinity
+		this.maxY = -Infinity
 		this.push(o.data)
 	}
 
@@ -607,6 +605,8 @@ Waveform.prototype.push = function (samples) {
 	else {
 		if (this.firstX == null) this.firstX = 0
 		if (!this.stepX) this.stepX = 1
+		this.lastX = this.total + samples.length - 1
+		this.lastY = samples[samples.length - 1]
 	}
 
 	if (Array.isArray(samples)) {

@@ -11,8 +11,40 @@ const img = require('image-pixels')
 const oscillate = require('audio-oscillator')
 const show = require('image-output')
 
+t('calibrate automatic values/range', async t => {
+	let wf = createWaveform(gl)
 
-t('empty data chunks are not being displayed', async t => {
+	wf.push([1,2,0,2])
+	wf.update({width: 4, color: 'green'})
+	wf.render()
+
+	t.equal(wf.total, 4)
+	t.equal(wf.minY, 0, 'minY')
+	t.equal(wf.maxY, 2, 'maxY')
+	t.equal(wf.firstX, 0, 'firstX')
+	t.equal(wf.lastX, 3, 'lastX')
+
+	t.ok(eq(await img`./test/fixture/calibrate1.png`, wf))
+	wf.clear()
+
+	wf.update({data: [[1,2], [2,3], [3,1], [4,3]], width: 4, color: 'green'})
+	wf.render()
+
+	t.ok(eq(await img`./test/fixture/calibrate1.png`, wf))
+	t.equal(wf.total, 4)
+	t.equal(wf.minY, 1)
+	t.equal(wf.maxY, 3)
+	t.equal(wf.firstX, 1)
+	t.equal(wf.lastX, 4)
+
+	wf.clear()
+
+	// drawGrid(wf)
+
+	t.end()
+})
+
+t.skip('empty data chunks are not being displayed', async t => {
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
 	wf.update({
@@ -203,13 +235,28 @@ t('step is automatically detected from the x-y input data', async t => {
 	t.end()
 })
 
-t.only('x-offset fluctuations are ok', async t => {
+t.skip('x-offset fluctuations are ok', async t => {
 	let wf = createWaveform(gl)
 
-	wf.push([[1,1], [1.1,2], [2.8, 3], [4, 2]])
+	wf.push([[1,1], [1.1,2], [2.8, 0], [4, 2]])
 
 	wf.render()
 	show(wf, document)
+
+	let canvas = document.createElement('canvas')
+	let ctx = canvas.getContext('2d')
+	canvas.width = wf.canvas.width
+	canvas.height = wf.canvas.height
+	document.body.appendChild(canvas)
+
+	let step = canvas.width / 4
+	ctx.beginPath()
+	for (let i = 0; i < 4; i++) {
+		ctx.moveTo(i * step, 0)
+		ctx.lineTo(i * step, canvas.height)
+	}
+	ctx.closePath()
+	ctx.stroke()
 
 	t.end()
 })
@@ -223,7 +270,7 @@ t('support 4-value classical range', async t => {
 
 	t.deepEqual(wf.amplitude, [0, 2])
 
-	let shot = img(wf)
+	let shot = await img(wf)
 
 	wf.update({range:[1,3], amplitude: [0,2]})
 	wf.render()
@@ -316,3 +363,22 @@ function interactive(wf, o) {
 	})
 }
 
+
+function drawGrid (wf) {
+	// draw grid
+	let canvas = document.createElement('canvas')
+	let ctx = canvas.getContext('2d')
+	canvas.width = wf.canvas.width
+	canvas.height = wf.canvas.height
+	document.body.appendChild(canvas)
+
+	let step = canvas.width / 4
+	ctx.beginPath()
+	for (let i = 0; i < 4; i++) {
+		ctx.moveTo(i * step, 0)
+		ctx.lineTo(i * step, canvas.height)
+	}
+	ctx.closePath()
+	ctx.stroke()
+
+}

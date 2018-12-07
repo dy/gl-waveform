@@ -24,6 +24,8 @@ t('calibrate automatic values/range', async t => {
 	t.equal(wf.firstX, 0, 'firstX')
 	t.equal(wf.lastX, 3, 'lastX')
 
+	show(wf, document)
+
 	t.ok(eq(await img`./test/fixture/calibrate1.png`, wf))
 	wf.clear()
 
@@ -235,36 +237,42 @@ t('step is automatically detected from the x-y input data', async t => {
 	t.end()
 })
 
-t.only('x-offset fluctuations are ok', async t => {
+t('x-offset fluctuations are ignored', async t => {
+	// the reason is
 	let wf = createWaveform(gl)
 
 	wf.push([[0,1], [0.49,1.5], [.5, 0], [.75, 2]])
 
 	wf.update({width: 10, xStep: 0.25})
 	wf.render()
-	show(wf, document)
+
+	let fluctuationsShot = await img(wf)
+
+	// show(wf, document)
 	wf.clear()
 
 
-	let canvas = document.createElement('canvas')
-	let ctx = canvas.getContext('2d')
-	canvas.width = wf.canvas.width
-	canvas.height = 20
-	document.body.appendChild(canvas)
+	// let canvas = document.createElement('canvas')
+	// let ctx = canvas.getContext('2d')
+	// canvas.width = wf.canvas.width
+	// canvas.height = 20
+	// document.body.appendChild(canvas)
 
-	let step = canvas.width / 3
-	ctx.beginPath()
-	for (let i = 0; i <= 3; i++) {
-		ctx.moveTo(i * step, 0)
-		ctx.lineTo(i * step, canvas.height)
-	}
-	ctx.closePath()
-	ctx.stroke()
+	// let step = canvas.width / 3
+	// ctx.beginPath()
+	// for (let i = 0; i <= 3; i++) {
+	// 	ctx.moveTo(i * step, 0)
+	// 	ctx.lineTo(i * step, canvas.height)
+	// }
+	// ctx.closePath()
+	// ctx.stroke()
 
 
 	wf.update({data: [1, 1.5, 0, 2], width: 10, xStep: 1})
 	wf.render()
-	show(wf, document)
+
+	t.ok(eq(fluctuationsShot, wf))
+	// show(wf, document)
 
 	t.end()
 })

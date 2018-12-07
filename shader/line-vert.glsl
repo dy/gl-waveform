@@ -10,7 +10,7 @@ attribute float id, sign;
 
 
 uniform sampler2D data0, data1, data0fract, data1fract;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates, stepX;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
 uniform vec4 viewport, color;
 uniform vec2 amp;
 
@@ -55,16 +55,12 @@ void main () {
 	// compensate snapping for low scale levels
 	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
 
-	// compensate shifted x-position of a sample
-	float xShift = (sampleCurr.w / stepX) * pxPerSample / viewport.z;
-
 	vec2 position = vec2(
-		pxStep * (id - posShift) / viewport.z - xShift,
+		pxStep * (id - posShift) / viewport.z,
 		avgCurr
 	);
 
 	float x = (pxStep) / viewport.z;
-	float t = sampleCurr.w / stepX;
 	vec2 normalLeft = normalize(vec2(
 		-(avgCurr - avgPrev), x
 	) / viewport.zw);
@@ -80,9 +76,7 @@ void main () {
 		join = normalLeft;
 	}
 	else {
-		float tl = .5 + .5 * sampleCurr.w / stepX;
-		float tr = 1. - tl;
-		vec2 bisec = normalLeft * tl + normalRight * tr;
+		vec2 bisec = normalLeft * .5 + normalRight * .5;
 		float bisecLen = abs(1. / dot(normalLeft, bisec));
 		join = bisec * bisecLen;
 	}

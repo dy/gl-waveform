@@ -30,7 +30,7 @@ function Waveform (o) {
 	// stack of textures with sample data
 	// for a single pass we provide 2 textures, covering the screen
 	// every new texture resets accumulated sum/sum2 values
-	// textures store [amp, sum, sum2, xOffset] values
+	// textures store [amp, sum, sum2] values
 	// textures2 store [ampFract, sumFract, sum2Fract, _] values
 	// ampFract has util values: -1 for NaN amplitude
 	this.textures = []
@@ -553,9 +553,6 @@ Waveform.prototype.update = function (o) {
 Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
 
-	// x shifts from the central xStep-based value for x correction
-	let xOffsets = pool.mallocFloat64(samples.length)
-
 	// [{x, y}, {x, y}, ...]
 	// [[x, y], [x, y], ...]
 	if (typeof samples[0] !== 'number') {
@@ -592,12 +589,7 @@ Waveform.prototype.push = function (samples) {
 			}
 			if (x <= this.lastX) throw Error(`Passed x value ${x} is <= the last x value ${this.lastX}.`)
 
-			// reset firstX every new texture
-			let origX = this.firstX + i * this.stepX
-
 			data[i] = y
-
-			xOffsets[i] = origX - x
 
 			this.lastX = x
 			this.lastY = y
@@ -689,7 +681,6 @@ Waveform.prototype.push = function (samples) {
 
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
-		data[i * ch + 3] = xOffsets[i]
 	}
 	this.total += dataLen
 
@@ -703,7 +694,6 @@ Waveform.prototype.push = function (samples) {
 		// if data is shorter than the texture row - skip the rest
 		if (x + samples.length <= txtW) {
 			pool.freeFloat64(samples)
-			pool.freeFloat64(xOffsets)
 			if (!this.storeData) pool.freeFloat64(data)
 			return
 		}
@@ -742,7 +732,6 @@ Waveform.prototype.push = function (samples) {
 		this.push(samples.subarray(tillEndOfTxt))
 
 		pool.freeFloat64(samples)
-		pool.freeFloat64(xOffsets)
 		if (!this.storeData) pool.freeFloat64(data)
 
 		return
@@ -825,7 +814,7 @@ Waveform.prototype.amplitude = null
 // - max number of textures
 Waveform.prototype.textureSize = [512, 512]
 
-Waveform.prototype.textureChannels = 4
+Waveform.prototype.textureChannels = 3
 Waveform.prototype.maxSampleCount = 8192 * 2
 
 // interval between adjacent x values

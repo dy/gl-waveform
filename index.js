@@ -154,6 +154,8 @@ Waveform.prototype.createShader = function (o) {
 			total: regl.prop('total'),
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
+			// x value change
+			stepX: regl.prop('stepX'),
 			// number of pixels per sample step
 			pxPerSample: regl.prop('pxPerSample'),
 			// number of samples between vertices
@@ -243,11 +245,11 @@ Waveform.prototype.createShader = function (o) {
 
 // calculate draw options
 Waveform.prototype.calc = function () {
-	let {total, opacity, amplitude} = this
+	let {total, opacity, amplitude, stepX} = this
 	let range
 
 	// null-range spans the whole data range
-	if (!this.range) range = [0, (this.lastX + 1 - this.firstX) / this.stepX]
+	if (!this.range) range = [0, (this.lastX - this.firstX) / this.stepX]
 	else {
 		range = [(this.range[0] - this.firstX) / this.stepX, (this.range[1] - this.firstX) / this.stepX]
 	}
@@ -335,7 +337,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, stepX
 	}
 
 	return drawOptions

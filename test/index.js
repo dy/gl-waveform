@@ -235,28 +235,36 @@ t('step is automatically detected from the x-y input data', async t => {
 	t.end()
 })
 
-t.skip('x-offset fluctuations are ok', async t => {
+t.only('x-offset fluctuations are ok', async t => {
 	let wf = createWaveform(gl)
 
-	wf.push([[1,1], [1.1,2], [2.8, 0], [4, 2]])
+	wf.push([[0,1], [0.49,1.5], [.5, 0], [.75, 2]])
 
+	wf.update({width: 10, xStep: 0.25})
 	wf.render()
 	show(wf, document)
+	wf.clear()
+
 
 	let canvas = document.createElement('canvas')
 	let ctx = canvas.getContext('2d')
 	canvas.width = wf.canvas.width
-	canvas.height = wf.canvas.height
+	canvas.height = 20
 	document.body.appendChild(canvas)
 
-	let step = canvas.width / 4
+	let step = canvas.width / 3
 	ctx.beginPath()
-	for (let i = 0; i < 4; i++) {
+	for (let i = 0; i <= 3; i++) {
 		ctx.moveTo(i * step, 0)
 		ctx.lineTo(i * step, canvas.height)
 	}
 	ctx.closePath()
 	ctx.stroke()
+
+
+	wf.update({data: [1, 1.5, 0, 2], width: 10, xStep: 1})
+	wf.render()
+	show(wf, document)
 
 	t.end()
 })

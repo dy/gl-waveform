@@ -1,8 +1,8 @@
 'use strict'
 
 const t = require('tape')
-const createWaveform = require('../index')
-// const createWaveform = require('../')
+// const createWaveform = require('../index')
+const createWaveform = require('../')
 const panzoom = require('pan-zoom')
 const gl = require('gl')(400, 300)
 const eq = require('image-equal')

@@ -603,6 +603,9 @@ Waveform.prototype.push = function (samples) {
 		this.lastY = samples[samples.length - 1]
 	}
 
+	// init range initially, if not defined
+	if (!this.range) this.range = [this.firstX, this.lastX + 1]
+
 	if (Array.isArray(samples)) {
 		let floatSamples = pool.mallocFloat64(samples.length)
 		floatSamples.set(samples)

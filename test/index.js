@@ -46,7 +46,7 @@ t('calibrate automatic values/range', async t => {
 	t.end()
 })
 
-t.skip('empty data chunks are not being displayed', async t => {
+t('empty data chunks are not being displayed', async t => {
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
 	wf.update({
@@ -179,9 +179,7 @@ t.skip('timestamp gaps get interpolated by edge values', async t => {
 	t.end()
 })
 
-t('huge zoom out value does not create mess with noise', async t => {
-	t.end()
-})
+t('big zoom out value does not create wrong image')
 
 t('step is automatically detected from the x-y input data', async t => {
 	var wf = createWaveform({gl})
@@ -296,9 +294,7 @@ t('support 4-value classical range', async t => {
 	t.end()
 })
 
-t('axis and grids', async t => {
-	t.end()
-})
+t('axes and grids')
 
 t('null-canvas instances do not create multiple canvases')
 
@@ -310,7 +306,15 @@ t('calibrate thickness to pixels')
 
 t('line ends cover viewport without change')
 
-t('texture join: no seam')
+t.only('texture join: no seam', async t => {
+	let wf = createWaveform(gl)
+	wf.push(oscillate.sin(515*512*3))
+	wf.update({range: [512 * 512 - 200, 512*512 + 200]})
+	wf.render()
+	show(wf, document)
+
+	t.end()
+})
 
 t('texture resets sum2 error')
 

@@ -43,6 +43,11 @@ void main() {
 	// if (translate + (id + 1.) * sampleStep > 8192. * 2.) {
 	// 	fragColor.x *= .5;
 	// }
+
+	// if right sample is from the next texture - align it to left texture
+	// if (offset1 + translate >= (512. * 512.)) {
+	// 	fragColor = vec4(0,1,1,1);
+	// }
 	// if (isEnd) fragColor = vec4(0,0,1,1);
 	// if (isStart) fragColor = vec4(0,0,1,1);
 

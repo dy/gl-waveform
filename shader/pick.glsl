@@ -66,9 +66,6 @@ vec4 pick (sampler2D data0, sampler2D data1, float offset, float baseOffset, flo
 	}
 }
 
-vec4 pick (sampler2D data0, sampler2D data1, float a, float b) {
-	return pick(data0, data1, a, b, 0.);
-}
 
 
 #pragma glslify: export(pick)

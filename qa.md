@@ -38,3 +38,14 @@ Ideally we have something generic, fast and natural, like array API, or subrange
 * `log` amplitude option is removed since that is domain-specific knowledge, input data can be transformed in userland in any non-linear fashion; also it is likely to be reflected in grid anyways. That simplifies shader, although requires data transformation and complicates switching between modes.
 * `loudness` weighting can be applied by user, since not all use-cases include sound.
 * audio-waveform component is better fit for all audio-specific options, including handling audio-buffers, formats, cartesian/time grid etc.
+
+
+### Introducing getters/setters
+
+* wf.range = [0, 100] vs wf.update({range: [0,100]}), typing-wise
+* faster update - oftentimes you just update range or some property, now there is a single setter for it
+* getting auto-calculated values, eg. null/default range is calculated from data
+- aliases difficulty
+- duplication of API: user may have to make a choice
+	* not necessarily: update applies object/aliases/diffing, props are just direct
+- no easy way to organize private state, making use of weakmap is a footgun

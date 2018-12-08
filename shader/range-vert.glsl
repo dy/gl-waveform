@@ -2,21 +2,23 @@
 
 precision highp float;
 
+#pragma glslify: Samples = require('./samples.glsl')
 #pragma glslify: lerp = require('./lerp.glsl')
-#pragma glslify: pick = require('./pick.glsl')
 #pragma glslify: reamp = require('./reamp.glsl')
+#pragma glslify: pick = require('./pick.glsl')
 
 attribute float id, sign;
 
-
-uniform sampler2D data0, data1, data0fract, data1fract;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translateriFract, translater, translatei, translates;
+uniform Samples samples, fractions;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, translateri, translateriFract, translater, translatei, translates;
 uniform vec4 viewport, color;
 uniform  vec2 amp;
 
 
 varying vec4 fragColor;
 varying float avgPrev, avgCurr, avgNext, sdev;
+
+
 
 
 void main() {
@@ -52,11 +54,11 @@ void main() {
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	// vec4 sample0 = isStart ? vec4(0) : pick(data0, data1, offset0, baseOffset, translateri);
-	vec4 sample0 = pick(data0, data1, offset0, baseOffset, translateri);
-	vec4 sample1 = pick(data0, data1, offset1, baseOffset, translateri);
-	vec4 samplePrev = pick(data0, data1, baseOffset, baseOffset, translateri);
-	vec4 sampleNext = pick(data0, data1, offset + sampleStep, baseOffset, translateri);
+	// vec4 sample0 = isStart ? vec4(0) : pick(samples, offset0, baseOffset, translateri);
+	vec4 sample0 = pick(samples, offset0, baseOffset, translateri);
+	vec4 sample1 = pick(samples, offset1, baseOffset, translateri);
+	vec4 samplePrev = pick(samples, baseOffset, baseOffset, translateri);
+	vec4 sampleNext = pick(samples, offset + sampleStep, baseOffset, translateri);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
@@ -74,14 +76,14 @@ void main() {
 	// the order of operations is important to provide precision
 	// that comprises linear interpolation and range calculation
 	// x - amplitude, y - sum, z - sum2, w - x offset
-	vec4 sample0l = pick(data0, data1, offset0l, baseOffset, translateri);
-	vec4 sample0r = pick(data0, data1, offset0r, baseOffset, translateri);
-	vec4 sample1r = pick(data0, data1, offset1r, baseOffset, translateri);
-	vec4 sample1l = pick(data0, data1, offset1l, baseOffset, translateri);
-	vec4 sample1lf = pick(data0fract, data1fract, offset1l, baseOffset, translateri);
-	vec4 sample0lf = pick(data0fract, data1fract, offset0l, baseOffset, translateri);
-	vec4 sample1rf = pick(data0fract, data1fract, offset1r, baseOffset, translateri);
-	vec4 sample0rf = pick(data0fract, data1fract, offset0r, baseOffset, translateri);
+	vec4 sample0l = pick(samples, offset0l, baseOffset, translateri);
+	vec4 sample0r = pick(samples, offset0r, baseOffset, translateri);
+	vec4 sample1r = pick(samples, offset1r, baseOffset, translateri);
+	vec4 sample1l = pick(samples, offset1l, baseOffset, translateri);
+	vec4 sample1lf = pick(fractions, offset1l, baseOffset, translateri);
+	vec4 sample0lf = pick(fractions, offset0l, baseOffset, translateri);
+	vec4 sample1rf = pick(fractions, offset1r, baseOffset, translateri);
+	vec4 sample0rf = pick(fractions, offset0r, baseOffset, translateri);
 
 	if (isStart) {
 		avgCurr = sample1.x;

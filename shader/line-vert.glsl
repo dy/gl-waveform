@@ -4,12 +4,11 @@ precision highp float;
 
 #pragma glslify: pick = require('./pick.glsl')
 #pragma glslify: reamp = require('./reamp.glsl')
-
+#pragma glslify: Samples = require('./samples.glsl')
 
 attribute float id, sign;
 
-
-uniform sampler2D data0, data1, data0fract, data1fract;
+uniform Samples samples;
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
 uniform vec4 viewport, color;
 uniform vec2 amp;
@@ -42,9 +41,9 @@ void main () {
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	vec4 sampleCurr = pick(data0, data1, offset, offset - sampleStep, translateri);
-	vec4 sampleNext = pick(data0, data1, offset + sampleStep, offset - sampleStep, translateri);
-	vec4 samplePrev = pick(data0, data1, offset - sampleStep, offset - sampleStep, translateri);
+	vec4 sampleCurr = pick(samples, offset, offset - sampleStep, translateri);
+	vec4 sampleNext = pick(samples, offset + sampleStep, offset - sampleStep, translateri);
+	vec4 samplePrev = pick(samples, offset - sampleStep, offset - sampleStep, translateri);
 
 	avgCurr = reamp(sampleCurr.x, amp);
 	avgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);

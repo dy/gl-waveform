@@ -235,7 +235,7 @@ t('step is automatically detected from the x-y input data', async t => {
 	t.end()
 })
 
-t('x-offset fluctuations are ignored', async t => {
+t.only('x-offset fluctuations are ignored', async t => {
 	// the reason is
 	let wf = createWaveform(gl)
 
@@ -246,31 +246,31 @@ t('x-offset fluctuations are ignored', async t => {
 
 	let fluctuationsShot = await img(wf)
 
-	// show(wf, document)
+	show(wf, document)
 	wf.clear()
 
 
-	// let canvas = document.createElement('canvas')
-	// let ctx = canvas.getContext('2d')
-	// canvas.width = wf.canvas.width
-	// canvas.height = 20
-	// document.body.appendChild(canvas)
+	let canvas = document.createElement('canvas')
+	let ctx = canvas.getContext('2d')
+	canvas.width = wf.canvas.width
+	canvas.height = 20
+	document.body.appendChild(canvas)
 
-	// let step = canvas.width / 3
-	// ctx.beginPath()
-	// for (let i = 0; i <= 3; i++) {
-	// 	ctx.moveTo(i * step, 0)
-	// 	ctx.lineTo(i * step, canvas.height)
-	// }
-	// ctx.closePath()
-	// ctx.stroke()
+	let step = canvas.width / 3
+	ctx.beginPath()
+	for (let i = 0; i <= 3; i++) {
+		ctx.moveTo(i * step, 0)
+		ctx.lineTo(i * step, canvas.height)
+	}
+	ctx.closePath()
+	ctx.stroke()
 
 
 	wf.update({data: [1, 1.5, 0, 2], width: 10, xStep: 1})
 	wf.render()
 
 	t.ok(eq(fluctuationsShot, wf))
-	// show(wf, document)
+	show(wf, document)
 
 	t.end()
 })
@@ -306,7 +306,7 @@ t('calibrate thickness to pixels')
 
 t('line ends cover viewport without change')
 
-t.only('texture join: no seam', async t => {
+t('texture join: no seam', async t => {
 	let wf = createWaveform(gl)
 	wf.push(oscillate.sin(515*512*3))
 	wf.update({range: [512 * 512 - 200, 512*512 + 200]})

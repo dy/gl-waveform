@@ -35,7 +35,7 @@ function Waveform (o) {
 	// ampFract has util values: -1 for NaN amplitude
 	this.textures = []
 	this.textures2 = []
-	this.textureLength = this.textureSize[0] * this.textureSize[1]
+	this.textureLength = this.textureShape[0] * this.textureShape[1]
 
 	// total number of samples
 	this.total = 0
@@ -126,27 +126,33 @@ Waveform.prototype.createShader = function (o) {
 			// but min zoom level is limited so
 			// that only 2 textures can fit the screen
 			// zoom levels higher than that give artifacts
-			data0: function (c, p) {
+			'samples.data[0]': function (c, p) {
 				return this.textures[p.currTexture] || this.shader.blankTexture
 			},
-			data1: function (c, p) {
+			'samples.data[1]': function (c, p) {
 				return this.textures[p.currTexture + 1] || this.shader.blankTexture
 			},
-			data0fract: function (c, p) {
-				return this.textures2[p.currTexture] || this.shader.blankTexture
-			},
-			data1fract: function (c, p) {
-				return this.textures2[p.currTexture + 1] || this.shader.blankTexture
-			},
 			// data0 texture sums
-			sum: function (c, p) {
+			'samples.sum': function (c, p) {
 				return this.textures[p.currTexture] ? this.textures[p.currTexture].sum : 0
 			},
-			sum2: function (c, p) {
+			'samples.sum2': function (c, p) {
 				return this.textures[p.currTexture] ? this.textures[p.currTexture].sum2 : 0
 			},
-			dataShape: this.textureSize,
-			dataLength: this.textureLength,
+			'samples.shape': this.textureShape,
+			'samples.length': this.textureLength,
+
+			// samples-compatible struct with fractions
+			'fractions.data[0]': function (c, p) {
+				return this.textures2[p.currTexture] || this.shader.blankTexture
+			},
+			'fractions.data[1]': function (c, p) {
+				return this.textures2[p.currTexture + 1] || this.shader.blankTexture
+			},
+			'fractions.sum': 0,
+			'fractions.sum2': 0,
+			'fractions.shape': this.textureShape,
+			'fractions.length': this.textureLength,
 
 			// number of samples per viewport
 			span: regl.prop('span'),
@@ -618,7 +624,7 @@ Waveform.prototype.push = function (samples) {
 		if (this.maxY < samples[i]) this.maxY = samples[i]
 	}
 
-	let [txtW, txtH] = this.textureSize
+	let [txtW, txtH] = this.textureShape
 	let txtLen = this.textureLength
 
 	let offset = this.total % txtLen
@@ -634,8 +640,8 @@ Waveform.prototype.push = function (samples) {
 
 	if (!txt) {
 		txt = this.textures[id] = this.regl.texture({
-			width: this.textureSize[0],
-			height: this.textureSize[1],
+			width: this.textureShape[0],
+			height: this.textureShape[1],
 			channels: this.textureChannels,
 			type: 'float',
 			min: 'nearest',
@@ -647,8 +653,8 @@ Waveform.prototype.push = function (samples) {
 		this.lastY = txt.sum = txt.sum2 = 0
 
 		txtFract = this.textures2[id] = this.regl.texture({
-			width: this.textureSize[0],
-			height: this.textureSize[1],
+			width: this.textureShape[0],
+			height: this.textureShape[1],
 			channels: this.textureChannels,
 			type: 'float',
 			min: 'nearest',
@@ -815,7 +821,7 @@ Waveform.prototype.amplitude = null
 // - performance: bigger texture is slower to create
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
-Waveform.prototype.textureSize = [512, 512]
+Waveform.prototype.textureShape = [512, 512]
 
 Waveform.prototype.textureChannels = 3
 Waveform.prototype.maxSampleCount = 8192 * 2

@@ -279,9 +279,7 @@ Waveform.prototype.calc = function () {
 		viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3]
 	}
 
-	let span
-	if (!range) span = viewport[2]
-	else span = (range[1] - range[0])
+	let span = (range[1] - range[0])
 
 	let dataLength = this.textureLength
 
@@ -608,9 +606,6 @@ Waveform.prototype.push = function (samples) {
 		this.lastX = this.total + samples.length - 1
 		this.lastY = samples[samples.length - 1]
 	}
-
-	// init range initially, if not defined
-	if (!this.range) this.range = [this.firstX, this.lastX + 1]
 
 	if (Array.isArray(samples)) {
 		let floatSamples = pool.mallocFloat64(samples.length)

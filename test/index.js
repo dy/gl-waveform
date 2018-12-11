@@ -278,8 +278,6 @@ t('support 4-value classical range', async t => {
 	t.end()
 })
 
-t('axes and grids')
-
 t('null-canvas instances do not create multiple canvases')
 
 t('calibrate step to pixels')
@@ -338,6 +336,9 @@ t('empty data does not break rendering')
 
 t('waveform creation is quick enough (faster than 200ms)')
 
+t('compensate fluctuations of wrongly detected stepX', t => {
+
+})
 
 function interactive(wf, o) {
 	if (!isBrowser) return

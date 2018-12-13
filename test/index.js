@@ -354,6 +354,10 @@ t('compensate fluctuations of wrongly detected stepX', t => {
 
 })
 
+t('range mode fade, esp. on varying sdevs')
+
+t('multipass rendering')
+
 function interactive(wf, o) {
 	if (!isBrowser) return
 

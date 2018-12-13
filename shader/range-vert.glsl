@@ -12,17 +12,15 @@ attribute float id, sign;
 uniform Samples samples, fractions;
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, translateri, translateriFract, translater, translatei, translates;
 uniform vec4 viewport, color;
-uniform  vec2 amp;
-
+uniform vec2 amp;
 
 varying vec4 fragColor;
-varying float avgPrev, avgCurr, avgNext, sdev;
-
-
-
+varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
 
 void main() {
 	gl_PointSize = 1.5;
+
+	normThickness = thickness / viewport.w;
 
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
@@ -147,7 +145,9 @@ void main() {
 	float vertLeftLen = abs(1. / dot(normalLeft, vert));
 	float maxVertLen = max(vertLeftLen, vertRightLen);
 	float minVertLen = min(vertLeftLen, vertRightLen);
-	float vertSdev = 2. * sdev * viewport.w / thickness;
+
+	// 2σ covers 68% of a line. 4σ covers 95% of line
+	float vertSdev = 2. * sdev / normThickness;
 
 	vec2 join;
 
@@ -174,6 +174,10 @@ void main() {
 	else {
 		join = vert * vertSdev;
 	}
+
+	avgMin = min(min(avgCurr, avgNext), avgPrev);
+	avgMax = max(max(avgCurr, avgNext), avgPrev);
+
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

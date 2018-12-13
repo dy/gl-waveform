@@ -15,7 +15,7 @@ uniform vec2 amp;
 
 
 varying vec4 fragColor;
-varying float avgPrev, avgCurr, avgNext, sdev;
+varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;
 
 bool isNaN( float val ){
   return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
@@ -23,6 +23,8 @@ bool isNaN( float val ){
 
 void main () {
 	gl_PointSize = 1.5;
+
+	normThickness = thickness / viewport.w;
 
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
@@ -49,7 +51,9 @@ void main () {
 	avgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);
 	avgPrev = reamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amp);
 
-	sdev = 0.;
+	// since sdev is fully defined by thickness, we fake it to render fade
+	// 2σ = thickness
+	sdev = normThickness / 2.;
 
 	// compensate snapping for low scale levels
 	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
@@ -83,6 +87,9 @@ void main () {
 	// FIXME: limit join by prev vertical
 	// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;
 	// join.x *= maxJoinX / join.x;
+
+	avgMin = min(min(avgCurr, avgNext), avgPrev);
+	avgMax = max(max(avgCurr, avgNext), avgPrev);
 
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);

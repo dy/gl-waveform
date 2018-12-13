@@ -112,13 +112,7 @@ Waveform.prototype.createShader = function (o) {
 		offset: regl.prop('offset'),
 		count: regl.prop('count'),
 
-		frag: this.fade ? glsl('./shader/fade-frag.glsl') : `
-		precision highp float;
-		varying vec4 fragColor;
-		void main() {
-			gl_FragColor = fragColor;
-		}
-		`,
+		frag: glsl('./shader/fade-frag.glsl'),
 
 		uniforms: {
 			// we provide only 2 textures

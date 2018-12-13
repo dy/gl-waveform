@@ -1,8 +1,8 @@
 'use strict'
 
 const t = require('tape')
-// const createWaveform = require('../index')
-const createWaveform = require('../')
+const createWaveform = require('../index')
+// const createWaveform = require('../')
 const panzoom = require('pan-zoom')
 const gl = require('gl')(400, 300)
 const eq = require('image-equal')
@@ -23,8 +23,6 @@ t('calibrate automatic values/range', async t => {
 	t.equal(wf.maxY, 2, 'maxY')
 	t.equal(wf.firstX, 0, 'firstX')
 	t.equal(wf.lastX, 3, 'lastX')
-
-	// show(wf, document)
 
 	t.ok(eq(await img`./test/fixture/calibrate1.png`, wf))
 	wf.clear()
@@ -135,7 +133,7 @@ t('>1 values does not create float32 noise', async t => {
 	wf.render()
 
 	// show(wf.canvas, document)
-	t.ok(eq(wf, await img('./test/fixture/additive-noises.png')))
+	t.ok(eq(wf, await img('./test/fixture/additive-noises.png'), .28))
 
 	// TODO: test line mode
 	// TODO: test negative noise
@@ -295,6 +293,8 @@ t('texture join: no seam', async t => {
 	wf.render()
 	// show(wf, document)
 
+	wf.clear()
+
 	t.end()
 })
 
@@ -305,6 +305,20 @@ t('negative data range is displayed from the tail')
 t('line/range mode is switched properly')
 
 t('2σ thickness scheme')
+
+t('fade out', async t => {
+	let wf = createWaveform(gl)
+
+	wf.update({data: [1,1,1,1,1,1,1,1,1,1,1,-.1,1.1,0,1,.1,.9,.2,.8,.3,.7,.4,.6,0,0,0,0], amp: [-1, 2], width: 20, color: 'blue'})
+	wf.render()
+
+	// show(wf, document)
+	t.ok(eq(wf, await img(`./test/fixture/fade.png`), .28) )
+
+	wf.clear()
+
+	t.end()
+})
 
 t.skip('multipass rendering for large zoom levels', t => {
 	let wf = createWaveform()

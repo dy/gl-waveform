@@ -42,10 +42,14 @@ Ideally we have something generic, fast and natural, like array API, or subrange
 
 ### Introducing getters/setters
 
-* wf.range = [0, 100] vs wf.update({range: [0,100]}), typing-wise
-* faster update - oftentimes you just update range or some property, now there is a single setter for it
-* getting auto-calculated values, eg. null/default range is calculated from data
-- aliases difficulty
-- duplication of API: user may have to make a choice
-	* not necessarily: update applies object/aliases/diffing, props are just direct
-- no easy way to organize private state, making use of weakmap is a footgun
++ wf.range = [0, 100] vs wf.update({range: [0,100]}), typing-wise
++ faster update - oftentimes you just update range or some property, now there is a single setter for it
++ getting auto-calculated values, eg. null/default range is calculated from data
+− aliases difficulty
+− duplication of API: user may have to make a choice
+	+ not necessarily: update applies object/aliases/diffing, props are just direct
+− no easy way to organize private state, making use of weakmap is a footgun
+− debugging is mess: internal state is not accessible easily
+	+ internal state is fuzzy anyways: we use `calc` method, which is redundant
++ possible to get rid of `calc`, making runtime-prop calculation on access
+− forces `calc` every `render`: no central way to avoid calcs

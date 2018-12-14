@@ -6,7 +6,7 @@ precision highp float;
 #pragma glslify: reamp = require('./reamp.glsl')
 #pragma glslify: Samples = require('./samples.glsl')
 
-attribute float id, sign;
+attribute float id, sign, side;
 
 uniform Samples samples;
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
@@ -22,7 +22,7 @@ bool isNaN( float val ){
 }
 
 void main () {
-	gl_PointSize = 1.5;
+	gl_PointSize = 4.5;
 
 	normThickness = thickness / viewport.w;
 
@@ -51,9 +51,9 @@ void main () {
 	avgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);
 	avgPrev = reamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amp);
 
-	// since sdev is fully defined by thickness, we fake it to render fade
-	// 2σ = thickness
-	sdev = normThickness / 2.;
+	// fake sdev 2σ = thickness
+	// sdev = normThickness / 2.;
+	sdev = 0.;
 
 	// compensate snapping for low scale levels
 	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
@@ -88,8 +88,9 @@ void main () {
 	// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;
 	// join.x *= maxJoinX / join.x;
 
-	avgMin = min(min(avgCurr, avgNext), avgPrev);
-	avgMax = max(max(avgCurr, avgNext), avgPrev);
+	// figure out closest to current min/max
+	avgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);
+	avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
 
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);

@@ -29,14 +29,16 @@ void main() {
 
 	// local max
 	if (y > avgMax + halfThickness) {
-		dist = avgMax - y;
-		dist = pdf(dist + halfThickness, 0., sdev * sdev  ) / pdfMax;
+		dist = min(y - avgMin, avgMax - y);
+		dist = pdf(dist, 0., sdev * sdev  ) / pdfMax;
 	}
 	// local min
 	else if (y < avgMin - halfThickness) {
-		dist = y - avgMin;
-		dist = pdf(dist + halfThickness, 0., sdev * sdev  ) / pdfMax;
+		dist = min(y - avgMin, avgMax - y);
+		dist = pdf(dist, 0., sdev * sdev  ) / pdfMax;
 	}
+
+	if (dist == 0.) { discard; return; }
 
 	gl_FragColor = fragColor;
 	gl_FragColor.a *= dist;

@@ -44,6 +44,7 @@ function Waveform (o) {
 	// used for organizing data gaps
 	this.firstX, this.lastY, this.lastX,
 	this.minY = Infinity, this.maxY = -Infinity
+	this.stepSum = 0
 
 	this.shader = this.createShader(o)
 
@@ -92,16 +93,22 @@ Waveform.prototype.createShader = function (o) {
 		})
 	}
 
+	//    id    0     1
+	//   side  ←→    ←→
+	//         **    **
+	//        /||   /||   ...     ↑
+	//    .../ ||  / ||  /       sign
+	//         || /  || /         ↓
+	//         **    **
 	let idBuffer = regl.buffer({
 		usage: 'static',
 		type: 'int16',
 		data: (N => {
-			let x = Array(N * 4)
+			let x = Array()
 			for (let i = 0; i < N; i++) {
-				x[i * 4] = i
-				x[i * 4 + 1] = 1
-				x[i * 4 + 2] = i
-				x[i * 4 + 3] = -1
+				// id, sign, side, id, sign, side
+				x.push(i, 1, -1, i, -1, -1)
+				x.push(i, 1, 1, i, -1, 1)
 			}
 			return x
 		})(this.maxSampleCount)
@@ -185,13 +192,18 @@ Waveform.prototype.createShader = function (o) {
 		attributes: {
 			id: {
 				buffer: idBuffer,
-				stride: 4,
+				stride: 6,
 				offset: 0
 			},
 			sign: {
 				buffer: idBuffer,
-				stride: 4,
+				stride: 6,
 				offset: 2
+			},
+			side: {
+				buffer: idBuffer,
+				stride: 6,
+				offset: 4
 			}
 		},
 		blend: {
@@ -248,10 +260,16 @@ Waveform.prototype.calc = function () {
 	let {total, opacity, amplitude, stepX} = this
 	let range
 
+	// null stepX averages interval between samples
+	if (stepX == null) {
+		stepX = this.stepSum / (this.total - 1) || 0
+	}
+
 	// null-range spans the whole data range
-	if (!this.range) range = [0, (this.lastX - this.firstX) / this.stepX]
-	else {
-		range = [(this.range[0] - this.firstX) / this.stepX, (this.range[1] - this.firstX) / this.stepX]
+	if (!this.range) {
+		range = [0, (this.lastX - this.firstX) / stepX]
+	} else {
+		range = [(this.range[0] - this.firstX) / stepX, (this.range[1] - this.firstX) / stepX]
 	}
 
 	if (!amplitude) amplitude = [this.minY, this.maxY]
@@ -313,8 +331,10 @@ Waveform.prototype.calc = function () {
 	let currTexture = Math.floor(translatei / dataLength)
 	if (translateri < 0) currTexture += 1
 
+	let VERTEX_REPEAT = 2.;
+
 	// limit not existing in texture points
-	let offset = 2 * Math.max(-translates, 0)
+	let offset = 2. * Math.max(-translates * VERTEX_REPEAT, 0)
 
 	let count = Math.max(2,
 		Math.min(
@@ -329,13 +349,15 @@ Waveform.prototype.calc = function () {
 
 			// number of ids available
 			this.maxSampleCount
-		)
+		) * VERTEX_REPEAT
 	)
+
+	let mode = this.mode
 
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	let drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, stepX
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, stepX, range, mode
 	}
 
 	return drawOptions
@@ -346,13 +368,22 @@ Waveform.prototype.render = function () {
 	let o = this.calc()
 
 	// range case
-	if (o.pxPerSample <= 1.) {
+	if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
 		this.shader.drawRanges.call(this, o)
 	}
 
 	// line case
 	else {
 		this.shader.drawLine.call(this, o)
+
+		// this.shader.drawLine.call(this, extend(o, {
+		// 	primitive: 'line strip',
+		// 	color: [0,0,255,255]
+		// }))
+		// this.shader.drawLine.call(this, extend(o, {
+		// 	primitive: 'points',
+		// 	color: [0,0,0,255]
+		// }))
 	}
 
 	return this
@@ -415,8 +446,12 @@ Waveform.prototype.update = function (o) {
 		line: 'line line-style lineStyle linestyle',
 		viewport: 'clip vp viewport viewBox viewbox viewPort area',
 		opacity: 'opacity alpha transparency visible visibility opaque',
-		flip: 'flip iviewport invertViewport inverseViewport'
+		flip: 'flip iviewport invertViewport inverseViewport',
+		mode: 'mode'
 	})
+
+	// forcing rendering mode is mostly used for debugging purposes
+	if (o.mode !== undefined) this.mode = o.mode
 
 	// parse line style
 	if (o.line) {
@@ -439,21 +474,21 @@ Waveform.prototype.update = function (o) {
 		}
 	}
 
-	if (o.thickness != null) {
+	if (o.thickness !== undefined) {
 		this.thickness = toPx(o.thickness)
 	}
 
-	if (o.pxStep != null) {
+	if (o.pxStep !== undefined) {
 		this.pxStep = toPx(o.pxStep)
 	}
 
-	if (o.stepX && this.stepX != null) this.stepX = o.stepX
+	if (o.stepX && this.stepX !== undefined) this.stepX = o.stepX
 
-	if (o.opacity != null) {
+	if (o.opacity !== undefined) {
 		this.opacity = parseFloat(o.opacity)
 	}
 
-	if (o.viewport != null) {
+	if (o.viewport !== undefined) {
 		this.viewport = parseRect(o.viewport)
 	}
 	if (this.viewport == null) {
@@ -469,7 +504,7 @@ Waveform.prototype.update = function (o) {
 	}
 
 	// custom/default visible data window
-	if (o.range != null) {
+	if (o.range !== undefined) {
 		if (o.range.length) {
 			// support vintage 4-value range
 			if (o.range.length === 4) {
@@ -486,7 +521,7 @@ Waveform.prototype.update = function (o) {
 	}
 
 
-	if (o.amplitude != null) {
+	if (o.amplitude !== undefined) {
 		if (typeof o.amplitude === 'number') {
 			this.amplitude = [-o.amplitude, +o.amplitude]
 		}
@@ -500,7 +535,7 @@ Waveform.prototype.update = function (o) {
 
 
 	// flatten colors to a single uint8 array
-	if (o.color != null) {
+	if (o.color !== undefined) {
 		if (!o.color) o.color = 'transparent'
 
 		// single color
@@ -553,20 +588,8 @@ Waveform.prototype.push = function (samples) {
 
 	// [{x, y}, {x, y}, ...]
 	// [[x, y], [x, y], ...]
-	if (typeof samples[0] !== 'number') {
+	if (samples[0] && typeof samples[0] !== 'number') {
 		let data = pool.mallocFloat64(samples.length)
-
-		// detect xStep
-		// TODO: do xStep correction for every new texture to compensate accumulated shift
-		if (!this.stepX) {
-			let sum = 0
-			for (let i = 1; i < samples.length; i++) {
-				let b = samples[i].length ? samples[i][0] : samples[i].x
-				let a = samples[i-1].length ? samples[i-1][0] : samples[i-1].x
-				sum += b-a
-			}
-			this.stepX = sum / (samples.length - 1)
-		}
 
 		// normalize {x, y} objects to flat array
 		for (let i = 0; i < samples.length; i++) {
@@ -585,7 +608,16 @@ Waveform.prototype.push = function (samples) {
 			if (this.firstX == null) {
 				this.firstX = x
 			}
+
+			// FIXME: update past values here (stream-forward?)
 			if (x <= this.lastX) throw Error(`Passed x value ${x} is <= the last x value ${this.lastX}.`)
+
+			// FIXME: check if new value increases not twice more than the average step - probably missing values. Or should we reflect that in texture.
+
+			// refine xStep
+			if (!this.stepX && this.lastX != null) {
+				this.stepSum += x - this.lastX
+			}
 
 			data[i] = y
 
@@ -593,17 +625,32 @@ Waveform.prototype.push = function (samples) {
 			this.lastY = y
 		}
 		samples = data
+
 	}
 	else {
 		if (this.firstX == null) this.firstX = 0
+
+		// stepX does not play any role for regular sequence of samples
 		if (!this.stepX) this.stepX = 1
+
 		this.lastX = this.total + samples.length - 1
 		this.lastY = samples[samples.length - 1]
 	}
 
+	// carefully handle array
 	if (Array.isArray(samples)) {
 		let floatSamples = pool.mallocFloat64(samples.length)
-		floatSamples.set(samples)
+
+		for (let i = 0; i < samples.length; i++) {
+			// put NaN samples as indicators of blank samples
+			if (samples[i] == null || isNaN(samples[i])) {
+				floatSamples[i] = NaN
+			}
+			else {
+				floatSamples[i] = samples[i]
+			}
+		}
+
 		samples = floatSamples
 	}
 
@@ -663,11 +710,11 @@ Waveform.prototype.push = function (samples) {
 	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat64(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
 		// put NaN samples as indicators of blank samples
-		if (samples[i] == null || isNaN(samples[i])) {
-			data[i * ch] = NaN
+		if (!isNaN(samples[i])) {
+			data[i * ch] = this.lastY = samples[i]
 		}
 		else {
-			data[i * ch] = this.lastY = samples[i]
+			data[i * ch] = NaN
 		}
 
 		txt.sum += this.lastY
@@ -795,7 +842,8 @@ Waveform.prototype.destroy = function () {
 Waveform.prototype.color = new Uint8Array([0,0,0,255])
 Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
-Waveform.prototype.fade = false
+Waveform.prototype.mode = null
+// Waveform.prototype.fade = true
 
 // clip area
 Waveform.prototype.viewport = null

@@ -1,8 +1,8 @@
 'use strict'
 
 const t = require('tape')
-// const createWaveform = require('../index')
-const createWaveform = require('../')
+const createWaveform = require('../index')
+// const createWaveform = require('../')
 const panzoom = require('pan-zoom')
 const gl = require('gl')(400, 300)
 const eq = require('image-equal')
@@ -10,6 +10,8 @@ const isBrowser = require('is-browser')
 const img = require('image-pixels')
 const oscillate = require('audio-oscillator')
 const show = require('image-output')
+const seed = require('seed-random')
+const almost = require('almost-equal')
 
 t('calibrate automatic values/range', async t => {
 	let wf = createWaveform(gl)
@@ -313,12 +315,149 @@ t('fade out', async t => {
 	wf.render()
 
 	// show(wf, document)
-	t.ok(eq(wf, await img(`./test/fixture/fade.png`), .28) )
+	t.ok(eq(wf, await img(`./test/fixture/fade.png`), .32) )
 
 	wf.clear()
 
 	t.end()
 })
+
+t('fade crease', async t => {
+	let wf = createWaveform(gl)
+
+	let data = []
+	// for (let i = 0; i < 100; i++) {
+		data.push(.9, 0, .5, -.5)
+		data.push(null, null, null, null, null, null)
+		data.push(-.5, .5, 0, .9)
+	// }
+
+	wf.update({data,
+		amp: [-1, 2],
+		width: 32,
+		color: 'rgb(60,120,230)',
+		range: [-17, 17]
+	})
+	wf.render()
+
+	show(wf, document)
+	t.ok(eq(wf, await img(`./test/fixture/fade-crease.png`), .32) )
+
+	wf.clear()
+
+	t.end()
+})
+
+t('too thick lines get limited')
+
+t('line fade', async t => {
+	let random = seed('fade')
+	let wf = createWaveform(gl)
+
+	let data = []
+	for (let i = 0; i < 100; i++) {
+		// data.push(1, 0, .5, -.5)
+		data.push(random())
+	}
+
+	wf.update({data,
+		amp: [-1, 2],
+		width: 10,
+		color: 'rgb(60,120,230)'
+	})
+	wf.render()
+
+	// show(wf, document)
+	t.ok(eq(wf, await img(`./test/fixture/line-fade.png`), .17) )
+
+	wf.clear()
+
+	t.end()
+})
+
+t.skip('fade artifacts', async t => {
+	let random = seed('fade')
+	let wf = createWaveform(gl)
+
+	let data = []
+	for (let i = 0; i < 100; i++) {
+		data.push(random())
+	}
+
+	wf.update({
+		data,
+		mode: 'range',
+		amp: [-1, 2],
+		width: 10,
+		// range: [-27.71370813443843, 119.30162375421158],
+		// range: [3.253718981638178, 56.87241669933188],
+		// range: [-116.81489600471932, 149.0946366945476],
+		color: 'rgb(60,120,230)'
+	})
+	wf.render()
+
+	document.body.appendChild(wf.canvas)
+
+	interactive(wf, ({range}) => {
+		console.log(range)
+	})
+
+	// show(wf, document)
+	// t.ok(eq(wf, await img(`./test/fixture/line-fade.png`), .17) )
+
+	// wf.clear()
+
+	t.end()
+})
+
+t('gl-waveform-test: single value sequence', async t => {
+	var data = [
+		[69290.117031919, 890.6322520922428],
+		[69290.127032827, 886.0405536100012],
+		[69290.137032547, 881.3602518107634],
+		[69290.147031987, 876.5918147208089],
+		[69290.157031148, 871.7357191798733],
+		[69290.167031148, 866.7924507934636],
+		[69290.177031426, 861.7625038842991],
+		[69290.187031146, 856.6463814428793],
+		[69290.197031146, 851.4445950771849],
+		[69290.207031145, 846.1576649615174],
+		[69290.217031214, 840.786119784483],
+		[69290.227033239, 835.330496696123],
+		[69290.237031073, 829.791341254199]
+	]
+
+	// detect avg step
+	let sum = 0
+	for (let i = 1; i < data.length; i++) {
+		sum += data[i][0] - data[i - 1][0]
+	}
+	let avgStep = sum / (data.length - 1)
+
+
+	let wf = createWaveform(gl)
+
+	let lastStepX = null
+	for (let i = 0; i < data.length; i++) {
+		wf.push([data[i]])
+	}
+
+	let o = wf.calc()
+	t.equal(o.stepX, avgStep, 'step is averaged')
+	t.equal(o.total, data.length, 'total is correct')
+	t.equal(wf.firstX, data[0][0], 'first x is correct')
+	t.equal(wf.lastX, data[data.length - 1][0], 'last x is correct')
+
+	wf.update({range: [69290, 69290.3]})
+	wf.render()
+
+	// show(wf, document)
+	t.ok(eq(wf, await img`./test/fixture/average-step.png` , .2), 'avg step is ok')
+
+	t.end()
+})
+
+t('gl-waveform-test: values from the past')
 
 t.skip('multipass rendering for large zoom levels', t => {
 	let wf = createWaveform()
@@ -351,18 +490,17 @@ t('empty data does not break rendering')
 t('waveform creation is quick enough (faster than 200ms)')
 
 t('compensate fluctuations of wrongly detected stepX', t => {
-
 })
 
 t('range mode fade, esp. on varying sdevs')
 
 t('multipass rendering')
 
-function interactive(wf, o) {
+function interactive(wf, cb) {
 	if (!isBrowser) return
 
 	panzoom(wf.canvas, e => {
-		let range = wf.range.slice()
+		let range = wf.range ? wf.range.slice() : wf.calc().range
 
 		let w = wf.canvas.offsetWidth
 		let h = wf.canvas.offsetHeight
@@ -381,6 +519,7 @@ function interactive(wf, o) {
 		range[0] -= xrange * e.dx / w
 		range[1] -= xrange * e.dx / w
 
+		if (cb) cb({ range })
 		wf.update({ range })
 		wf.render()
 	})

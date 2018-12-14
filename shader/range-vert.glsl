@@ -7,7 +7,7 @@ precision highp float;
 #pragma glslify: reamp = require('./reamp.glsl')
 #pragma glslify: pick = require('./pick.glsl')
 
-attribute float id, sign;
+attribute float id, sign, side;
 
 uniform Samples samples, fractions;
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, translateri, translateriFract, translater, translatei, translates;
@@ -175,8 +175,9 @@ void main() {
 		join = vert * vertSdev;
 	}
 
-	avgMin = min(min(avgCurr, avgNext), avgPrev);
-	avgMax = max(max(avgCurr, avgNext), avgPrev);
+	// figure out closest to current min/max
+	avgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);
+	avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
 
 	position += sign * join * .5 * thickness / viewport.zw;
 	gl_Position = vec4(position * 2. - 1., 0, 1);

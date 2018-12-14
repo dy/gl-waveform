@@ -46,6 +46,9 @@ function Waveform (o) {
 	this.minY = Infinity, this.maxY = -Infinity
 	this.stepSum = 0
 
+	// needs recalc
+	this.dirty = true
+
 	this.shader = this.createShader(o)
 
 	this.gl = this.shader.gl
@@ -257,12 +260,14 @@ Waveform.prototype.createShader = function (o) {
 
 // calculate draw options
 Waveform.prototype.calc = function () {
+	if (!this.dirty) return this.drawOptions
+
 	let {total, opacity, amplitude, stepX} = this
 	let range
 
 	// null stepX averages interval between samples
 	if (stepX == null) {
-		stepX = this.stepSum / (this.total - 1) || 0
+		stepX = this.stepSum / (this.total - 1) || 1
 	}
 
 	// null-range spans the whole data range
@@ -291,7 +296,7 @@ Waveform.prototype.calc = function () {
 		viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3]
 	}
 
-	let span = (range[1] - range[0])
+	let span = (range[1] - range[0]) || 1
 
 	let dataLength = this.textureLength
 
@@ -356,11 +361,13 @@ Waveform.prototype.calc = function () {
 
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
-	let drawOptions = {
+	this.drawOptions = {
 		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, stepX, range, mode
 	}
 
-	return drawOptions
+	this.dirty = false
+
+	return this.drawOptions
 }
 
 // draw frame according to state
@@ -433,6 +440,8 @@ Waveform.prototype.pick = function (x) {
 Waveform.prototype.update = function (o) {
 	if (!o) return this
 	if (o.length != null) o = {data: o}
+
+	this.dirty = true
 
 	o = pick(o, {
 		data: 'data value values sample samples',
@@ -585,6 +594,8 @@ Waveform.prototype.update = function (o) {
 // put new samples into texture
 Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
+
+	this.dirty = true
 
 	// [{x, y}, {x, y}, ...]
 	// [[x, y], [x, y], ...]
@@ -812,8 +823,10 @@ Waveform.prototype.push = function (samples) {
 
 // clear viewport area occupied by the renderer
 Waveform.prototype.clear = function () {
+	if (!this.drawOptions) return this
+
 	let {gl, regl} = this
-	let {x, y, width, height} = this.viewport
+	let {x, y, width, height} = this.drawOptions.viewport
     gl.enable(gl.SCISSOR_TEST)
     gl.scissor(x, y, width, height)
 

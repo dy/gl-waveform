@@ -454,6 +454,47 @@ t('gl-waveform-test: single value sequence', async t => {
 	// show(wf, document)
 	t.ok(eq(wf, await img`./test/fixture/average-step.png` , .2), 'avg step is ok')
 
+	wf.clear()
+
+	t.end()
+})
+
+t('single-entry no-render', async t=> {
+	let data = [
+		{x: 76043.312010606, y: 1005},
+		{x: 76043.322010886, y: 1008},
+		{x: 76043.332010469, y: 1011},
+		{x: 76043.342012985, y: 1011},
+		// {x: 76043.35203813, y: 1027},
+		// {x: 76043.362015781, y: 1027},
+		// {x: 76043.372016621, y: 1027},
+		// {x: 76043.382028635, y: 1027},
+		// {x: 76043.39202291, y: 1027},
+		// {x: 76043.402012644, y: 1027},
+		// {x: 76043.412026195, y: 1027},
+		// {x: 76043.422005663, y: 1027},
+		// {x: 76043.432014185, y: 1027},
+		// {x: 76043.442009367, y: 1027},
+		// {x: 76043.452018099, y: 1027},
+		// {x: 76043.462008183, y: 1027},
+		// {x: 76043.472007067, y: 1027},
+		// {x: 76043.482010002, y: 1027},
+		// {x: 76043.492013635, y: 1027},
+		// {x: 76043.502008049, y: 1027}
+	]
+
+	let wf = createWaveform(gl)
+	wf.clear()
+
+	data.forEach(xy => {
+		wf.push([xy])
+		wf.clear()
+		wf.render()
+	})
+
+	// show(wf, document)
+	t.ok(eq(await img`./test/fixture/single-value.png`, wf), 'single value/clear is ok')
+
 	t.end()
 })
 
@@ -489,7 +530,8 @@ t('empty data does not break rendering')
 
 t('waveform creation is quick enough (faster than 200ms)')
 
-t('compensate fluctuations of wrongly detected stepX', t => {
+t.skip('compensate fluctuations of wrongly detected stepX', t => {
+	t.end()
 })
 
 t('range mode fade, esp. on varying sdevs')

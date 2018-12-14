@@ -53,3 +53,4 @@ Ideally we have something generic, fast and natural, like array API, or subrange
 	+ internal state is fuzzy anyways: we use `calc` method, which is redundant
 + possible to get rid of `calc`, making runtime-prop calculation on access
 − forces `calc` every `render`: no central way to avoid calcs
++ sometimes we may need to calc specific props, like `viewport` or `range`. But running `calc` forces recalc of all props.

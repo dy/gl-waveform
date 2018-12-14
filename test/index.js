@@ -177,7 +177,7 @@ t.skip('timestamp gaps get interpolated by edge values', async t => {
 	t.end()
 })
 
-t('big zoom out value does not create wrong image')
+t.skip('big zoom out value does not create wrong image')
 
 t('step is automatically detected from the x-y input data', async t => {
 	var wf = createWaveform({gl})
@@ -252,9 +252,9 @@ t('x-offset fluctuations are ignored', async t => {
 
 	wf.update({data: [1, 1.5, 0, 2], width: 10, xStep: 1})
 	wf.render()
+	// show(wf, document)
 
 	t.ok(eq(fluctuationsShot, wf))
-	// show(wf, document)
 
 	t.end()
 })
@@ -278,15 +278,15 @@ t('support 4-value classical range', async t => {
 	t.end()
 })
 
-t('null-canvas instances do not create multiple canvases')
+t.skip('null-canvas instances do not create multiple canvases')
 
-t('calibrate step to pixels')
+t.skip('calibrate step to pixels')
 
-t('calibrate data range')
+t.skip('calibrate data range')
 
-t('calibrate thickness to pixels')
+t.skip('calibrate thickness to pixels')
 
-t('line ends cover viewport without change')
+t.skip('line ends cover viewport without change')
 
 t('texture join: no seam', async t => {
 	let wf = createWaveform(gl)
@@ -300,13 +300,13 @@ t('texture join: no seam', async t => {
 	t.end()
 })
 
-t('texture resets sum2 error')
+t.skip('texture resets sum2 error')
 
-t('negative data range is displayed from the tail')
+t.skip('negative data range is displayed from the tail')
 
-t('line/range mode is switched properly')
+t.skip('line/range mode is switched properly')
 
-t('2σ thickness scheme')
+t.skip('2σ thickness scheme')
 
 t('fade out', async t => {
 	let wf = createWaveform(gl)
@@ -340,7 +340,7 @@ t('fade crease', async t => {
 	})
 	wf.render()
 
-	show(wf, document)
+	// show(wf, document)
 	t.ok(eq(wf, await img(`./test/fixture/fade-crease.png`), .32) )
 
 	wf.clear()
@@ -348,7 +348,7 @@ t('fade crease', async t => {
 	t.end()
 })
 
-t('too thick lines get limited')
+t.skip('too thick lines get limited')
 
 t('line fade', async t => {
 	let random = seed('fade')
@@ -459,7 +459,7 @@ t('gl-waveform-test: single value sequence', async t => {
 	t.end()
 })
 
-t('single-entry no-render', async t=> {
+t('single-entry no-render', async t => {
 	let data = [
 		{x: 76043.312010606, y: 1005},
 		{x: 76043.322010886, y: 1008},
@@ -498,7 +498,26 @@ t('single-entry no-render', async t=> {
 	t.end()
 })
 
-t('gl-waveform-test: values from the past')
+t.skip('gl-waveform-test: values from the past')
+
+t.skip('gl-waveform-test: noise ', t => {
+	let data = require('./fixture/f32-noise-case.json').slice(12000)
+
+
+	let wf = createWaveform(gl)
+
+	for (let i = 0; i < data.length; i++) {
+		wf.push([data[i]])
+	}
+
+	wf.update({amplitude: [1000, 1100], range: [78045, 78050]})
+	wf.render()
+	interactive(wf)
+
+	document.body.appendChild(wf.canvas)
+
+	t.end()
+})
 
 t.skip('multipass rendering for large zoom levels', t => {
 	let wf = createWaveform()
@@ -514,29 +533,28 @@ t.skip('multipass rendering for large zoom levels', t => {
 	t.end()
 })
 
-t('tail rendering')
+t.skip('tail rendering')
 
-t('head rendering')
+t.skip('head rendering')
 
-t('correct everything for line mode')
+t.skip('correct everything for line mode')
 
-t('large data has no artifacts or noise')
+t.skip('large data has no artifacts or noise')
 
-t('viewport: correct translate, thickness, angle')
+t.skip('viewport: correct translate, thickness, angle')
 
-t('panning does not change image')
+t.skip('panning does not change image')
 
-t('empty data does not break rendering')
+t.skip('empty data does not break rendering')
 
-t('waveform creation is quick enough (faster than 200ms)')
+t.skip('waveform creation is quick enough (faster than 200ms)')
 
-t.skip('compensate fluctuations of wrongly detected stepX', t => {
-	t.end()
-})
+t.skip('compensate fluctuations of wrongly detected stepX')
 
-t('range mode fade, esp. on varying sdevs')
+t.skip('range mode fade, esp. on varying sdevs')
 
-t('multipass rendering')
+t.skip('multipass rendering')
+
 
 function interactive(wf, cb) {
 	if (!isBrowser) return
@@ -567,7 +585,6 @@ function interactive(wf, cb) {
 	})
 }
 
-
 function drawGrid (wf, n) {
 	// draw grid
 	let canvas = document.createElement('canvas')
@@ -584,5 +601,4 @@ function drawGrid (wf, n) {
 	}
 	ctx.closePath()
 	ctx.stroke()
-
 }

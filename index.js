@@ -46,6 +46,9 @@ function Waveform (o) {
 	this.minY = Infinity, this.maxY = -Infinity
 	this.stepSum = 0
 
+	// find a good name for runtime draw state
+	this.drawOptions = {}
+
 	// needs recalc
 	this.dirty = true
 
@@ -258,17 +261,53 @@ Waveform.prototype.createShader = function (o) {
 	return shader
 }
 
+Object.defineProperties(Waveform.prototype, {
+	viewport: {
+		get: function () {
+			if (!this.dirty) return this.drawOptions.viewport
+
+			var viewport
+
+			if (!this._viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
+			else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
+
+			// invert viewport if necessary
+			if (!this.flip) {
+				viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3]
+			}
+
+			return viewport
+		},
+		set: function (v) {
+			this._viewport = v ? parseRect(v) : v
+		}
+	},
+
+	// interval between adjacent x values
+	// we guess input data is homogenous and doesn't suddenly change direction
+	// sometimes step can vary a bit, ~3% of average, like measured time
+	// so we detect the step from the first chunk of data
+	stepX: {
+		get: function () {
+			if (!this.dirty) return this.drawOptions.stepX
+
+			if (this._stepX) return this._stepX
+
+			// null stepX averages interval between samples
+			return this.stepSum / (this.total - 1) || 1
+		},
+		set: function (v) {
+			this._stepX = v
+		}
+	}
+})
+
 // calculate draw options
 Waveform.prototype.calc = function () {
 	if (!this.dirty) return this.drawOptions
 
-	let {total, opacity, amplitude, stepX} = this
+	let {total, opacity, amplitude, stepX, viewport} = this
 	let range
-
-	// null stepX averages interval between samples
-	if (stepX == null) {
-		stepX = this.stepSum / (this.total - 1) || 1
-	}
 
 	// null-range spans the whole data range
 	if (!this.range) {
@@ -287,15 +326,6 @@ Waveform.prototype.calc = function () {
 	let thickness = this.thickness
 
 	// calc runtime props
-	let viewport
-	if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
-	else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
-
-	// invert viewport if necessary
-	if (!this.flip) {
-		viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3]
-	}
-
 	let span = (range[1] - range[0]) || 1
 
 	let dataLength = this.textureLength
@@ -491,25 +521,18 @@ Waveform.prototype.update = function (o) {
 		this.pxStep = toPx(o.pxStep)
 	}
 
-	if (o.stepX && this.stepX !== undefined) this.stepX = o.stepX
+	if (o.stepX) this.stepX = o.stepX
 
 	if (o.opacity !== undefined) {
 		this.opacity = parseFloat(o.opacity)
 	}
 
 	if (o.viewport !== undefined) {
-		this.viewport = parseRect(o.viewport)
-	}
-	if (this.viewport == null) {
-		this.viewport = {
-			x: 0, y: 0,
-			width: this.gl.drawingBufferWidth,
-			height: this.gl.drawingBufferHeight
-		}
+		this.viewport = o.viewport
 	}
 
 	if (o.flip) {
-		this.flip = !!o.viewport
+		this.flip = !!o.flip
 	}
 
 	// custom/default visible data window
@@ -580,6 +603,7 @@ Waveform.prototype.update = function (o) {
 		this.lastY = null
 		this.minY = Infinity
 		this.maxY = -Infinity
+		this.stepSum = 0
 		this.push(o.data)
 	}
 
@@ -600,11 +624,11 @@ Waveform.prototype.push = function (samples) {
 	// [{x, y}, {x, y}, ...]
 	// [[x, y], [x, y], ...]
 	if (samples[0] && typeof samples[0] !== 'number') {
-		let data = pool.mallocFloat64(samples.length)
+		let data = Array(samples.length)
 
 		// normalize {x, y} objects to flat array
 		for (let i = 0; i < samples.length; i++) {
-			let coord = samples[i], x, y
+			let coord = samples[i], x, y, ptr = i
 
 			// [x, y]
 			if (coord.length) {
@@ -616,21 +640,24 @@ Waveform.prototype.push = function (samples) {
 				y = coord.y
 			}
 
+			// FIXME: if more than N samples in a row - do not refine stepX - disable refinement
+
+			// let stepX = this.stepX
+			// let expectedX = this.lastX + stepX
+
+			// FIXME calc missorted values from the future/past
+			// ptr = i + Math.round((x - expectedX) / stepX)
+
 			if (this.firstX == null) {
 				this.firstX = x
 			}
 
-			// FIXME: update past values here (stream-forward?)
-			if (x <= this.lastX) throw Error(`Passed x value ${x} is <= the last x value ${this.lastX}.`)
-
-			// FIXME: check if new value increases not twice more than the average step - probably missing values. Or should we reflect that in texture.
-
 			// refine xStep
-			if (!this.stepX && this.lastX != null) {
+			if (this.lastX != null) {
 				this.stepSum += x - this.lastX
 			}
 
-			data[i] = y
+			data[ptr] = y
 
 			this.lastX = x
 			this.lastY = y
@@ -821,12 +848,17 @@ Waveform.prototype.push = function (samples) {
 	}
 }
 
+// write samples into texture at any position
+Waveform.prototype.set = function (samples) {
+
+}
+
 // clear viewport area occupied by the renderer
 Waveform.prototype.clear = function () {
 	if (!this.drawOptions) return this
 
 	let {gl, regl} = this
-	let {x, y, width, height} = this.drawOptions.viewport
+	let {x, y, width, height} = this.viewport
     gl.enable(gl.SCISSOR_TEST)
     gl.scissor(x, y, width, height)
 
@@ -875,12 +907,6 @@ Waveform.prototype.textureShape = [512, 512]
 
 Waveform.prototype.textureChannels = 3
 Waveform.prototype.maxSampleCount = 8192 * 2
-
-// interval between adjacent x values
-// we guess input data is homogenous and doesn't suddenly change direction
-// sometimes step can vary a bit, ~3% of average, like measured time
-// so we detect the step from the first chunk of data
-Waveform.prototype.stepX = null
 
 Waveform.prototype.storeData = true
 

@@ -67,17 +67,19 @@ Update state of the renderer instance. Possible `options`:
 
 Property | Meaning
 ---|---
-`data`			| Array or typed array with sample values. Usually it contains values from `-1..+1` range, but that can be adjusted via `amplitude` property. An array can be as sequence of `{x, y}` or `[x, y]` pairs, eg. `[{x: 10, y: 1}, {x: 20, y: 2}]`.
-`range`			| Visible data x-range, an array `[start, end]` offsets or a number of the last samples to show. Can also be a 4-value array `[xStart, minAmplitude, xEnd, maxAmplityde]` compatible with other gl-components, in this case `amplitude` property is ignored. Negative x-offsets use data from the end.
-`amplitude` 	| Amplitudes range, number or array `[min, max]`. `null` value will detect range from data.
+`data`			| Array or typed array with sample values. Usually it contains values from `-1..+1` range, but that can be adjusted via `amplitude` property. An array can be as sequence of `{x, y}` or `[x, y]` pairs, eg. `[{x: 10, y: 1}, {x: 20, y: 2}]` on condition that the x increment is [approximately] constant.
+`range`			| Visible data x-range, an array `[start, end]` offsets or a number of the last samples to show. Can also be a 4-value array `[xStart, minAmplitude, xEnd, maxAmplityde]` compatible with other gl-components, in this case `amplitude` property is ignored. Negative x-offsets use data from the end. `null` range displays all available data.
+`amplitude` 	| Amplitudes range, number or array `[min, max]`. `null` value uses data min/max.
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).
 `thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.
-`pxStep`        | <em>advanced</em> Redefine minimum pixel step. Can enhance zooming precision.
-`xStep` | <em>advanced</em> Set data interval manually. By default detected from the data.
 
 ### `waveform.push(data)`
 
 Append new samples to the existing data, instead of rewriting it, same as `waveform.update({push: data})`. This method is optimized for realtime performance, so gl-waveform can be used in audio vis.
+
+### `waveform.set(data, offset=0)`
+
+Write samples at the specified position, overriding the data at the specified `offset`. By default `offset` corresponds to sample ids, but in case of `{x, y}` data `offset` corresponds to `x` value.
 
 ### `waveform.render()`
 

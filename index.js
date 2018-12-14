@@ -46,6 +46,7 @@ function Waveform (o) {
 	this.minY = Infinity, this.maxY = -Infinity
 	this.stepSum = 0
 
+
 	// find a good name for runtime draw state
 	this.drawOptions = {}
 
@@ -57,6 +58,10 @@ function Waveform (o) {
 	this.gl = this.shader.gl
 	this.regl = this.shader.regl
 	this.canvas = this.gl.canvas
+
+	// tick processes accumulated samples to push in the next render frame
+	// to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
+	this.pushQueue = []
 
 	// FIXME: add beter recognition
 	// if (o.pick != null) this.storeData = !!o.pick
@@ -305,6 +310,12 @@ Object.defineProperties(Waveform.prototype, {
 // calculate draw options
 Waveform.prototype.calc = function () {
 	if (!this.dirty) return this.drawOptions
+
+	// flush pushQueue if any
+	if (this.pushQueue.length) {
+		this._push(this.pushQueue)
+		this.pushQueue.length = 0
+	}
 
 	let {total, opacity, amplitude, stepX, viewport} = this
 	let range
@@ -615,12 +626,24 @@ Waveform.prototype.update = function (o) {
 	return this
 }
 
-// put new samples into texture
+// put samples into texture throttled
 Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
 
 	this.dirty = true
 
+	// plan update for the next tick
+	for (let i = 0; i < samples.length; i++) {
+		this.pushQueue.push(samples[i])
+
+		// unwrap x, if required
+	}
+
+	return this
+}
+
+// put new samples into texture instantly
+Waveform.prototype._push = function (samples) {
 	// [{x, y}, {x, y}, ...]
 	// [[x, y], [x, y], ...]
 	if (samples[0] && typeof samples[0] !== 'number') {
@@ -663,7 +686,6 @@ Waveform.prototype.push = function (samples) {
 			this.lastY = y
 		}
 		samples = data
-
 	}
 	else {
 		if (this.firstX == null) this.firstX = 0
@@ -846,11 +868,6 @@ Waveform.prototype.push = function (samples) {
 		pool.freeFloat32(f32data)
 		pool.freeFloat32(f32fract)
 	}
-}
-
-// write samples into texture at any position
-Waveform.prototype.set = function (samples) {
-
 }
 
 // clear viewport area occupied by the renderer

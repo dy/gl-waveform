@@ -500,7 +500,7 @@ t('single-entry no-render', async t => {
 
 t.skip('gl-waveform-test: values from the past')
 
-t.skip('gl-waveform-test: noise ', t => {
+t.only('gl-waveform-test: noise ', t => {
 	let data = require('./fixture/f32-noise-case.json').slice(12000)
 
 

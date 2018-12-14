@@ -73,13 +73,11 @@ Property | Meaning
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).
 `thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.
 
-### `waveform.push(data)`
+### `waveform.push(data, offset?)`
 
 Append new samples to the existing data, instead of rewriting it, same as `waveform.update({push: data})`. This method is optimized for realtime performance, so gl-waveform can be used in audio vis.
 
-### `waveform.set(data, offset=0)`
-
-Write samples at the specified position, overriding the data at the specified `offset`. By default `offset` corresponds to sample ids, but in case of `{x, y}` data `offset` corresponds to `x` value.
+`offset` optionally indicates the sample x offset to overwrite/skip the data.
 
 ### `waveform.render()`
 

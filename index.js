@@ -45,8 +45,6 @@ function Waveform (o) {
 	this.lastY
 	this.minY = Infinity, this.maxY = -Infinity
 
-	// stores all samples data
-	this.queuedData = Array()
 
 	// find a good name for runtime draw state
 	this.drawOptions = {}
@@ -284,6 +282,82 @@ Object.defineProperties(Waveform.prototype, {
 		set: function (v) {
 			this._viewport = v ? parseRect(v) : v
 		}
+	},
+
+	color: {
+		get: function () {
+			if (!this.needsRecalc) return this.drawOptions.color
+
+			return this._color || [0, 0, 0, 255]
+		},
+		// flatten colors to a single uint8 array
+		set: function (v) {
+			if (!v) v = 'transparent'
+
+			// single color
+			if (typeof v === 'string') {
+				this._color = rgba(v, 'uint8')
+			}
+			// flat array
+			else if (typeof v[0] === 'number') {
+				let l = Math.max(v.length, 4)
+				if (this._color) pool.freeUint8(this._color)
+				this._color = pool.mallocUint8(l)
+				let sub = (v.subarray || v.slice).bind(v)
+				for (let i = 0; i < l; i += 4) {
+					this._color.set(rgba(sub(i, i + 4), 'uint8'), i)
+				}
+			}
+			// nested array
+			else {
+				let l = v.length
+				if (this._color) pool.freeUint8(this._color)
+				this._color = pool.mallocUint8(l * 4)
+				for (let i = 0; i < l; i++) {
+					this._color.set(rgba(v[i], 'uint8'), i * 4)
+				}
+			}
+		}
+	},
+
+	amplitude: {
+		get: function () {
+			if (!this.needsRecalc) return this.drawOptions.amplitude
+			return this._amplitude || [this.minY, this.maxY]
+		},
+		set: function (amplitude) {
+			if (typeof amplitude === 'number') {
+				this._amplitude = [-amplitude, +amplitude]
+			}
+			else if (amplitude.length) {
+				this._amplitude = [amplitude[0], amplitude[1]]
+			}
+			else {
+				this._amplitude = amplitude
+			}
+		}
+	},
+
+	range: {
+		get: function () {
+			if (!this.needsRecalc) return this.drawOptions.range
+			return this._range || [0, this.total - 1]
+		},
+		set: function (range) {
+			if (range.length) {
+				// support vintage 4-value range
+				if (range.length === 4) {
+					this._range = [range[0], range[2]]
+					this.amplitude = [range[1], range[3]]
+				}
+				else {
+					this._range = [range[0], range[1]]
+				}
+			}
+			else if (typeof range === 'number') {
+				this._range = [-range, -0]
+			}
+		}
 	}
 })
 
@@ -353,64 +427,16 @@ Waveform.prototype.update = function (o) {
 		this.flip = !!o.flip
 	}
 
-	// custom/default visible data window
 	if (o.range !== undefined) {
-		if (o.range.length) {
-			// support vintage 4-value range
-			if (o.range.length === 4) {
-				this.range = [o.range[0], o.range[2]]
-				o.amplitude = [o.range[1], o.range[3]]
-			}
-			else {
-				this.range = [o.range[0], o.range[1]]
-			}
-		}
-		else if (typeof o.range === 'number') {
-			this.range = [-o.range, -0]
-		}
+		this.range = o.range
 	}
 
+	if (o.color !== undefined) {
+		this.color = o.color
+	}
 
 	if (o.amplitude !== undefined) {
-		if (typeof o.amplitude === 'number') {
-			this.amplitude = [-o.amplitude, +o.amplitude]
-		}
-		else if (o.amplitude.length) {
-			this.amplitude = [o.amplitude[0], o.amplitude[1]]
-		}
-		else {
-			this.amplitude = o.amplitude
-		}
-	}
-
-
-	// flatten colors to a single uint8 array
-	if (o.color !== undefined) {
-		if (!o.color) o.color = 'transparent'
-
-		// single color
-		if (typeof o.color === 'string') {
-			this.color = rgba(o.color, 'uint8')
-		}
-		// flat array
-		else if (typeof o.color[0] === 'number') {
-			let l = Math.max(o.color.length, 4)
-			pool.freeUint8(this.color)
-			this.color = pool.mallocUint8(l)
-			let sub = (o.color.subarray || o.color.slice).bind(o.color)
-			for (let i = 0; i < l; i += 4) {
-				this.color.set(rgba(sub(i, i + 4), 'uint8'), i)
-			}
-		}
-		// nested array
-		else {
-			let l = o.color.length
-			pool.freeUint8(this.color)
-			this.color = pool.mallocUint8(l * 4)
-			for (let i = 0; i < l; i++) {
-				this.color.set(rgba(o.color[i], 'uint8'), i * 4)
-			}
-		}
+		this.amplitude = o.amplitude
 	}
 
 	// reset sample textures if new samples data passed
@@ -435,7 +461,7 @@ Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
 
 	for (let i = 0; i < samples.length; i++) {
-		this.queuedData.push(samples[i])
+		this.pushQueue.push(samples[i])
 	}
 
 	this.needsRecalc = true
@@ -448,8 +474,7 @@ Waveform.prototype.push = function (samples) {
 }
 
 // write samples into texture
-Waveform.prototype._write = function (samples, at=this.total) {
-
+Waveform.prototype.set = function (samples, at=this.total) {
 	// carefully handle array
 	if (Array.isArray(samples)) {
 		let floatSamples = pool.mallocFloat64(samples.length)
@@ -625,22 +650,12 @@ Waveform.prototype.calc = function () {
 	if (!this.needsRecalc) return this.drawOptions
 
 	// apply samples changes, if any
-	if (this.queuedData.length) {
-		this._write(this.queuedData)
-		this.queuedData.length = 0
+	if (this.pushQueue.length) {
+		this.set(this.pushQueue)
+		this.pushQueue.length = 0
 	}
 
-	let {total, opacity, amplitude, viewport} = this
-	let range
-
-	// null-range spans the whole data range
-	if (!this.range) {
-		range = [0, this.total - 1]
-	} else {
-		range = this.range
-	}
-
-	if (!amplitude) amplitude = [this.minY, this.maxY]
+	let {total, opacity, amplitude, viewport, range} = this
 
 	let color = this.color
 	let thickness = this.thickness
@@ -824,12 +839,7 @@ Waveform.prototype.mode = null
 // Waveform.prototype.fade = true
 
 // clip area
-Waveform.prototype.viewport = null
 Waveform.prototype.flip = false
-
-// data range
-Waveform.prototype.range = null
-Waveform.prototype.amplitude = null
 
 // Texture size affects
 // - sdev error: bigger texture accumulate sum2 error so signal looks more fluffy

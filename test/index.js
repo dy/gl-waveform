@@ -411,6 +411,23 @@ t.skip('fade artifacts', async t => {
 	t.end()
 })
 
+t('rewrite data at specific offset', async t => {
+	let wf = createWaveform(gl)
+
+	wf.push([0,2,1,3])
+	wf.thickness = 4
+	wf.color = [255,255,0,255]
+	wf.render()
+
+	wf.set([3], 1)
+	wf.clear().render()
+
+	// show(wf, document)
+	t.ok(eq(await img`./test/fixture/set.png`, wf))
+
+	t.end()
+})
+
 t.skip('gl-waveform-test: single value sequence', async t => {
 	var data = [
 		[69290.117031919, 890.6322520922428],

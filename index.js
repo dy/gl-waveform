@@ -19,6 +19,8 @@ let isBrowser = require('is-browser')
 let elOffset = require('offset')
 let idle = require('on-idle')
 
+const MAX_ARGUMENTS = 1024
+
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
 let shaderCache = new WeakMap()
@@ -457,11 +459,19 @@ Waveform.prototype.update = function (o) {
 }
 
 // append samples, will be put into texture at the next frame or idle
-Waveform.prototype.push = function (samples) {
-	if (!samples || !samples.length) return
+Waveform.prototype.push = function (...samples) {
+	if (!samples.length) return
 
 	for (let i = 0; i < samples.length; i++) {
-		this.pushQueue.push(samples[i])
+		if (samples[i].length) {
+			if (samples[i].length > MAX_ARGUMENTS) {
+				for (let j = 0; j < samples[i].length; j++) {
+					this.pushQueue.push(samples[i][j])
+				}
+			}
+			else this.pushQueue.push(...samples[i])
+		}
+		else this.pushQueue.push(samples[i])
 	}
 
 	this.needsRecalc = true
@@ -737,6 +747,8 @@ Waveform.prototype.calc = function () {
 
 // draw frame according to state
 Waveform.prototype.render = function () {
+	if (this.total < 2) return this
+
 	let o = this.calc()
 
 	// range case
@@ -838,7 +850,6 @@ Waveform.prototype.thickness = 1
 Waveform.prototype.mode = null
 // Waveform.prototype.fade = true
 
-// clip area
 Waveform.prototype.flip = false
 
 // Texture size affects

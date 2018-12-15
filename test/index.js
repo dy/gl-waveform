@@ -180,6 +180,8 @@ t.skip('timestamp gaps get interpolated by edge values', async t => {
 
 t.skip('big zoom out value does not create wrong image')
 
+t.only('push numbers')
+
 t.skip('step is automatically detected from the x-y input data', async t => {
 	var wf = createWaveform({gl})
 

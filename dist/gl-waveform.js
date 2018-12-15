@@ -1,5 +1,19 @@
 'use strict';
 
+function _typeof(obj) {
+  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
+    _typeof = function (obj) {
+      return typeof obj;
+    };
+  } else {
+    _typeof = function (obj) {
+      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+    };
+  }
+
+  return _typeof(obj);
+}
+
 function _slicedToArray(arr, i) {
   return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest();
 }
@@ -62,11 +76,47 @@ var offset = /*#__PURE__*/Object.freeze({
 
 });
 
+var assert = require('assert');
+
+var dftOpts = {};
+var hasWindow = typeof window !== 'undefined';
+var hasIdle = hasWindow && window.requestIdleCallback;
+module.exports = onIdle;
+
+function onIdle(cb, opts) {
+  opts = opts || dftOpts;
+  var timerId;
+  assert.equal(_typeof(cb), 'function', 'on-idle: cb should be type function');
+  assert.equal(_typeof(opts), 'object', 'on-idle: opts should be type object');
+
+  if (hasIdle) {
+    timerId = window.requestIdleCallback(function (idleDeadline) {
+      // reschedule if there's less than 1ms remaining on the tick
+      // and a timer did not expire
+      if (idleDeadline.timeRemaining() <= 1 && !idleDeadline.didTimeout) {
+        return onIdle(cb, opts);
+      } else {
+        cb(idleDeadline);
+      }
+    }, opts);
+    return window.cancelIdleCallback.bind(window, timerId);
+  } else if (hasWindow) {
+    timerId = setTimeout(cb, 0);
+    return clearTimeout.bind(window, timerId);
+  }
+}
+
+var onIdle$1 = /*#__PURE__*/Object.freeze({
+
+});
+
 function getCjsExportFromNamespace (n) {
 	return n && n.default || n;
 }
 
 var elOffset = getCjsExportFromNamespace(offset);
+
+var idle = getCjsExportFromNamespace(onIdle$1);
 
 var pick = require('pick-by-alias');
 
@@ -96,8 +146,6 @@ var parseUnit = require('parse-unit');
 
 var px = require('to-px');
 
-var flatten = require('flatten-vertex-data');
-
 var lerp = require('lerp');
 
 var isBrowser = require('is-browser'); // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
@@ -120,14 +168,21 @@ function Waveform(o) {
   this.total = 0; // pointer to the first/last x values, detected from the first data
   // used for organizing data gaps
 
-  this.firstX, this.lastY, this.lastX, this.minY = Infinity, this.maxY = -Infinity;
-  this.stepSum = 0; // needs recalc
+  this.lastY;
+  this.minY = Infinity, this.maxY = -Infinity; // stores all samples data
 
-  this.dirty = true;
+  this.queuedData = Array(); // find a good name for runtime draw state
+
+  this.drawOptions = {}; // needs recalc
+
+  this.needsRecalc = true;
   this.shader = this.createShader(o);
   this.gl = this.shader.gl;
   this.regl = this.shader.regl;
-  this.canvas = this.gl.canvas; // FIXME: add beter recognition
+  this.canvas = this.gl.canvas; // tick processes accumulated samples to push in the next render frame
+  // to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
+
+  this.pushQueue = []; // FIXME: add beter recognition
   // if (o.pick != null) this.storeData = !!o.pick
   // if (o.fade != null) this.fade = !!o.fade
 
@@ -231,8 +286,6 @@ Waveform.prototype.createShader = function (o) {
       total: regl.prop('total'),
       // number of pixels between vertices
       pxStep: regl.prop('pxStep'),
-      // x value change
-      stepX: regl.prop('stepX'),
       // number of pixels per sample step
       pxPerSample: regl.prop('pxPerSample'),
       // number of samples between vertices
@@ -339,41 +392,367 @@ Waveform.prototype.createShader = function (o) {
   };
   shaderCache.set(gl, shader);
   return shader;
+};
+
+Object.defineProperties(Waveform.prototype, {
+  viewport: {
+    get: function get() {
+      if (!this.needsRecalc) return this.drawOptions.viewport;
+      var viewport;
+      if (!this._viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight];else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]; // invert viewport if necessary
+
+      if (!this.flip) {
+        viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3];
+      }
+
+      return viewport;
+    },
+    set: function set(v) {
+      this._viewport = v ? parseRect(v) : v;
+    }
+  }
+}); // update visual state
+
+Waveform.prototype.update = function (o) {
+  if (!o) return this;
+  if (o.length != null) o = {
+    data: o
+  };
+  this.needsRecalc = true;
+  o = pick(o, {
+    data: 'data value values sample samples',
+    push: 'add append push insert concat',
+    range: 'range dataRange dataBox dataBounds dataLimits',
+    amplitude: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
+    thickness: 'thickness width linewidth lineWidth line-width',
+    pxStep: 'step pxStep',
+    color: 'color colour colors colours fill fillColor fill-color',
+    line: 'line line-style lineStyle linestyle',
+    viewport: 'clip vp viewport viewBox viewbox viewPort area',
+    opacity: 'opacity alpha transparency visible visibility opaque',
+    flip: 'flip iviewport invertViewport inverseViewport',
+    mode: 'mode'
+  }); // forcing rendering mode is mostly used for debugging purposes
+
+  if (o.mode !== undefined) this.mode = o.mode; // parse line style
+
+  if (o.line) {
+    if (typeof o.line === 'string') {
+      var parts = o.line.split(/\s+/); // 12px black
+
+      if (/0-9/.test(parts[0][0])) {
+        if (!o.thickness) o.thickness = parts[0];
+        if (!o.color && parts[1]) o.color = parts[1];
+      } // black 12px
+      else {
+          if (!o.thickness && parts[1]) o.thickness = parts[1];
+          if (!o.color) o.color = parts[0];
+        }
+    } else {
+      o.color = o.line;
+    }
+  }
+
+  if (o.thickness !== undefined) {
+    this.thickness = toPx(o.thickness);
+  }
+
+  if (o.pxStep !== undefined) {
+    this.pxStep = toPx(o.pxStep);
+  }
+
+  if (o.opacity !== undefined) {
+    this.opacity = parseFloat(o.opacity);
+  }
+
+  if (o.viewport !== undefined) {
+    this.viewport = o.viewport;
+  }
+
+  if (o.flip) {
+    this.flip = !!o.flip;
+  } // custom/default visible data window
+
+
+  if (o.range !== undefined) {
+    if (o.range.length) {
+      // support vintage 4-value range
+      if (o.range.length === 4) {
+        this.range = [o.range[0], o.range[2]];
+        o.amplitude = [o.range[1], o.range[3]];
+      } else {
+        this.range = [o.range[0], o.range[1]];
+      }
+    } else if (typeof o.range === 'number') {
+      this.range = [-o.range, -0];
+    }
+  }
+
+  if (o.amplitude !== undefined) {
+    if (typeof o.amplitude === 'number') {
+      this.amplitude = [-o.amplitude, +o.amplitude];
+    } else if (o.amplitude.length) {
+      this.amplitude = [o.amplitude[0], o.amplitude[1]];
+    } else {
+      this.amplitude = o.amplitude;
+    }
+  } // flatten colors to a single uint8 array
+
+
+  if (o.color !== undefined) {
+    if (!o.color) o.color = 'transparent'; // single color
+
+    if (typeof o.color === 'string') {
+      this.color = rgba(o.color, 'uint8');
+    } // flat array
+    else if (typeof o.color[0] === 'number') {
+        var l = Math.max(o.color.length, 4);
+        pool.freeUint8(this.color);
+        this.color = pool.mallocUint8(l);
+        var sub = (o.color.subarray || o.color.slice).bind(o.color);
+
+        for (var i = 0; i < l; i += 4) {
+          this.color.set(rgba(sub(i, i + 4), 'uint8'), i);
+        }
+      } // nested array
+      else {
+          var _l = o.color.length;
+          pool.freeUint8(this.color);
+          this.color = pool.mallocUint8(_l * 4);
+
+          for (var _i = 0; _i < _l; _i++) {
+            this.color.set(rgba(o.color[_i], 'uint8'), _i * 4);
+          }
+        }
+  } // reset sample textures if new samples data passed
+
+
+  if (o.data) {
+    this.total = 0;
+    this.lastY = null;
+    this.minY = Infinity;
+    this.maxY = -Infinity;
+    this.push(o.data);
+  } // call push method
+
+
+  if (o.push) {
+    this.push(o.push);
+  }
+
+  return this;
+}; // append samples, will be put into texture at the next frame or idle
+
+
+Waveform.prototype.push = function (samples) {
+  var _this = this;
+
+  if (!samples || !samples.length) return;
+
+  for (var i = 0; i < samples.length; i++) {
+    this.queuedData.push(samples[i]);
+  }
+
+  this.needsRecalc = true;
+  idle(function () {
+    _this.calc();
+  });
+  return this;
+}; // write samples into texture
+
+
+Waveform.prototype._write = function (samples) {
+  var at = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.total;
+
+  // carefully handle array
+  if (Array.isArray(samples)) {
+    var floatSamples = pool.mallocFloat64(samples.length);
+
+    for (var i = 0; i < samples.length; i++) {
+      // put NaN samples as indicators of blank samples
+      if (samples[i] == null || isNaN(samples[i])) {
+        floatSamples[i] = NaN;
+      } else {
+        floatSamples[i] = samples[i];
+      }
+    }
+
+    samples = floatSamples;
+  } // detect min/maxY
+
+
+  for (var _i2 = 0; _i2 < samples.length; _i2++) {
+    if (this.minY > samples[_i2]) this.minY = samples[_i2];
+    if (this.maxY < samples[_i2]) this.maxY = samples[_i2];
+  }
+
+  var _this$textureShape = _slicedToArray(this.textureShape, 2),
+      txtW = _this$textureShape[0],
+      txtH = _this$textureShape[1];
+
+  var txtLen = this.textureLength;
+  var offset = at % txtLen;
+  var id = Math.floor(at / txtLen);
+  var y = Math.floor(offset / txtW);
+  var x = offset % txtW;
+  var tillEndOfTxt = txtLen - offset;
+  var ch = this.textureChannels; // get current texture
+
+  var txt = this.textures[id];
+  var txtFract = this.textures2[id];
+
+  if (!txt) {
+    txt = this.textures[id] = this.regl.texture({
+      width: this.textureShape[0],
+      height: this.textureShape[1],
+      channels: this.textureChannels,
+      type: 'float',
+      min: 'nearest',
+      mag: 'nearest',
+      // min: 'linear',
+      // mag: 'linear',
+      wrap: ['clamp', 'clamp']
+    });
+    this.lastY = txt.sum = txt.sum2 = 0;
+    txtFract = this.textures2[id] = this.regl.texture({
+      width: this.textureShape[0],
+      height: this.textureShape[1],
+      channels: this.textureChannels,
+      type: 'float',
+      min: 'nearest',
+      mag: 'nearest',
+      // min: 'linear',
+      // mag: 'linear',
+      wrap: ['clamp', 'clamp']
+    });
+  } // calc sum, sum2 and form data for the samples
+
+
+  var dataLen = Math.min(tillEndOfTxt, samples.length);
+  var data = pool.mallocFloat64(dataLen * ch);
+
+  for (var _i3 = 0, l = dataLen; _i3 < l; _i3++) {
+    // put NaN samples as indicators of blank samples
+    if (!isNaN(samples[_i3])) {
+      data[_i3 * ch] = this.lastY = samples[_i3];
+    } else {
+      data[_i3 * ch] = NaN;
+    }
+
+    txt.sum += this.lastY;
+    txt.sum2 += this.lastY * this.lastY; // we cannot rotate sums here because there can be any number of rotations between two edge samples
+    // also that is hard to guess correct rotation limit, that can change at any new data
+    // so we just keep precise secondary texture and hope the sum is not huge enough to reset at the next texture
+
+    data[_i3 * ch + 1] = txt.sum;
+    data[_i3 * ch + 2] = txt.sum2;
+  } // increase total by the number of new samples
+
+
+  if (this.total - at < dataLen) this.total += dataLen - (this.total - at); // fullfill last unfinished row
+
+  var firstRowWidth = 0;
+
+  if (x) {
+    firstRowWidth = Math.min(txtW - x, dataLen);
+    writeTexture(x, y, firstRowWidth, 1, data.subarray(0, firstRowWidth * ch)); // if data is shorter than the texture row - skip the rest
+
+    if (x + samples.length <= txtW) {
+      pool.freeFloat64(samples);
+      pool.freeFloat64(data);
+      return;
+    }
+
+    y++; // shortcut next texture block
+
+    if (y === txtH) {
+      pool.freeFloat64(data);
+      this.push(samples.subarray(firstRowWidth));
+      pool.freeFloat64(samples);
+      return;
+    }
+
+    offset += firstRowWidth;
+  } // put rect with data
+
+
+  var h = Math.floor((dataLen - firstRowWidth) / txtW);
+  var blockLen = 0;
+
+  if (h) {
+    blockLen = h * txtW;
+    writeTexture(0, y, txtW, h, data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch));
+    y += h;
+  } // put last row
+
+
+  var lastRowWidth = dataLen - firstRowWidth - blockLen;
+
+  if (lastRowWidth) {
+    writeTexture(0, y, lastRowWidth, 1, data.subarray(-lastRowWidth * ch));
+  } // shorten block till the end of texture
+
+
+  if (tillEndOfTxt < samples.length) {
+    this.push(samples.subarray(tillEndOfTxt));
+    pool.freeFloat64(samples);
+    pool.freeFloat64(data);
+    return;
+  } // put data to texture, provide NaN transport & performant fractions calc
+
+
+  function writeTexture(x, y, w, h, data) {
+    var f32data = pool.mallocFloat32(data.length);
+    var f32fract = pool.mallocFloat32(data.length);
+
+    for (var _i4 = 0; _i4 < data.length; _i4++) {
+      f32data[_i4] = data[_i4];
+      f32fract[_i4] = data[_i4] - f32data[_i4];
+    } // for (let i = 0; i < data.length; i+=4) {
+    // 	if (isNaN(data[i])) f32fract[i] = -1
+    // }
+
+
+    txt.subimage({
+      width: w,
+      height: h,
+      data: f32data
+    }, x, y);
+    txtFract.subimage({
+      width: w,
+      height: h,
+      data: f32fract
+    }, x, y);
+    pool.freeFloat32(f32data);
+    pool.freeFloat32(f32fract);
+  }
 }; // calculate draw options
 
 
 Waveform.prototype.calc = function () {
-  if (!this.dirty) return this.drawOptions;
+  if (!this.needsRecalc) return this.drawOptions; // apply samples changes, if any
+
+  if (this.queuedData.length) {
+    this._write(this.queuedData);
+
+    this.queuedData.length = 0;
+  }
+
   var total = this.total,
       opacity = this.opacity,
       amplitude = this.amplitude,
-      stepX = this.stepX;
-  var range; // null stepX averages interval between samples
-
-  if (stepX == null) {
-    stepX = this.stepSum / (this.total - 1) || 1;
-  } // null-range spans the whole data range
-
+      viewport = this.viewport;
+  var range; // null-range spans the whole data range
 
   if (!this.range) {
-    range = [0, (this.lastX - this.firstX) / stepX];
+    range = [0, this.total - 1];
   } else {
-    range = [(this.range[0] - this.firstX) / stepX, (this.range[1] - this.firstX) / stepX];
+    range = this.range;
   }
 
-  if (!amplitude) amplitude = [this.minY, this.maxY]; // FIXME: remove
-  // r[0] = -4
-  // r[1] = 40
-
+  if (!amplitude) amplitude = [this.minY, this.maxY];
   var color = this.color;
   var thickness = this.thickness; // calc runtime props
-
-  var viewport;
-  if (!this.viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight];else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]; // invert viewport if necessary
-
-  if (!this.flip) {
-    viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3];
-  }
 
   var span = range[1] - range[0] || 1;
   var dataLength = this.textureLength;
@@ -436,11 +815,10 @@ Waveform.prototype.calc = function () {
     total: total,
     opacity: opacity,
     amplitude: amplitude,
-    stepX: stepX,
     range: range,
     mode: mode
   };
-  this.dirty = false;
+  this.needsRecalc = false;
   return this.drawOptions;
 }; // draw frame according to state
 
@@ -490,7 +868,8 @@ Waveform.prototype.pick = function (x) {
   var offset = Math.floor(translater + xOffset);
   var xShift = translater - translateri;
   if (offset < 0 || offset > this.total) return null;
-  var ch = this.textureChannels;
+  var ch = this.textureChannels; // FIXME: use samples array
+
   var data = txt.data;
   var samples = data.subarray(offset * ch, offset * ch + ch); // single-value pick
   // if (pxPerSample >= 1) {
@@ -505,372 +884,6 @@ Waveform.prototype.pick = function (x) {
     // FIXME: multi-value pick
 
   };
-}; // update visual state
-
-
-Waveform.prototype.update = function (o) {
-  if (!o) return this;
-  if (o.length != null) o = {
-    data: o
-  };
-  this.dirty = true;
-  o = pick(o, {
-    data: 'data value values sample samples',
-    push: 'add append push insert concat',
-    range: 'range dataRange dataBox dataBounds dataLimits',
-    amplitude: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
-    thickness: 'thickness width linewidth lineWidth line-width',
-    pxStep: 'step pxStep',
-    stepX: 'xStep xstep interval stepX stepx',
-    color: 'color colour colors colours fill fillColor fill-color',
-    line: 'line line-style lineStyle linestyle',
-    viewport: 'clip vp viewport viewBox viewbox viewPort area',
-    opacity: 'opacity alpha transparency visible visibility opaque',
-    flip: 'flip iviewport invertViewport inverseViewport',
-    mode: 'mode'
-  }); // forcing rendering mode is mostly used for debugging purposes
-
-  if (o.mode !== undefined) this.mode = o.mode; // parse line style
-
-  if (o.line) {
-    if (typeof o.line === 'string') {
-      var parts = o.line.split(/\s+/); // 12px black
-
-      if (/0-9/.test(parts[0][0])) {
-        if (!o.thickness) o.thickness = parts[0];
-        if (!o.color && parts[1]) o.color = parts[1];
-      } // black 12px
-      else {
-          if (!o.thickness && parts[1]) o.thickness = parts[1];
-          if (!o.color) o.color = parts[0];
-        }
-    } else {
-      o.color = o.line;
-    }
-  }
-
-  if (o.thickness !== undefined) {
-    this.thickness = toPx(o.thickness);
-  }
-
-  if (o.pxStep !== undefined) {
-    this.pxStep = toPx(o.pxStep);
-  }
-
-  if (o.stepX && this.stepX !== undefined) this.stepX = o.stepX;
-
-  if (o.opacity !== undefined) {
-    this.opacity = parseFloat(o.opacity);
-  }
-
-  if (o.viewport !== undefined) {
-    this.viewport = parseRect(o.viewport);
-  }
-
-  if (this.viewport == null) {
-    this.viewport = {
-      x: 0,
-      y: 0,
-      width: this.gl.drawingBufferWidth,
-      height: this.gl.drawingBufferHeight
-    };
-  }
-
-  if (o.flip) {
-    this.flip = !!o.viewport;
-  } // custom/default visible data window
-
-
-  if (o.range !== undefined) {
-    if (o.range.length) {
-      // support vintage 4-value range
-      if (o.range.length === 4) {
-        this.range = [o.range[0], o.range[2]];
-        o.amplitude = [o.range[1], o.range[3]];
-      } else {
-        this.range = [o.range[0], o.range[1]];
-      }
-    } else if (typeof o.range === 'number') {
-      this.range = [-o.range, -0];
-    }
-  }
-
-  if (o.amplitude !== undefined) {
-    if (typeof o.amplitude === 'number') {
-      this.amplitude = [-o.amplitude, +o.amplitude];
-    } else if (o.amplitude.length) {
-      this.amplitude = [o.amplitude[0], o.amplitude[1]];
-    } else {
-      this.amplitude = o.amplitude;
-    }
-  } // flatten colors to a single uint8 array
-
-
-  if (o.color !== undefined) {
-    if (!o.color) o.color = 'transparent'; // single color
-
-    if (typeof o.color === 'string') {
-      this.color = rgba(o.color, 'uint8');
-    } // flat array
-    else if (typeof o.color[0] === 'number') {
-        var l = Math.max(o.color.length, 4);
-        pool.freeUint8(this.color);
-        this.color = pool.mallocUint8(l);
-        var sub = (o.color.subarray || o.color.slice).bind(o.color);
-
-        for (var i = 0; i < l; i += 4) {
-          this.color.set(rgba(sub(i, i + 4), 'uint8'), i);
-        }
-      } // nested array
-      else {
-          var _l = o.color.length;
-          pool.freeUint8(this.color);
-          this.color = pool.mallocUint8(_l * 4);
-
-          for (var _i = 0; _i < _l; _i++) {
-            this.color.set(rgba(o.color[_i], 'uint8'), _i * 4);
-          }
-        }
-  } // reset sample textures if new samples data passed
-
-
-  if (o.data) {
-    this.total = 0;
-    this.firstX = null;
-    this.lastX = null;
-    this.lastY = null;
-    this.minY = Infinity;
-    this.maxY = -Infinity;
-    this.push(o.data);
-  } // call push method
-
-
-  if (o.push) {
-    this.push(o.push);
-  }
-
-  return this;
-}; // put new samples into texture
-
-
-Waveform.prototype.push = function (samples) {
-  if (!samples || !samples.length) return;
-  this.dirty = true; // [{x, y}, {x, y}, ...]
-  // [[x, y], [x, y], ...]
-
-  if (samples[0] && typeof samples[0] !== 'number') {
-    var _data = pool.mallocFloat64(samples.length); // normalize {x, y} objects to flat array
-
-
-    for (var i = 0; i < samples.length; i++) {
-      var coord = samples[i],
-          _x = void 0,
-          _y = void 0; // [x, y]
-
-
-      if (coord.length) {
-        var _coord = _slicedToArray(coord, 2);
-
-        _x = _coord[0];
-        _y = _coord[1];
-      } // {x, y}
-      else if (coord.x != null) {
-          _x = coord.x;
-          _y = coord.y;
-        } // FIXME: update past values here (stream-forward?)
-
-
-      if (_x <= this.lastX) throw Error("Passed x value ".concat(_x, " is <= the last x value ").concat(this.lastX, "."));
-
-      if (this.firstX == null) {
-        this.firstX = _x;
-      } // FIXME: check if new value increases not twice more than the average step - probably missing values. Or should we reflect that in texture.
-      // refine xStep
-
-
-      if (!this.stepX && this.lastX != null) {
-        this.stepSum += _x - this.lastX;
-      }
-
-      _data[i] = _y;
-      this.lastX = _x;
-      this.lastY = _y;
-    }
-
-    samples = _data;
-  } else {
-    if (this.firstX == null) this.firstX = 0; // stepX does not play any role for regular sequence of samples
-
-    if (!this.stepX) this.stepX = 1;
-    this.lastX = this.total + samples.length - 1;
-    this.lastY = samples[samples.length - 1];
-  } // carefully handle array
-
-
-  if (Array.isArray(samples)) {
-    var floatSamples = pool.mallocFloat64(samples.length);
-
-    for (var _i2 = 0; _i2 < samples.length; _i2++) {
-      // put NaN samples as indicators of blank samples
-      if (samples[_i2] == null || isNaN(samples[_i2])) {
-        floatSamples[_i2] = NaN;
-      } else {
-        floatSamples[_i2] = samples[_i2];
-      }
-    }
-
-    samples = floatSamples;
-  } // detect min/maxY
-
-
-  for (var _i3 = 0; _i3 < samples.length; _i3++) {
-    if (this.minY > samples[_i3]) this.minY = samples[_i3];
-    if (this.maxY < samples[_i3]) this.maxY = samples[_i3];
-  }
-
-  var _this$textureShape = _slicedToArray(this.textureShape, 2),
-      txtW = _this$textureShape[0],
-      txtH = _this$textureShape[1];
-
-  var txtLen = this.textureLength;
-  var offset = this.total % txtLen;
-  var id = Math.floor(this.total / txtLen);
-  var y = Math.floor(offset / txtW);
-  var x = offset % txtW;
-  var tillEndOfTxt = txtLen - offset;
-  var ch = this.textureChannels; // get current texture
-
-  var txt = this.textures[id];
-  var txtFract = this.textures2[id];
-
-  if (!txt) {
-    txt = this.textures[id] = this.regl.texture({
-      width: this.textureShape[0],
-      height: this.textureShape[1],
-      channels: this.textureChannels,
-      type: 'float',
-      min: 'nearest',
-      mag: 'nearest',
-      // min: 'linear',
-      // mag: 'linear',
-      wrap: ['clamp', 'clamp']
-    });
-    this.lastY = txt.sum = txt.sum2 = 0;
-    txtFract = this.textures2[id] = this.regl.texture({
-      width: this.textureShape[0],
-      height: this.textureShape[1],
-      channels: this.textureChannels,
-      type: 'float',
-      min: 'nearest',
-      mag: 'nearest',
-      // min: 'linear',
-      // mag: 'linear',
-      wrap: ['clamp', 'clamp']
-    });
-
-    if (this.storeData) {
-      txt.data = pool.mallocFloat64(txtLen * ch);
-    }
-  } // calc sum, sum2 and form data for the samples
-
-
-  var dataLen = Math.min(tillEndOfTxt, samples.length);
-  var data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat64(dataLen * ch);
-
-  for (var _i4 = 0, l = dataLen; _i4 < l; _i4++) {
-    // put NaN samples as indicators of blank samples
-    if (!isNaN(samples[_i4])) {
-      data[_i4 * ch] = this.lastY = samples[_i4];
-    } else {
-      data[_i4 * ch] = NaN;
-    }
-
-    txt.sum += this.lastY;
-    txt.sum2 += this.lastY * this.lastY; // we cannot rotate sums here because there can be any number of rotations between two edge samples
-    // also that is hard to guess correct rotation limit, that can change at any new data
-    // so we just keep precise secondary texture and hope the sum is not huge enough to reset at the next texture
-
-    data[_i4 * ch + 1] = txt.sum;
-    data[_i4 * ch + 2] = txt.sum2;
-  }
-
-  this.total += dataLen; // fullfill last unfinished row
-
-  var firstRowWidth = 0;
-
-  if (x) {
-    firstRowWidth = Math.min(txtW - x, dataLen);
-    writeTexture(x, y, firstRowWidth, 1, data.subarray(0, firstRowWidth * ch)); // if data is shorter than the texture row - skip the rest
-
-    if (x + samples.length <= txtW) {
-      pool.freeFloat64(samples);
-      if (!this.storeData) pool.freeFloat64(data);
-      return;
-    }
-
-    y++; // shortcut next texture block
-
-    if (y === txtH) {
-      if (!this.storeData) pool.freeFloat64(data);
-      this.push(samples.subarray(firstRowWidth));
-      pool.freeFloat(samples);
-      return;
-    }
-
-    offset += firstRowWidth;
-  } // put rect with data
-
-
-  var h = Math.floor((dataLen - firstRowWidth) / txtW);
-  var blockLen = 0;
-
-  if (h) {
-    blockLen = h * txtW;
-    writeTexture(0, y, txtW, h, data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch));
-    y += h;
-  } // put last row
-
-
-  var lastRowWidth = dataLen - firstRowWidth - blockLen;
-
-  if (lastRowWidth) {
-    writeTexture(0, y, lastRowWidth, 1, data.subarray(-lastRowWidth * ch));
-  } // shorten block till the end of texture
-
-
-  if (tillEndOfTxt < samples.length) {
-    this.push(samples.subarray(tillEndOfTxt));
-    pool.freeFloat64(samples);
-    if (!this.storeData) pool.freeFloat64(data);
-    return;
-  } // put data to texture, provide NaN transport & performant fractions calc
-
-
-  function writeTexture(x, y, w, h, data) {
-    var f32data = pool.mallocFloat32(data.length);
-    var f32fract = pool.mallocFloat32(data.length);
-
-    for (var _i5 = 0; _i5 < data.length; _i5++) {
-      f32data[_i5] = data[_i5];
-      f32fract[_i5] = data[_i5] - f32data[_i5];
-    } // for (let i = 0; i < data.length; i+=4) {
-    // 	if (isNaN(data[i])) f32fract[i] = -1
-    // }
-
-
-    txt.subimage({
-      width: w,
-      height: h,
-      data: f32data
-    }, x, y);
-    txtFract.subimage({
-      width: w,
-      height: h,
-      data: f32fract
-    }, x, y);
-    pool.freeFloat32(f32data);
-    pool.freeFloat32(f32fract);
-  }
 }; // clear viewport area occupied by the renderer
 
 
@@ -878,11 +891,11 @@ Waveform.prototype.clear = function () {
   if (!this.drawOptions) return this;
   var gl = this.gl,
       regl = this.regl;
-  var _this$drawOptions$vie = this.drawOptions.viewport,
-      x = _this$drawOptions$vie.x,
-      y = _this$drawOptions$vie.y,
-      width = _this$drawOptions$vie.width,
-      height = _this$drawOptions$vie.height;
+  var _this$viewport = this.viewport,
+      x = _this$viewport.x,
+      y = _this$viewport.y,
+      width = _this$viewport.width,
+      height = _this$viewport.height;
   gl.enable(gl.SCISSOR_TEST);
   gl.scissor(x, y, width, height); // FIXME: avoid depth here
 
@@ -897,10 +910,7 @@ Waveform.prototype.clear = function () {
 
 
 Waveform.prototype.destroy = function () {
-  var _this = this;
-
   this.textures.forEach(function (txt) {
-    if (_this.storeData) pool.freeFloat64(txt.data);
     txt.destroy();
   });
   this.textures2.forEach(function (txt) {
@@ -927,12 +937,7 @@ Waveform.prototype.amplitude = null; // Texture size affects
 
 Waveform.prototype.textureShape = [512, 512];
 Waveform.prototype.textureChannels = 3;
-Waveform.prototype.maxSampleCount = 8192 * 2; // interval between adjacent x values
-// we guess input data is homogenous and doesn't suddenly change direction
-// sometimes step can vary a bit, ~3% of average, like measured time
-// so we detect the step from the first chunk of data
-
-Waveform.prototype.stepX = null;
+Waveform.prototype.maxSampleCount = 8192 * 2;
 Waveform.prototype.storeData = true;
 
 function isRegl(o) {

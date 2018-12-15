@@ -49,6 +49,7 @@ waveform.render()
 * `regl` - existing [regl](https://ghub.io/regl) instance.
 * `canvas` - canvas element to initialize waveform on.
 * `container` - html element to use as a container for new canvas with webgl context.
+* `waveform` - gl-waveform instance to create a view for. In this case, the data will be shared.
 * none - new fullscreen canvas in the `<body>`.
 
 `options` can provide:
@@ -67,7 +68,7 @@ Update state of the renderer instance. Possible `options`:
 
 Property | Meaning
 ---|---
-`data`			| Array or typed array with sample values. Usually it contains values from `-1..+1` range, but that can be adjusted via `amplitude` property. An array can be as sequence of `{x, y}` or `[x, y]` pairs, eg. `[{x: 10, y: 1}, {x: 20, y: 2}]` on condition that the x increment is [approximately] constant.
+`data`			| Array or typed array with sample values. Usually it contains values from `-1..+1` range, but that can be adjusted via `amplitude` property. Can be a `regl-texture` instance or a list of textures, to share data between instances. If you need time series data, have a look at `tick-array` package to normalize input data values.
 `range`			| Visible data x-range, an array `[start, end]` offsets or a number of the last samples to show. Can also be a 4-value array `[xStart, minAmplitude, xEnd, maxAmplityde]` compatible with other gl-components, in this case `amplitude` property is ignored. Negative x-offsets use data from the end. `null` range displays all available data.
 `amplitude` 	| Amplitudes range, number or array `[min, max]`. `null` value uses data min/max.
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).

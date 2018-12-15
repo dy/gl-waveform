@@ -14,10 +14,10 @@ let neg0 = require('negative-zero')
 let f32 = require('to-float32')
 let parseUnit = require('parse-unit')
 let px = require('to-px')
-let flatten = require('flatten-vertex-data')
 let lerp = require('lerp')
 let isBrowser = require('is-browser')
 let elOffset = require('offset')
+let idle = require('on-idle')
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
@@ -42,16 +42,17 @@ function Waveform (o) {
 
 	// pointer to the first/last x values, detected from the first data
 	// used for organizing data gaps
-	this.firstX, this.lastY, this.lastX,
+	this.lastY
 	this.minY = Infinity, this.maxY = -Infinity
-	this.stepSum = 0
 
+	// stores all samples data
+	this.queuedData = Array()
 
 	// find a good name for runtime draw state
 	this.drawOptions = {}
 
 	// needs recalc
-	this.dirty = true
+	this.needsRecalc = true
 
 	this.shader = this.createShader(o)
 
@@ -69,7 +70,6 @@ function Waveform (o) {
 
 	if (isObj(o)) this.update(o)
 }
-
 
 // create waveform shader, called once per gl context
 Waveform.prototype.createShader = function (o) {
@@ -172,8 +172,6 @@ Waveform.prototype.createShader = function (o) {
 			total: regl.prop('total'),
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
-			// x value change
-			stepX: regl.prop('stepX'),
 			// number of pixels per sample step
 			pxPerSample: regl.prop('pxPerSample'),
 			// number of samples between vertices
@@ -269,7 +267,7 @@ Waveform.prototype.createShader = function (o) {
 Object.defineProperties(Waveform.prototype, {
 	viewport: {
 		get: function () {
-			if (!this.dirty) return this.drawOptions.viewport
+			if (!this.needsRecalc) return this.drawOptions.viewport
 
 			var viewport
 
@@ -286,203 +284,15 @@ Object.defineProperties(Waveform.prototype, {
 		set: function (v) {
 			this._viewport = v ? parseRect(v) : v
 		}
-	},
-
-	// interval between adjacent x values
-	// we guess input data is homogenous and doesn't suddenly change direction
-	// sometimes step can vary a bit, ~3% of average, like measured time
-	// so we detect the step from the first chunk of data
-	stepX: {
-		get: function () {
-			if (!this.dirty) return this.drawOptions.stepX
-
-			if (this._stepX) return this._stepX
-
-			// null stepX averages interval between samples
-			return this.stepSum / (this.total - 1) || 1
-		},
-		set: function (v) {
-			this._stepX = v
-		}
 	}
 })
-
-// calculate draw options
-Waveform.prototype.calc = function () {
-	if (!this.dirty) return this.drawOptions
-
-	// flush pushQueue if any
-	if (this.pushQueue.length) {
-		this._push(this.pushQueue)
-		this.pushQueue.length = 0
-	}
-
-	let {total, opacity, amplitude, stepX, viewport} = this
-	let range
-
-	// null-range spans the whole data range
-	if (!this.range) {
-		range = [0, (this.lastX - this.firstX) / stepX]
-	} else {
-		range = [(this.range[0] - this.firstX) / stepX, (this.range[1] - this.firstX) / stepX]
-	}
-
-	if (!amplitude) amplitude = [this.minY, this.maxY]
-
-	// FIXME: remove
-	// r[0] = -4
-	// r[1] = 40
-
-	let color = this.color
-	let thickness = this.thickness
-
-	// calc runtime props
-	let span = (range[1] - range[0]) || 1
-
-	let dataLength = this.textureLength
-
-	let pxStep = Math.max(
-		// width / span makes step correspond to texture samples
-		viewport[2] / Math.abs(span),
-		// pxStep affects jittering on panning, .5 is good value
-		this.pxStep || Math.pow(thickness, .1) * .1
-	)
-
-	let sampleStep = pxStep * span / viewport[2]
-	let pxPerSample = pxStep / sampleStep
-
-	// translate is calculated so to meet conditions:
-	// - sampling always starts at 0 sample of 0 texture
-	// - panning never breaks that rule
-	// - changing sampling step never breaks that rule
-	// - to reduce error for big translate, it is rotated by textureLength
-	// - panning is always perceived smooth
-
-	let translate = range[0]
-	let translater = translate % dataLength
-	let translates = Math.floor(translate / sampleStep)
-	let translatei = translates * sampleStep
-	let translateri = Math.floor(translatei % dataLength)
-	let translateriFract = (translatei % dataLength) - translateri
-
-	// correct translater to always be under translateri
-	// for correct posShift in shader
-	if (translater < translateri) translater += dataLength
-
-	// NOTE: this code took ~3 days
-	// please beware of circular texture join cases and low scales
-	// .1 / sampleStep is error compensation
-	let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
-
-	let currTexture = Math.floor(translatei / dataLength)
-	if (translateri < 0) currTexture += 1
-
-	let VERTEX_REPEAT = 2.;
-
-	// limit not existing in texture points
-	let offset = 2. * Math.max(-translates * VERTEX_REPEAT, 0)
-
-	let count = Math.max(2,
-		Math.min(
-			// number of visible texture sampling points
-			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
-
-			// number of available data points
-			2 * Math.floor(totals - Math.max(translates, 0)),
-
-			// number of visible vertices on the screen
-			2 * Math.ceil(viewport[2] / pxStep) + 4,
-
-			// number of ids available
-			this.maxSampleCount
-		) * VERTEX_REPEAT
-	)
-
-	let mode = this.mode
-
-	// use more complicated range draw only for sample intervals
-	// note that rangeDraw gives sdev error for high values dataLength
-	this.drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, stepX, range, mode
-	}
-
-	this.dirty = false
-
-	return this.drawOptions
-}
-
-// draw frame according to state
-Waveform.prototype.render = function () {
-	let o = this.calc()
-
-	// range case
-	if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
-		this.shader.drawRanges.call(this, o)
-	}
-
-	// line case
-	else {
-		this.shader.drawLine.call(this, o)
-
-		// this.shader.drawLine.call(this, extend(o, {
-		// 	primitive: 'line strip',
-		// 	color: [0,0,255,255]
-		// }))
-		// this.shader.drawLine.call(this, extend(o, {
-		// 	primitive: 'points',
-		// 	color: [0,0,0,255]
-		// }))
-	}
-
-	return this
-}
-
-// get data at a point
-Waveform.prototype.pick = function (x) {
-	if (!this.storeData) throw Error('Picking is disabled. Enable it via constructor options.')
-
-	if (typeof x !== 'number') {
-		x = Math.max(x.clientX - elOffset(this.canvas).left, 0)
-	}
-
-	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep, amplitude} = this.calc()
-
-	let txt = this.textures[currTexture]
-
-	if (!txt) return null
-
-	let xOffset = Math.floor(span * x / viewport[2])
-	let offset = Math.floor(translater + xOffset)
-	let xShift = translater - translateri
-
-	if (offset < 0 || offset > this.total) return null
-
-	let ch = this.textureChannels
-	let data = txt.data
-
-	let samples = data.subarray(offset * ch, offset * ch + ch)
-
-	// single-value pick
-	// if (pxPerSample >= 1) {
-		let avg = samples[0]
-		return {
-			average: avg,
-			sdev: 0,
-			offset: [offset, offset],
-			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
-			y: ((-avg - amplitude[0]) / (amplitude[1] - amplitude[0])) * this.viewport.height + this.viewport.y
-		}
-	// }
-
-	// FIXME: multi-value pick
-}
 
 // update visual state
 Waveform.prototype.update = function (o) {
 	if (!o) return this
 	if (o.length != null) o = {data: o}
 
-	this.dirty = true
+	this.needsRecalc = true
 
 	o = pick(o, {
 		data: 'data value values sample samples',
@@ -491,7 +301,6 @@ Waveform.prototype.update = function (o) {
 		amplitude: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
 		thickness: 'thickness width linewidth lineWidth line-width',
 		pxStep: 'step pxStep',
-		stepX: 'xStep xstep interval stepX stepx',
 		color: 'color colour colors colours fill fillColor fill-color',
 		line: 'line line-style lineStyle linestyle',
 		viewport: 'clip vp viewport viewBox viewbox viewPort area',
@@ -531,8 +340,6 @@ Waveform.prototype.update = function (o) {
 	if (o.pxStep !== undefined) {
 		this.pxStep = toPx(o.pxStep)
 	}
-
-	if (o.stepX) this.stepX = o.stepX
 
 	if (o.opacity !== undefined) {
 		this.opacity = parseFloat(o.opacity)
@@ -609,12 +416,9 @@ Waveform.prototype.update = function (o) {
 	// reset sample textures if new samples data passed
 	if (o.data) {
 		this.total = 0
-		this.firstX = null
-		this.lastX = null
 		this.lastY = null
 		this.minY = Infinity
 		this.maxY = -Infinity
-		this.stepSum = 0
 		this.push(o.data)
 	}
 
@@ -626,76 +430,25 @@ Waveform.prototype.update = function (o) {
 	return this
 }
 
-// put samples into texture throttled
+// append samples, will be put into texture at the next frame or idle
 Waveform.prototype.push = function (samples) {
 	if (!samples || !samples.length) return
 
-	this.dirty = true
-
-	// plan update for the next tick
 	for (let i = 0; i < samples.length; i++) {
-		this.pushQueue.push(samples[i])
-
-		// unwrap x, if required
+		this.queuedData.push(samples[i])
 	}
+
+	this.needsRecalc = true
+
+	idle(() => {
+		this.calc()
+	})
 
 	return this
 }
 
-// put new samples into texture instantly
-Waveform.prototype._push = function (samples) {
-	// [{x, y}, {x, y}, ...]
-	// [[x, y], [x, y], ...]
-	if (samples[0] && typeof samples[0] !== 'number') {
-		let data = Array(samples.length)
-
-		// normalize {x, y} objects to flat array
-		for (let i = 0; i < samples.length; i++) {
-			let coord = samples[i], x, y, ptr = i
-
-			// [x, y]
-			if (coord.length) {
-				[x, y] = coord
-			}
-			// {x, y}
-			else if (coord.x != null) {
-				x = coord.x
-				y = coord.y
-			}
-
-			// FIXME: if more than N samples in a row - do not refine stepX - disable refinement
-
-			// let stepX = this.stepX
-			// let expectedX = this.lastX + stepX
-
-			// FIXME calc missorted values from the future/past
-			// ptr = i + Math.round((x - expectedX) / stepX)
-
-			if (this.firstX == null) {
-				this.firstX = x
-			}
-
-			// refine xStep
-			if (this.lastX != null) {
-				this.stepSum += x - this.lastX
-			}
-
-			data[ptr] = y
-
-			this.lastX = x
-			this.lastY = y
-		}
-		samples = data
-	}
-	else {
-		if (this.firstX == null) this.firstX = 0
-
-		// stepX does not play any role for regular sequence of samples
-		if (!this.stepX) this.stepX = 1
-
-		this.lastX = this.total + samples.length - 1
-		this.lastY = samples[samples.length - 1]
-	}
+// write samples into texture
+Waveform.prototype._write = function (samples, at=this.total) {
 
 	// carefully handle array
 	if (Array.isArray(samples)) {
@@ -723,8 +476,8 @@ Waveform.prototype._push = function (samples) {
 	let [txtW, txtH] = this.textureShape
 	let txtLen = this.textureLength
 
-	let offset = this.total % txtLen
-	let id = Math.floor(this.total / txtLen)
+	let offset = at % txtLen
+	let id = Math.floor(at / txtLen)
 	let y = Math.floor(offset / txtW)
 	let x = offset % txtW
 	let tillEndOfTxt = txtLen - offset
@@ -759,15 +512,11 @@ Waveform.prototype._push = function (samples) {
 			// mag: 'linear',
 			wrap: ['clamp', 'clamp']
 		})
-
-		if (this.storeData) {
-			txt.data = pool.mallocFloat64(txtLen * ch)
-		}
 	}
 
 	// calc sum, sum2 and form data for the samples
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
-	let data = this.storeData ? txt.data.subarray(offset * ch, offset * ch + dataLen * ch) : pool.mallocFloat64(dataLen * ch)
+	let data = pool.mallocFloat64(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
 		// put NaN samples as indicators of blank samples
 		if (!isNaN(samples[i])) {
@@ -787,7 +536,8 @@ Waveform.prototype._push = function (samples) {
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
 	}
-	this.total += dataLen
+	// increase total by the number of new samples
+	if (this.total - at < dataLen) this.total += dataLen - (this.total - at)
 
 	// fullfill last unfinished row
 	let firstRowWidth = 0
@@ -799,7 +549,7 @@ Waveform.prototype._push = function (samples) {
 		// if data is shorter than the texture row - skip the rest
 		if (x + samples.length <= txtW) {
 			pool.freeFloat64(samples)
-			if (!this.storeData) pool.freeFloat64(data)
+			pool.freeFloat64(data)
 			return
 		}
 
@@ -807,9 +557,9 @@ Waveform.prototype._push = function (samples) {
 
 		// shortcut next texture block
 		if (y === txtH) {
-			if (!this.storeData) pool.freeFloat64(data)
+			pool.freeFloat64(data)
 			this.push(samples.subarray(firstRowWidth))
-			pool.freeFloat(samples)
+			pool.freeFloat64(samples)
 			return
 		}
 
@@ -837,7 +587,7 @@ Waveform.prototype._push = function (samples) {
 		this.push(samples.subarray(tillEndOfTxt))
 
 		pool.freeFloat64(samples)
-		if (!this.storeData) pool.freeFloat64(data)
+		pool.freeFloat64(data)
 
 		return
 	}
@@ -870,6 +620,173 @@ Waveform.prototype._push = function (samples) {
 	}
 }
 
+// calculate draw options
+Waveform.prototype.calc = function () {
+	if (!this.needsRecalc) return this.drawOptions
+
+	// apply samples changes, if any
+	if (this.queuedData.length) {
+		this._write(this.queuedData)
+		this.queuedData.length = 0
+	}
+
+	let {total, opacity, amplitude, viewport} = this
+	let range
+
+	// null-range spans the whole data range
+	if (!this.range) {
+		range = [0, this.total - 1]
+	} else {
+		range = this.range
+	}
+
+	if (!amplitude) amplitude = [this.minY, this.maxY]
+
+	let color = this.color
+	let thickness = this.thickness
+
+	// calc runtime props
+	let span = (range[1] - range[0]) || 1
+
+	let dataLength = this.textureLength
+
+	let pxStep = Math.max(
+		// width / span makes step correspond to texture samples
+		viewport[2] / Math.abs(span),
+		// pxStep affects jittering on panning, .5 is good value
+		this.pxStep || Math.pow(thickness, .1) * .1
+	)
+
+	let sampleStep = pxStep * span / viewport[2]
+	let pxPerSample = pxStep / sampleStep
+
+	// translate is calculated so to meet conditions:
+	// - sampling always starts at 0 sample of 0 texture
+	// - panning never breaks that rule
+	// - changing sampling step never breaks that rule
+	// - to reduce error for big translate, it is rotated by textureLength
+	// - panning is always perceived smooth
+
+	let translate = range[0]
+	let translater = translate % dataLength
+	let translates = Math.floor(translate / sampleStep)
+	let translatei = translates * sampleStep
+	let translateri = Math.floor(translatei % dataLength)
+	let translateriFract = (translatei % dataLength) - translateri
+
+	// correct translater to always be under translateri
+	// for correct posShift in shader
+	if (translater < translateri) translater += dataLength
+
+	// NOTE: this code took ~3 days
+	// please beware of circular texture join cases and low scales
+	// .1 / sampleStep is error compensation
+	let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
+
+	let currTexture = Math.floor(translatei / dataLength)
+	if (translateri < 0) currTexture += 1
+
+	let VERTEX_REPEAT = 2.;
+
+	// limit not existing in texture points
+	let offset = 2. * Math.max(-translates * VERTEX_REPEAT, 0)
+
+	let count = Math.max(2,
+		Math.min(
+			// number of visible texture sampling points
+			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
+
+			// number of available data points
+			2 * Math.floor(totals - Math.max(translates, 0)),
+
+			// number of visible vertices on the screen
+			2 * Math.ceil(viewport[2] / pxStep) + 4,
+
+			// number of ids available
+			this.maxSampleCount
+		) * VERTEX_REPEAT
+	)
+
+	let mode = this.mode
+
+	// use more complicated range draw only for sample intervals
+	// note that rangeDraw gives sdev error for high values dataLength
+	this.drawOptions = {
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode
+	}
+
+	this.needsRecalc = false
+
+	return this.drawOptions
+}
+
+// draw frame according to state
+Waveform.prototype.render = function () {
+	let o = this.calc()
+
+	// range case
+	if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
+		this.shader.drawRanges.call(this, o)
+	}
+
+	// line case
+	else {
+		this.shader.drawLine.call(this, o)
+
+		// this.shader.drawLine.call(this, extend(o, {
+		// 	primitive: 'line strip',
+		// 	color: [0,0,255,255]
+		// }))
+		// this.shader.drawLine.call(this, extend(o, {
+		// 	primitive: 'points',
+		// 	color: [0,0,0,255]
+		// }))
+	}
+
+	return this
+}
+
+// get data at a point
+Waveform.prototype.pick = function (x) {
+	if (!this.storeData) throw Error('Picking is disabled. Enable it via constructor options.')
+
+	if (typeof x !== 'number') {
+		x = Math.max(x.clientX - elOffset(this.canvas).left, 0)
+	}
+
+	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep, amplitude} = this.calc()
+
+	let txt = this.textures[currTexture]
+
+	if (!txt) return null
+
+	let xOffset = Math.floor(span * x / viewport[2])
+	let offset = Math.floor(translater + xOffset)
+	let xShift = translater - translateri
+
+	if (offset < 0 || offset > this.total) return null
+
+	let ch = this.textureChannels
+	// FIXME: use samples array
+	let data = txt.data
+
+	let samples = data.subarray(offset * ch, offset * ch + ch)
+
+	// single-value pick
+	// if (pxPerSample >= 1) {
+		let avg = samples[0]
+		return {
+			average: avg,
+			sdev: 0,
+			offset: [offset, offset],
+			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
+			y: ((-avg - amplitude[0]) / (amplitude[1] - amplitude[0])) * this.viewport.height + this.viewport.y
+		}
+	// }
+
+	// FIXME: multi-value pick
+}
+
 // clear viewport area occupied by the renderer
 Waveform.prototype.clear = function () {
 	if (!this.drawOptions) return this
@@ -891,7 +808,6 @@ Waveform.prototype.clear = function () {
 // dispose all resources
 Waveform.prototype.destroy = function () {
 	this.textures.forEach(txt => {
-		if (this.storeData) pool.freeFloat64(txt.data)
 		txt.destroy()
 	})
 	this.textures2.forEach(txt => {

@@ -39,9 +39,6 @@ function Waveform (o) {
 	this.textures2 = []
 	this.textureLength = this.textureShape[0] * this.textureShape[1]
 
-	// total number of samples
-	this.total = 0
-
 	// pointer to the first/last x values, detected from the first data
 	// used for organizing data gaps
 	this.lastY
@@ -265,6 +262,18 @@ Waveform.prototype.createShader = function (o) {
 }
 
 Object.defineProperties(Waveform.prototype, {
+	total: {
+		get: function () {
+			if (!this.needsRecalc) return this.drawOptions.total
+
+			return (this._total || 0) + this.pushQueue.length
+		},
+		set: function (t) {
+			this._total = t
+			this.pushQueue.length = 0
+		}
+	},
+
 	viewport: {
 		get: function () {
 			if (!this.needsRecalc) return this.drawOptions.viewport
@@ -460,7 +469,7 @@ Waveform.prototype.update = function (o) {
 
 // append samples, will be put into texture at the next frame or idle
 Waveform.prototype.push = function (...samples) {
-	if (!samples.length) return
+	if (!samples || !samples.length) return this
 
 	for (let i = 0; i < samples.length; i++) {
 		if (samples[i].length) {
@@ -484,7 +493,24 @@ Waveform.prototype.push = function (...samples) {
 }
 
 // write samples into texture
-Waveform.prototype.set = function (samples, at=this.total) {
+Waveform.prototype.set = function (samples, at=0) {
+	if (!samples || !samples.length) return this
+
+	// draing queue, if possible overlap
+	if (samples !== this.pushQueue && at + samples.length > this.total) {
+		if (this.pushQueue.length) {
+			this.set(this.pushQueue, this.total - this.pushQueue.length)
+			this.pushQueue.length = 0
+		}
+	}
+
+	// future fill: provide NaN data
+	if (at > this.total) {
+		this.set(Array(at - this.total), this.total - this.pushQueue.length)
+	}
+
+	this.needsRecalc = true
+
 	// carefully handle array
 	if (Array.isArray(samples)) {
 		let floatSamples = pool.mallocFloat64(samples.length)
@@ -572,7 +598,7 @@ Waveform.prototype.set = function (samples, at=this.total) {
 		data[i * ch + 2] = txt.sum2
 	}
 	// increase total by the number of new samples
-	if (this.total - at < dataLen) this.total += dataLen - (this.total - at)
+	if (this.total - this.pushQueue.length - at < dataLen) this.total += dataLen - (this.total - at)
 
 	// fullfill last unfinished row
 	let firstRowWidth = 0
@@ -585,7 +611,7 @@ Waveform.prototype.set = function (samples, at=this.total) {
 		if (x + samples.length <= txtW) {
 			pool.freeFloat64(samples)
 			pool.freeFloat64(data)
-			return
+			return this
 		}
 
 		y++
@@ -595,7 +621,7 @@ Waveform.prototype.set = function (samples, at=this.total) {
 			pool.freeFloat64(data)
 			this.push(samples.subarray(firstRowWidth))
 			pool.freeFloat64(samples)
-			return
+			return this
 		}
 
 		offset += firstRowWidth
@@ -624,7 +650,7 @@ Waveform.prototype.set = function (samples, at=this.total) {
 		pool.freeFloat64(samples)
 		pool.freeFloat64(data)
 
-		return
+		return this
 	}
 
 	// put data to texture, provide NaN transport & performant fractions calc
@@ -653,6 +679,8 @@ Waveform.prototype.set = function (samples, at=this.total) {
 		pool.freeFloat32(f32data)
 		pool.freeFloat32(f32fract)
 	}
+
+	return this
 }
 
 // calculate draw options

@@ -180,7 +180,15 @@ t.skip('timestamp gaps get interpolated by edge values', async t => {
 
 t.skip('big zoom out value does not create wrong image')
 
-t.only('push numbers')
+t('push numbers / multiple items', t => {
+	let wf = createWaveform(gl)
+
+	wf.push(1,2,3).render()
+
+	t.equal(wf.total, 3)
+
+	t.end()
+})
 
 t.skip('step is automatically detected from the x-y input data', async t => {
 	var wf = createWaveform({gl})
@@ -413,10 +421,10 @@ t.skip('fade artifacts', async t => {
 	t.end()
 })
 
-t('rewrite data at specific offset', async t => {
+t('set data at specific offset', async t => {
 	let wf = createWaveform(gl)
 
-	wf.push([0,2,1,3])
+	wf.set([0,2,1,3])
 	wf.thickness = 4
 	wf.color = [255,255,0,255]
 	wf.render()
@@ -426,6 +434,10 @@ t('rewrite data at specific offset', async t => {
 
 	// show(wf, document)
 	t.ok(eq(await img`./test/fixture/set.png`, wf))
+
+	// set the future
+	wf.set([1,1], 5).clear().render()
+	t.ok(eq(await img`./test/fixture/set-future.png`, wf, .3))
 
 	t.end()
 })

@@ -43,7 +43,7 @@ function Waveform (o) {
 	// used for organizing data gaps
 	this.lastY
 	this.minY = Infinity, this.maxY = -Infinity
-
+	this.total = 0
 
 	// find a good name for runtime draw state
 	this.drawOptions = {}
@@ -262,18 +262,6 @@ Waveform.prototype.createShader = function (o) {
 }
 
 Object.defineProperties(Waveform.prototype, {
-	total: {
-		get: function () {
-			if (!this.needsRecalc) return this.drawOptions.total
-
-			return (this._total || 0) + this.pushQueue.length
-		},
-		set: function (t) {
-			this._total = t
-			this.pushQueue.length = 0
-		}
-	},
-
 	viewport: {
 		get: function () {
 			if (!this.needsRecalc) return this.drawOptions.viewport
@@ -352,7 +340,7 @@ Object.defineProperties(Waveform.prototype, {
 	range: {
 		get: function () {
 			if (!this.needsRecalc) return this.drawOptions.range
-			return this._range || [0, this.total - 1]
+			return this._range || [0, this.total + this.pushQueue.length - 1]
 		},
 		set: function (range) {
 			if (range.length) {
@@ -484,7 +472,6 @@ Waveform.prototype.push = function (...samples) {
 	}
 
 	this.needsRecalc = true
-
 	idle(() => {
 		this.calc()
 	})
@@ -496,17 +483,14 @@ Waveform.prototype.push = function (...samples) {
 Waveform.prototype.set = function (samples, at=0) {
 	if (!samples || !samples.length) return this
 
-	// draing queue, if possible overlap
-	if (samples !== this.pushQueue && at + samples.length > this.total) {
-		if (this.pushQueue.length) {
-			this.set(this.pushQueue, this.total - this.pushQueue.length)
-			this.pushQueue.length = 0
-		}
+	// draing queue, if possible overlap with total
+	if (at + samples.length > this.total + this.pushQueue.length) {
+		this.flush()
 	}
 
 	// future fill: provide NaN data
 	if (at > this.total) {
-		this.set(Array(at - this.total), this.total - this.pushQueue.length)
+		this.set(Array(at - this.total), this.total)
 	}
 
 	this.needsRecalc = true
@@ -598,7 +582,7 @@ Waveform.prototype.set = function (samples, at=0) {
 		data[i * ch + 2] = txt.sum2
 	}
 	// increase total by the number of new samples
-	if (this.total - this.pushQueue.length - at < dataLen) this.total += dataLen - (this.total - at)
+	if (this.total - at < dataLen) this.total += dataLen - (this.total - at)
 
 	// fullfill last unfinished row
 	let firstRowWidth = 0
@@ -683,15 +667,19 @@ Waveform.prototype.set = function (samples, at=0) {
 	return this
 }
 
+// drain pushQueue
+Waveform.prototype.flush = function () {
+	if (this.pushQueue.length) {
+		let arr = this.pushQueue
+		this.set(arr)
+		this.pushQueue.length = 0
+	}
+	return this
+}
+
 // calculate draw options
 Waveform.prototype.calc = function () {
 	if (!this.needsRecalc) return this.drawOptions
-
-	// apply samples changes, if any
-	if (this.pushQueue.length) {
-		this.set(this.pushQueue)
-		this.pushQueue.length = 0
-	}
 
 	let {total, opacity, amplitude, viewport, range} = this
 
@@ -775,6 +763,8 @@ Waveform.prototype.calc = function () {
 
 // draw frame according to state
 Waveform.prototype.render = function () {
+	this.flush()
+
 	if (this.total < 2) return this
 
 	let o = this.calc()

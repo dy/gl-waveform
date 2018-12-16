@@ -1,25 +1,27 @@
 'use strict';
 
-function _typeof(obj) {
-  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
-    _typeof = function (obj) {
-      return typeof obj;
-    };
-  } else {
-    _typeof = function (obj) {
-      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
-    };
-  }
-
-  return _typeof(obj);
-}
-
 function _slicedToArray(arr, i) {
   return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest();
 }
 
+function _toConsumableArray(arr) {
+  return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread();
+}
+
+function _arrayWithoutHoles(arr) {
+  if (Array.isArray(arr)) {
+    for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
+
+    return arr2;
+  }
+}
+
 function _arrayWithHoles(arr) {
   if (Array.isArray(arr)) return arr;
+}
+
+function _iterableToArray(iter) {
+  if (Symbol.iterator in Object(iter) || Object.prototype.toString.call(iter) === "[object Arguments]") return Array.from(iter);
 }
 
 function _iterableToArrayLimit(arr, i) {
@@ -46,6 +48,10 @@ function _iterableToArrayLimit(arr, i) {
   }
 
   return _arr;
+}
+
+function _nonIterableSpread() {
+  throw new TypeError("Invalid attempt to spread non-iterable instance");
 }
 
 function _nonIterableRest() {
@@ -76,47 +82,11 @@ var offset = /*#__PURE__*/Object.freeze({
 
 });
 
-var assert = require('assert');
-
-var dftOpts = {};
-var hasWindow = typeof window !== 'undefined';
-var hasIdle = hasWindow && window.requestIdleCallback;
-module.exports = onIdle;
-
-function onIdle(cb, opts) {
-  opts = opts || dftOpts;
-  var timerId;
-  assert.equal(_typeof(cb), 'function', 'on-idle: cb should be type function');
-  assert.equal(_typeof(opts), 'object', 'on-idle: opts should be type object');
-
-  if (hasIdle) {
-    timerId = window.requestIdleCallback(function (idleDeadline) {
-      // reschedule if there's less than 1ms remaining on the tick
-      // and a timer did not expire
-      if (idleDeadline.timeRemaining() <= 1 && !idleDeadline.didTimeout) {
-        return onIdle(cb, opts);
-      } else {
-        cb(idleDeadline);
-      }
-    }, opts);
-    return window.cancelIdleCallback.bind(window, timerId);
-  } else if (hasWindow) {
-    timerId = setTimeout(cb, 0);
-    return clearTimeout.bind(window, timerId);
-  }
-}
-
-var onIdle$1 = /*#__PURE__*/Object.freeze({
-
-});
-
 function getCjsExportFromNamespace (n) {
 	return n && n.default || n;
 }
 
 var elOffset = getCjsExportFromNamespace(offset);
-
-var idle = getCjsExportFromNamespace(onIdle$1);
 
 var pick = require('pick-by-alias');
 
@@ -148,8 +118,11 @@ var px = require('to-px');
 
 var lerp = require('lerp');
 
-var isBrowser = require('is-browser'); // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
+var isBrowser = require('is-browser');
 
+var idle = require('on-idle');
+
+var MAX_ARGUMENTS = 1024; // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
 var shaderCache = new WeakMap();
 
@@ -163,15 +136,11 @@ function Waveform(o) {
 
   this.textures = [];
   this.textures2 = [];
-  this.textureLength = this.textureShape[0] * this.textureShape[1]; // total number of samples
-
-  this.total = 0; // pointer to the first/last x values, detected from the first data
+  this.textureLength = this.textureShape[0] * this.textureShape[1]; // pointer to the first/last x values, detected from the first data
   // used for organizing data gaps
 
   this.lastY;
-  this.minY = Infinity, this.maxY = -Infinity; // stores all samples data
-
-  this.queuedData = Array(); // find a good name for runtime draw state
+  this.minY = Infinity, this.maxY = -Infinity; // find a good name for runtime draw state
 
   this.drawOptions = {}; // needs recalc
 
@@ -395,6 +364,17 @@ Waveform.prototype.createShader = function (o) {
 };
 
 Object.defineProperties(Waveform.prototype, {
+  total: {
+    get: function get() {
+      if (!this.needsRecalc) return this.drawOptions.total; // returns existing and planned samples
+
+      return (this._total || 0) + this.pushQueue.length;
+    },
+    set: function set(t) {
+      this._total = t;
+      this.pushQueue.length = 0;
+    }
+  },
   viewport: {
     get: function get() {
       if (!this.needsRecalc) return this.drawOptions.viewport;
@@ -409,6 +389,73 @@ Object.defineProperties(Waveform.prototype, {
     },
     set: function set(v) {
       this._viewport = v ? parseRect(v) : v;
+    }
+  },
+  color: {
+    get: function get() {
+      if (!this.needsRecalc) return this.drawOptions.color;
+      return this._color || [0, 0, 0, 255];
+    },
+    // flatten colors to a single uint8 array
+    set: function set(v) {
+      if (!v) v = 'transparent'; // single color
+
+      if (typeof v === 'string') {
+        this._color = rgba(v, 'uint8');
+      } // flat array
+      else if (typeof v[0] === 'number') {
+          var l = Math.max(v.length, 4);
+          if (this._color) pool.freeUint8(this._color);
+          this._color = pool.mallocUint8(l);
+          var sub = (v.subarray || v.slice).bind(v);
+
+          for (var i = 0; i < l; i += 4) {
+            this._color.set(rgba(sub(i, i + 4), 'uint8'), i);
+          }
+        } // nested array
+        else {
+            var _l = v.length;
+            if (this._color) pool.freeUint8(this._color);
+            this._color = pool.mallocUint8(_l * 4);
+
+            for (var _i = 0; _i < _l; _i++) {
+              this._color.set(rgba(v[_i], 'uint8'), _i * 4);
+            }
+          }
+    }
+  },
+  amplitude: {
+    get: function get() {
+      if (!this.needsRecalc) return this.drawOptions.amplitude;
+      return this._amplitude || [this.minY, this.maxY];
+    },
+    set: function set(amplitude) {
+      if (typeof amplitude === 'number') {
+        this._amplitude = [-amplitude, +amplitude];
+      } else if (amplitude.length) {
+        this._amplitude = [amplitude[0], amplitude[1]];
+      } else {
+        this._amplitude = amplitude;
+      }
+    }
+  },
+  range: {
+    get: function get() {
+      if (!this.needsRecalc) return this.drawOptions.range;
+      return this._range || [0, this.total - 1];
+    },
+    set: function set(range) {
+      if (range.length) {
+        // support vintage 4-value range
+        if (range.length === 4) {
+          this._range = [range[0], range[2]];
+          this.amplitude = [range[1], range[3]];
+        } else {
+          this._range = [range[0], range[1]];
+        }
+      } else if (typeof range === 'number') {
+        this._range = [-range, -0];
+      }
     }
   }
 }); // update visual state
@@ -471,59 +518,18 @@ Waveform.prototype.update = function (o) {
 
   if (o.flip) {
     this.flip = !!o.flip;
-  } // custom/default visible data window
-
+  }
 
   if (o.range !== undefined) {
-    if (o.range.length) {
-      // support vintage 4-value range
-      if (o.range.length === 4) {
-        this.range = [o.range[0], o.range[2]];
-        o.amplitude = [o.range[1], o.range[3]];
-      } else {
-        this.range = [o.range[0], o.range[1]];
-      }
-    } else if (typeof o.range === 'number') {
-      this.range = [-o.range, -0];
-    }
+    this.range = o.range;
+  }
+
+  if (o.color !== undefined) {
+    this.color = o.color;
   }
 
   if (o.amplitude !== undefined) {
-    if (typeof o.amplitude === 'number') {
-      this.amplitude = [-o.amplitude, +o.amplitude];
-    } else if (o.amplitude.length) {
-      this.amplitude = [o.amplitude[0], o.amplitude[1]];
-    } else {
-      this.amplitude = o.amplitude;
-    }
-  } // flatten colors to a single uint8 array
-
-
-  if (o.color !== undefined) {
-    if (!o.color) o.color = 'transparent'; // single color
-
-    if (typeof o.color === 'string') {
-      this.color = rgba(o.color, 'uint8');
-    } // flat array
-    else if (typeof o.color[0] === 'number') {
-        var l = Math.max(o.color.length, 4);
-        pool.freeUint8(this.color);
-        this.color = pool.mallocUint8(l);
-        var sub = (o.color.subarray || o.color.slice).bind(o.color);
-
-        for (var i = 0; i < l; i += 4) {
-          this.color.set(rgba(sub(i, i + 4), 'uint8'), i);
-        }
-      } // nested array
-      else {
-          var _l = o.color.length;
-          pool.freeUint8(this.color);
-          this.color = pool.mallocUint8(_l * 4);
-
-          for (var _i = 0; _i < _l; _i++) {
-            this.color.set(rgba(o.color[_i], 'uint8'), _i * 4);
-          }
-        }
+    this.amplitude = o.amplitude;
   } // reset sample textures if new samples data passed
 
 
@@ -544,13 +550,25 @@ Waveform.prototype.update = function (o) {
 }; // append samples, will be put into texture at the next frame or idle
 
 
-Waveform.prototype.push = function (samples) {
+Waveform.prototype.push = function () {
   var _this = this;
 
-  if (!samples || !samples.length) return;
+  for (var _len = arguments.length, samples = new Array(_len), _key = 0; _key < _len; _key++) {
+    samples[_key] = arguments[_key];
+  }
+
+  if (!samples || !samples.length) return this;
 
   for (var i = 0; i < samples.length; i++) {
-    this.queuedData.push(samples[i]);
+    if (samples[i].length) {
+      var _this$pushQueue;
+
+      if (samples[i].length > MAX_ARGUMENTS) {
+        for (var j = 0; j < samples[i].length; j++) {
+          this.pushQueue.push(samples[i][j]);
+        }
+      } else (_this$pushQueue = this.pushQueue).push.apply(_this$pushQueue, _toConsumableArray(samples[i]));
+    } else this.pushQueue.push(samples[i]);
   }
 
   this.needsRecalc = true;
@@ -561,10 +579,24 @@ Waveform.prototype.push = function (samples) {
 }; // write samples into texture
 
 
-Waveform.prototype._write = function (samples) {
-  var at = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.total;
+Waveform.prototype.set = function (samples) {
+  var at = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+  if (!samples || !samples.length) return this; // draing queue, if possible overlap
 
-  // carefully handle array
+  if (samples !== this.pushQueue && at + samples.length > this.total) {
+    if (this.pushQueue.length) {
+      this.set(this.pushQueue, this.total - this.pushQueue.length);
+      this.pushQueue.length = 0;
+    }
+  } // future fill: provide NaN data
+
+
+  if (at > this.total) {
+    this.set(Array(at - this.total), this.total - this.pushQueue.length);
+  }
+
+  this.needsRecalc = true; // carefully handle array
+
   if (Array.isArray(samples)) {
     var floatSamples = pool.mallocFloat64(samples.length);
 
@@ -649,7 +681,7 @@ Waveform.prototype._write = function (samples) {
   } // increase total by the number of new samples
 
 
-  if (this.total - at < dataLen) this.total += dataLen - (this.total - at); // fullfill last unfinished row
+  if (this.total - this.pushQueue.length - at < dataLen) this.total += dataLen - (this.total - at); // fullfill last unfinished row
 
   var firstRowWidth = 0;
 
@@ -660,7 +692,7 @@ Waveform.prototype._write = function (samples) {
     if (x + samples.length <= txtW) {
       pool.freeFloat64(samples);
       pool.freeFloat64(data);
-      return;
+      return this;
     }
 
     y++; // shortcut next texture block
@@ -669,7 +701,7 @@ Waveform.prototype._write = function (samples) {
       pool.freeFloat64(data);
       this.push(samples.subarray(firstRowWidth));
       pool.freeFloat64(samples);
-      return;
+      return this;
     }
 
     offset += firstRowWidth;
@@ -697,7 +729,7 @@ Waveform.prototype._write = function (samples) {
     this.push(samples.subarray(tillEndOfTxt));
     pool.freeFloat64(samples);
     pool.freeFloat64(data);
-    return;
+    return this;
   } // put data to texture, provide NaN transport & performant fractions calc
 
 
@@ -726,31 +758,24 @@ Waveform.prototype._write = function (samples) {
     pool.freeFloat32(f32data);
     pool.freeFloat32(f32fract);
   }
+
+  return this;
 }; // calculate draw options
 
 
 Waveform.prototype.calc = function () {
   if (!this.needsRecalc) return this.drawOptions; // apply samples changes, if any
 
-  if (this.queuedData.length) {
-    this._write(this.queuedData);
-
-    this.queuedData.length = 0;
+  if (this.pushQueue.length) {
+    this.set(this.pushQueue);
+    this.pushQueue.length = 0;
   }
 
   var total = this.total,
       opacity = this.opacity,
       amplitude = this.amplitude,
-      viewport = this.viewport;
-  var range; // null-range spans the whole data range
-
-  if (!this.range) {
-    range = [0, this.total - 1];
-  } else {
-    range = this.range;
-  }
-
-  if (!amplitude) amplitude = [this.minY, this.maxY];
+      viewport = this.viewport,
+      range = this.range;
   var color = this.color;
   var thickness = this.thickness; // calc runtime props
 
@@ -824,6 +849,7 @@ Waveform.prototype.calc = function () {
 
 
 Waveform.prototype.render = function () {
+  if (this.total < 2) return this;
   var o = this.calc(); // range case
 
   if (o.pxPerSample <= 1. || o.mode === 'range' && o.mode != 'line') {
@@ -923,13 +949,8 @@ Waveform.prototype.color = new Uint8Array([0, 0, 0, 255]);
 Waveform.prototype.opacity = 1;
 Waveform.prototype.thickness = 1;
 Waveform.prototype.mode = null; // Waveform.prototype.fade = true
-// clip area
 
-Waveform.prototype.viewport = null;
-Waveform.prototype.flip = false; // data range
-
-Waveform.prototype.range = null;
-Waveform.prototype.amplitude = null; // Texture size affects
+Waveform.prototype.flip = false; // Texture size affects
 // - sdev error: bigger texture accumulate sum2 error so signal looks more fluffy
 // - performance: bigger texture is slower to create
 // - zoom level: only 2 textures per screen are available, so zoom is limited

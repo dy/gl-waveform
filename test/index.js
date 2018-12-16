@@ -471,22 +471,22 @@ t.skip('gl-waveform-test: single value sequence', async t => {
 
 	let lastStepX = null
 	for (let i = 0; i < data.length; i++) {
-		wf.push([data[i]])
+		wf.push(data[i][1])
 	}
 
-	let o = wf.calc()
-	t.equal(o.stepX, avgStep, 'step is averaged')
-	t.equal(o.total, data.length, 'total is correct')
-	t.equal(wf.firstX, data[0][0], 'first x is correct')
-	t.equal(wf.lastX, data[data.length - 1][0], 'last x is correct')
+	// let o = wf.calc()
+	// t.equal(o.stepX, avgStep, 'step is averaged')
+	// t.equal(o.total, data.length, 'total is correct')
+	// t.equal(wf.firstX, data[0][0], 'first x is correct')
+	// t.equal(wf.lastX, data[data.length - 1][0], 'last x is correct')
 
-	wf.update({range: [69290, 69290.3]})
+	// wf.update({range: [69290, 69290.3]})
 	wf.render()
 
-	// show(wf, document)
-	t.ok(eq(wf, await img`./test/fixture/average-step.png` , .2), 'avg step is ok')
+	show(wf, document)
+	// t.ok(eq(wf, await img`./test/fixture/average-step.png` , .2), 'avg step is ok')
 
-	wf.clear()
+	// wf.clear()
 
 	t.end()
 })
@@ -587,6 +587,24 @@ t.skip('range mode fade, esp. on varying sdevs')
 
 t.skip('multipass rendering')
 
+t('autodetects range', async t => {
+	let wf = createWaveform(gl)
+
+	wf.push(1,2,3)
+	t.deepEqual(wf.range, [0,2])
+	wf.render()
+	wf.push(1,2,3)
+	await timeout(100)
+	t.deepEqual(wf.range, [0,5])
+
+	t.end()
+})
+
+function timeout (n) {
+	return new Promise(function (ok) {
+		setTimeout(ok, n)
+	})
+}
 
 function interactive(wf, cb) {
 	if (!isBrowser) return

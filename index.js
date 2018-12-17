@@ -49,7 +49,7 @@ function Waveform (o) {
 	this.drawOptions = {}
 
 	// needs recalc
-	this.needsRecalc = true
+	this.needsFlush = true
 
 	this.shader = this.createShader(o)
 
@@ -173,6 +173,9 @@ Waveform.prototype.createShader = function (o) {
 			pxPerSample: regl.prop('pxPerSample'),
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
+			sampleStepFract: regl.prop('sampleStepFract'),
+			sampleStepRatioFract: regl.prop('sampleStepRatioFract'),
+			sampleStepRatio: regl.prop('sampleStepRatio'),
 			translate: regl.prop('translate'),
 			// circular translate by textureData
 			translater: regl.prop('translater'),
@@ -264,7 +267,7 @@ Waveform.prototype.createShader = function (o) {
 Object.defineProperties(Waveform.prototype, {
 	viewport: {
 		get: function () {
-			if (!this.needsRecalc) return this.drawOptions.viewport
+			if (!this.needsFlush) return this.drawOptions.viewport
 
 			var viewport
 
@@ -285,7 +288,7 @@ Object.defineProperties(Waveform.prototype, {
 
 	color: {
 		get: function () {
-			if (!this.needsRecalc) return this.drawOptions.color
+			if (!this.needsFlush) return this.drawOptions.color
 
 			return this._color || [0, 0, 0, 255]
 		},
@@ -321,7 +324,7 @@ Object.defineProperties(Waveform.prototype, {
 
 	amplitude: {
 		get: function () {
-			if (!this.needsRecalc) return this.drawOptions.amplitude
+			if (!this.needsFlush) return this.drawOptions.amplitude
 			return this._amplitude || [this.minY, this.maxY]
 		},
 		set: function (amplitude) {
@@ -339,7 +342,7 @@ Object.defineProperties(Waveform.prototype, {
 
 	range: {
 		get: function () {
-			if (!this.needsRecalc) return this.drawOptions.range
+			if (!this.needsFlush) return this.drawOptions.range
 			return this._range || [0, this.total + this.pushQueue.length - 1]
 		},
 		set: function (range) {
@@ -365,7 +368,7 @@ Waveform.prototype.update = function (o) {
 	if (!o) return this
 	if (o.length != null) o = {data: o}
 
-	this.needsRecalc = true
+	this.needsFlush = true
 
 	o = pick(o, {
 		data: 'data value values sample samples',
@@ -471,9 +474,9 @@ Waveform.prototype.push = function (...samples) {
 		else this.pushQueue.push(samples[i])
 	}
 
-	this.needsRecalc = true
-	idle(() => {
-		this.calc()
+	if (this.needsFlush && this.needsFlush.call) this.needsFlush()
+	this.needsFlush = idle(() => {
+		this.flush()
 	})
 
 	return this
@@ -493,7 +496,7 @@ Waveform.prototype.set = function (samples, at=0) {
 		this.set(Array(at - this.total), this.total)
 	}
 
-	this.needsRecalc = true
+	this.needsFlush = true
 
 	// carefully handle array
 	if (Array.isArray(samples)) {
@@ -557,11 +560,13 @@ Waveform.prototype.set = function (samples, at=0) {
 			// mag: 'linear',
 			wrap: ['clamp', 'clamp']
 		})
+
+		txt.data = pool.mallocFloat64(txtLen)
 	}
 
 	// calc sum, sum2 and form data for the samples
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
-	let data = pool.mallocFloat64(dataLen * ch)
+	let data = txt.data.subarray(offset * ch, offset * ch + dataLen * ch) //pool.mallocFloat64(dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
 		// put NaN samples as indicators of blank samples
 		if (!isNaN(samples[i])) {
@@ -669,6 +674,8 @@ Waveform.prototype.set = function (samples, at=0) {
 
 // drain pushQueue
 Waveform.prototype.flush = function () {
+	// cancel planned callback
+	if (this.needsFlush && this.needsFlush.call) this.needsFlush()
 	if (this.pushQueue.length) {
 		let arr = this.pushQueue
 		this.set(arr)
@@ -679,7 +686,9 @@ Waveform.prototype.flush = function () {
 
 // calculate draw options
 Waveform.prototype.calc = function () {
-	if (!this.needsRecalc) return this.drawOptions
+	if (!this.needsFlush) return this.drawOptions
+
+	this.flush()
 
 	let {total, opacity, amplitude, viewport, range} = this
 
@@ -697,8 +706,14 @@ Waveform.prototype.calc = function () {
 		// pxStep affects jittering on panning, .5 is good value
 		this.pxStep || Math.pow(thickness, .1) * .1
 	)
+	pxStep = .25
 
 	let sampleStep = pxStep * span / viewport[2]
+	sampleStep = .005
+	let sampleStepFract = f32.fract(sampleStep)
+	let sampleStepRatio = 1 / sampleStep
+	let sampleStepRatioFract = f32.fract(sampleStepRatio)
+
 	let pxPerSample = pxStep / sampleStep
 
 	// translate is calculated so to meet conditions:
@@ -753,10 +768,11 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	this.drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, sampleStepFract, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode,
+		sampleStepRatio, sampleStepRatioFract
 	}
 
-	this.needsRecalc = false
+	this.needsFlush = false
 
 	return this.drawOptions
 }

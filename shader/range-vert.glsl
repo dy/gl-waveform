@@ -10,7 +10,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, translateri, translateriFract, translater, translatei, translates;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, sampleStepFract, total, totals, translate, translateri, translateriFract, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
 uniform vec4 viewport, color;
 uniform vec2 amp;
 
@@ -25,17 +25,17 @@ void main() {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
-	float offset = id * sampleStep + translateriFract;
+	float offset = id * sampleStep + id * sampleStepFract;
 
 	// compensate snapping for low scale levels
-	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
+	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
 
 	bool isPrevStart = id == 1.;
 	bool isStart = id <= 0.;//-translates;
 	bool isEnd = id >= floor(totals - translates - 1.);
 
-	float baseOffset = offset - sampleStep * 2.;
-	float offset0 = offset - sampleStep;
+	float baseOffset = offset - sampleStep * 2. - sampleStepFract * 2.;
+	float offset0 = offset - sampleStep - sampleStepFract;
 	float offset1 = offset;
 	if (isEnd) offset = total - 1.;
 
@@ -56,11 +56,11 @@ void main() {
 	vec4 sample0 = pick(samples, offset0, baseOffset, translateri);
 	vec4 sample1 = pick(samples, offset1, baseOffset, translateri);
 	vec4 samplePrev = pick(samples, baseOffset, baseOffset, translateri);
-	vec4 sampleNext = pick(samples, offset + sampleStep, baseOffset, translateri);
+	vec4 sampleNext = pick(samples, offset + sampleStep + sampleStepFract, baseOffset, translateri);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
-	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
-	avgNext = (sampleNext.y - sample1.y) / sampleStep;
+	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) * sampleStepRatio + (sample0.y - samplePrev.y) * sampleStepRatioFract;
+	avgNext = (sampleNext.y - sample1.y) * sampleStepRatio + (sampleNext.y - sample1.y) * sampleStepRatioFract;
 
 	// error proof variance calculation
 	float offset0l = floor(offset0);
@@ -87,7 +87,7 @@ void main() {
 		avgCurr = sample1.x;
 	}
 	else if (isPrevStart) {
-			avgCurr = (sample1.y - sample0.y) / sampleStep;
+			avgCurr = (sample1.y - sample0.y) * sampleStepRatio;
 		}
 	else {
 		avgCurr = (
@@ -99,7 +99,16 @@ void main() {
 			- t0 * (sample0r.y - sample0l.y)
 			+ t1 * (sample1rf.y - sample1lf.y)
 			- t0 * (sample0rf.y - sample0lf.y)
-		) / sampleStep;
+		) * sampleStepRatio + (
+			+ sample1l.y
+			- sample0l.y
+			+ sample1lf.y
+			- sample0lf.y
+			+ t1 * (sample1r.y - sample1l.y)
+			- t0 * (sample0r.y - sample0l.y)
+			+ t1 * (sample1rf.y - sample1lf.y)
+			- t0 * (sample0rf.y - sample0lf.y)
+		) * sampleStepRatioFract;
 	}
 
 	float mx2 = (
@@ -111,7 +120,16 @@ void main() {
 		- t0 * (sample0r.z - sample0l.z)
 		+ t1 * (sample1rf.z - sample1lf.z)
 		- t0 * (sample0rf.z - sample0lf.z)
-	)  / sampleStep;
+	)  * sampleStepRatio + (
+		+ sample1l.z
+		- sample0l.z
+		+ sample1lf.z
+		- sample0lf.z
+		+ t1 * (sample1r.z - sample1l.z)
+		- t0 * (sample0r.z - sample0l.z)
+		+ t1 * (sample1rf.z - sample1lf.z)
+		- t0 * (sample0rf.z - sample0lf.z)
+	)  * sampleStepRatioFract;
 	float m2 = avgCurr * avgCurr;
 
 	// σ(x)² = M(x²) - M(x)²

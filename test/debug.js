@@ -97,7 +97,7 @@ Waveform.prototype.render = function () {
 	var avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness, fragColor;
 	let ch = this.textureChannels
 
-sampleStep = f32(sampleStep)
+	sampleStep = f32(sampleStep)
 	ids.forEach((id) => {
 		normThickness = thickness / viewport[3];
 		fragColor = [color[0] / 255., color[1] / 255., color[2] / 255., color[3] / 255.];

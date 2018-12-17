@@ -146,6 +146,42 @@ t('>1 values does not create float32 noise', async t => {
 	t.end()
 })
 
+t.only('big values do not get accumulated', async t => {
+	var f32 = require('to-float32')
+
+	// var createWaveform = require('./debug')
+	var wf = createWaveform(gl)
+
+	for (let i = 0; i < 5; i++) {
+		wf.push(1027 / 10000)
+	}
+	for (let i = 0; i < 5; i++) {
+		wf.push(1007 / 10000)
+	}
+	for (let i = 0; i < 5; i++) {
+		wf.push(1017 / 10000)
+	}
+	for (let i = 0; i < 5; i++) {
+		wf.push(1147 / 10000)
+	}
+	for (let i = 0; i < 10; i++) {
+		wf.push(1011 / 10000)
+	}
+	for (let i = 0; i < 5; i++) {
+		wf.push(1170 / 10000)
+	}
+
+	document.body.appendChild(wf.canvas)
+	interactive(wf, x => {
+		console.log(wf.range)
+	})
+
+	wf.update({mode: 'range', amplitude: [1005 / 10000, 1171 / 10000]})
+	wf.render()
+
+	t.end()
+})
+
 t.skip('empty data chunks in range mode do not add variance', async t => {
 	// TODO: add range-render empty data test
 	t.end()

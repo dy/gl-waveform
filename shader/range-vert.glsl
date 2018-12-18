@@ -10,7 +10,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, sampleStepFract, total, totals, translate, translateri, translateriFract, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, sampleStepFract, total, totals, translate, sampleStepRatio, sampleStepRatioFract;
 uniform vec4 viewport, color;
 uniform vec2 amp;
 
@@ -28,11 +28,11 @@ void main() {
 	float offset = id * sampleStep + id * sampleStepFract;
 
 	// compensate snapping for low scale levels
-	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
+	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translate - offset - translatei) / sampleStep;
 
 	bool isPrevStart = id == 1.;
-	bool isStart = id <= 0.;//-translates;
-	bool isEnd = id >= floor(totals - translates - 1.);
+	bool isStart = false;//id <= 0.;//-translates;
+	bool isEnd = false;//id >= floor(totals - translates - 1.);
 
 	float baseOffset = offset - sampleStep * 2. - sampleStepFract * 2.;
 	float offset0 = offset - sampleStep - sampleStepFract;
@@ -52,11 +52,11 @@ void main() {
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	// vec4 sample0 = isStart ? vec4(0) : pick(samples, offset0, baseOffset, translateri);
-	vec4 sample0 = pick(samples, offset0, baseOffset, translateri);
-	vec4 sample1 = pick(samples, offset1, baseOffset, translateri);
-	vec4 samplePrev = pick(samples, baseOffset, baseOffset, translateri);
-	vec4 sampleNext = pick(samples, offset + sampleStep + sampleStepFract, baseOffset, translateri);
+	// vec4 sample0 = isStart ? vec4(0) : pick(samples, offset0, baseOffset, translatei);
+	vec4 sample0 = pick(samples, offset0, baseOffset, translate);
+	vec4 sample1 = pick(samples, offset1, baseOffset, translate);
+	vec4 samplePrev = pick(samples, baseOffset, baseOffset, translate);
+	vec4 sampleNext = pick(samples, offset + sampleStep + sampleStepFract, baseOffset, translate);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) * sampleStepRatio + (sample0.y - samplePrev.y) * sampleStepRatioFract;
@@ -74,14 +74,14 @@ void main() {
 	// the order of operations is important to provide precision
 	// that comprises linear interpolation and range calculation
 	// x - amplitude, y - sum, z - sum2, w - x offset
-	vec4 sample0l = pick(samples, offset0l, baseOffset, translateri);
-	vec4 sample0r = pick(samples, offset0r, baseOffset, translateri);
-	vec4 sample1r = pick(samples, offset1r, baseOffset, translateri);
-	vec4 sample1l = pick(samples, offset1l, baseOffset, translateri);
-	vec4 sample1lf = pick(fractions, offset1l, baseOffset, translateri);
-	vec4 sample0lf = pick(fractions, offset0l, baseOffset, translateri);
-	vec4 sample1rf = pick(fractions, offset1r, baseOffset, translateri);
-	vec4 sample0rf = pick(fractions, offset0r, baseOffset, translateri);
+	vec4 sample0l = pick(samples, offset0l, baseOffset, translate);
+	vec4 sample0r = pick(samples, offset0r, baseOffset, translate);
+	vec4 sample1r = pick(samples, offset1r, baseOffset, translate);
+	vec4 sample1l = pick(samples, offset1l, baseOffset, translate);
+	vec4 sample1lf = pick(fractions, offset1l, baseOffset, translate);
+	vec4 sample0lf = pick(fractions, offset0l, baseOffset, translate);
+	vec4 sample1rf = pick(fractions, offset1r, baseOffset, translate);
+	vec4 sample0rf = pick(fractions, offset0r, baseOffset, translate);
 
 	if (isStart) {
 		avgCurr = sample1.x;

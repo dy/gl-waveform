@@ -49,6 +49,8 @@ vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
 // shift is passed separately for higher float32 precision of offset
 // export pickLinear for the case of emulating texture linear interpolation
 vec4 pick (Samples samples, float offset, float baseOffset, float translate) {
+	// offset += translate;
+	// baseOffset += translate;
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;

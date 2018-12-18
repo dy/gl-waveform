@@ -97,12 +97,12 @@ Waveform.prototype.render = function () {
 	var avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness, fragColor;
 	let ch = this.textureChannels
 
-	sampleStep = f32(sampleStep)
+	sampleStep = (sampleStep)
 	ids.forEach((id) => {
 		normThickness = thickness / viewport[3];
 		fragColor = [color[0] / 255., color[1] / 255., color[2] / 255., color[3] / 255.];
 		fragColor[3] *= opacity;
-		var offset = id * sampleStep;
+		var offset = (id * sampleStep);
 		var posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
 		var isPrevStart = id == 1.;
 		var isStart = id <= 0.;
@@ -121,32 +121,32 @@ Waveform.prototype.render = function () {
 		avgNext = (sampleNext[1] - sample1[1]) / sampleStep;
 		var offset0l = floor(offset0);
 		var offset1l = floor(offset1);
-		var t0 = f32(offset0 - offset0l);
-		var t1 = f32(offset1 - offset1l);
+		var t0 = offset0 - offset0l;
+		var t1 = offset1 - offset1l;
 		var offset0r = offset0l + 1.;
 		var offset1r = offset1l + 1.;
-		var sample0l = f32(pick(samples, offset0l, baseOffset, translateri));
-		var sample0r = f32(pick(samples, offset0r, baseOffset, translateri));
-		var sample1r = f32(pick(samples, offset1r, baseOffset, translateri));
-		var sample1l = f32(pick(samples, offset1l, baseOffset, translateri));
-		var sample1lf = f32(pick(fractions, offset1l, baseOffset, translateri));
-		var sample0lf = f32(pick(fractions, offset0l, baseOffset, translateri));
-		var sample1rf = f32(pick(fractions, offset1r, baseOffset, translateri));
-		var sample0rf = f32(pick(fractions, offset0r, baseOffset, translateri));
+		var sample0l = (pick(samples, offset0l, baseOffset, translateri));
+		var sample0r = (pick(samples, offset0r, baseOffset, translateri));
+		var sample1r = (pick(samples, offset1r, baseOffset, translateri));
+		var sample1l = (pick(samples, offset1l, baseOffset, translateri));
+		var sample1lf = (pick(fractions, offset1l, baseOffset, translateri));
+		var sample0lf = (pick(fractions, offset0l, baseOffset, translateri));
+		var sample1rf = (pick(fractions, offset1r, baseOffset, translateri));
+		var sample0rf = (pick(fractions, offset0r, baseOffset, translateri));
 		if (isStart) {
 		avgCurr = sample1[0];
 		} else {
 		if (isPrevStart) {
 		avgCurr = (sample1[1] - sample0[1]) / sampleStep;
 		} else {
-		avgCurr = f32(f32(
-			+ f32(sample1l[1] - sample0l[1])
-			+ f32(sample1lf[1] - sample0lf[1])
-			+ f32(t1 * (f32(sample1r[1] - sample1l[1])))
-			- f32(t0 * (f32(sample0r[1] - sample0l[1])))
-			+ f32(t1 * (f32(sample1rf[1] - sample1lf[1])))
-			- f32(t0 * (f32(sample0rf[1] - sample0lf[1])))
-		) / sampleStep);
+		avgCurr = (
+			+ (sample1l[1] - sample0l[1])
+			+ (sample1lf[1] - sample0lf[1])
+			+ (t1 * ((sample1r[1] - sample1l[1])))
+			- (t0 * ((sample0r[1] - sample0l[1])))
+			+ (t1 * ((sample1rf[1] - sample1lf[1])))
+			- (t0 * ((sample0rf[1] - sample0lf[1])))
+		) / sampleStep;
 		};
 		};
 		var mx2 = (
@@ -157,11 +157,9 @@ Waveform.prototype.render = function () {
 			+ t1 * (sample1rf[2] - sample1lf[2])
 			- t0 * (sample0rf[2] - sample0lf[2])
 		) / sampleStep;
-		var m2 = avgCurr * avgCurr;
+		var m2 = (avgCurr) * (avgCurr);
+
 		var variance = abs(mx2 - m2);
-		variance = 0.;
-		// FIXME: variance is wroooong
-		variance = 0;
 		sdev = sqrt(variance);
 		sdev /= abs(amplitude[1] - amplitude[0]);
 		avgCurr = reamp(avgCurr, amplitude);

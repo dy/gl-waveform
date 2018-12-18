@@ -176,7 +176,7 @@ t.only('big values do not get accumulated', async t => {
 		console.log(wf.range)
 	})
 
-	wf.update({mode: 'range', amplitude: [1005, 1171], width: 10})
+	wf.update({mode: 'range', amplitude: [1005, 1171], width: 1})
 	wf.render()
 
 	t.end()

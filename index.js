@@ -127,7 +127,8 @@ Waveform.prototype.createShader = function (o) {
 		offset: regl.prop('offset'),
 		count: regl.prop('count'),
 
-		frag: glsl('./shader/fade-frag.glsl'),
+		// frag: glsl('./shader/fade-frag.glsl'),
+		frag: glsl('./shader/fill-frag.glsl'),
 
 		uniforms: {
 			// we provide only 2 textures
@@ -204,7 +205,8 @@ Waveform.prototype.createShader = function (o) {
 				buffer: idBuffer,
 				stride: 6,
 				offset: 4
-			}
+			},
+			_position: regl.prop('_position'),
 		},
 		blend: {
 			enable: true,
@@ -260,7 +262,7 @@ Object.defineProperties(Waveform.prototype, {
 		get: function () {
 			if (!this.needsFlush) return this.drawOptions.viewport
 
-			var viewport
+			let viewport
 
 			if (!this._viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
 			else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
@@ -507,7 +509,7 @@ Waveform.prototype.calc = function () {
 		// pxStep affects jittering on panning, .5 is good value
 		this.pxStep || Math.pow(thickness, .1) * .1
 	)
-	// pxStep = .25
+	pxStep = .15
 
 	let sampleStep = pxStep * span / viewport[2]
 	// sampleStep = .005
@@ -574,6 +576,117 @@ Waveform.prototype.calc = function () {
 	}
 
 	this.needsFlush = false
+
+
+	// debug: put all args via attribute
+	let {pick, vec2, floor, abs, sqrt, normalize, dot, max, min, lerp, reamp} = require('./test/debug-util')
+
+	let samples = this.textures[currTexture]
+	let fractions = this.textures2[currTexture]
+	samples._data = f32.float(samples.data)
+	fractions._data = f32.fract(samples.data)
+
+	let _position = []
+
+	for (let id = 0; id < this.maxSampleCount; id++) {
+		let normThickness = thickness / viewport[3];
+		let offset = id * sampleStep + id * sampleStepFract;
+		let isPrevStart = false;
+		let isStart = false;
+		let isEnd = false;
+		let baseOffset = offset - sampleStep * 2. - sampleStepFract * 2.;
+		let offset0 = offset - sampleStep - sampleStepFract;
+		let offset1 = offset;
+		if (isEnd) {
+			offset = total - 1.;
+		};
+		let sample0 = pick(samples, offset0, baseOffset, translate);
+		let sample1 = pick(samples, offset1, baseOffset, translate);
+		let samplePrev = pick(samples, baseOffset, baseOffset, translate);
+		let sampleNext = pick(samples, offset + sampleStep + sampleStepFract, baseOffset, translate);
+		let avgCurr
+		let avgPrev = baseOffset < 0. ? sample0[0] : (sample0[1] - samplePrev[1]) * sampleStepRatio + (sample0[1] - samplePrev[1]) * sampleStepRatioFract;
+		let avgNext = (sampleNext[1] - sample1[1]) * sampleStepRatio + (sampleNext[1] - sample1[1]) * sampleStepRatioFract;
+		let offset0l = floor(offset0);
+		let offset1l = floor(offset1);
+		let t0 = offset0 - offset0l;
+		let t1 = offset1 - offset1l;
+		let offset0r = offset0l + 1.;
+		let offset1r = offset1l + 1.;
+		let sample0l = pick(samples, offset0l, baseOffset, translate);
+		let sample0r = pick(samples, offset0r, baseOffset, translate);
+		let sample1r = pick(samples, offset1r, baseOffset, translate);
+		let sample1l = pick(samples, offset1l, baseOffset, translate);
+		let sample1lf = pick(fractions, offset1l, baseOffset, translate);
+		let sample0lf = pick(fractions, offset0l, baseOffset, translate);
+		let sample1rf = pick(fractions, offset1r, baseOffset, translate);
+		let sample0rf = pick(fractions, offset0r, baseOffset, translate);
+		if (isStart) {
+		avgCurr = sample1[0];
+		} else {
+		if (isPrevStart) {
+		avgCurr = (sample1[1] - sample0[1]) * sampleStepRatio;
+		} else {
+		avgCurr = (+sample1l[1] - sample0l[1] + sample1lf[1] - sample0lf[1] + t1 * (sample1r[1] - sample1l[1]) - t0 * (sample0r[1] - sample0l[1]) + t1 * (sample1rf[1] - sample1lf[1]) - t0 * (sample0rf[1] - sample0lf[1])) * sampleStepRatio + (+sample1l[1] - sample0l[1] + sample1lf[1] - sample0lf[1] + t1 * (sample1r[1] - sample1l[1]) - t0 * (sample0r[1] - sample0l[1]) + t1 * (sample1rf[1] - sample1lf[1]) - t0 * (sample0rf[1] - sample0lf[1])) * sampleStepRatioFract;
+		};
+		};
+		let mx2 = (+sample1l[2] - sample0l[2] + sample1lf[2] - sample0lf[2] + t1 * (sample1r[2] - sample1l[2]) - t0 * (sample0r[2] - sample0l[2]) + t1 * (sample1rf[2] - sample1lf[2]) - t0 * (sample0rf[2] - sample0lf[2])) * sampleStepRatio + (+sample1l[2] - sample0l[2] + sample1lf[2] - sample0lf[2] + t1 * (sample1r[2] - sample1l[2]) - t0 * (sample0r[2] - sample0l[2]) + t1 * (sample1rf[2] - sample1lf[2]) - t0 * (sample0rf[2] - sample0lf[2])) * sampleStepRatioFract;
+		let m2 = avgCurr * avgCurr;
+		let variance = abs(mx2 - m2);
+		let sdev = sqrt(variance);
+		sdev /= abs(amplitude[1] - amplitude[0]);
+		avgCurr = reamp(avgCurr, amplitude);
+		avgNext = reamp(avgNext, amplitude);
+		avgPrev = reamp(avgPrev, amplitude);
+		let position = [(pxStep * id) / viewport[2], avgCurr];
+		let x = pxStep / viewport[2];
+		let normalLeft = normalize(vec2.divide([], [-(avgCurr - avgPrev), x], [2, 3].map(function (x, i) { return this[x]}, viewport)));
+		let normalRight = normalize(vec2.divide([], [-(avgNext - avgCurr), x], [2, 3].map(function (x, i) { return this[x]}, viewport)));
+		let bisec = normalize([normalLeft[0] + normalRight[0], normalLeft[1] + normalRight[1]]);
+		let vert = [0, 1];
+		let bisecLen = abs(1. / (dot(normalLeft, bisec)));
+		let vertRightLen = abs(1. / (dot(normalRight, vert)));
+		let vertLeftLen = abs(1. / (dot(normalLeft, vert)));
+		let maxVertLen = max(vertLeftLen, vertRightLen);
+		let minVertLen = min(vertLeftLen, vertRightLen);
+		let vertSdev = (2. * sdev) / normThickness;
+		let join = [0, 0];
+		if (isStart || isPrevStart) {
+		join = normalRight;
+		} else {
+		if (isEnd) {
+		join = normalLeft;
+		} else {
+		if (vertSdev < maxVertLen) {
+		if (vertSdev > minVertLen) {
+		let t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);
+		join = lerp([bisec[0] * bisecLen, bisec[1] * bisecLen], [vert[0] * maxVertLen, vert[1] * maxVertLen], t);
+		} else {
+		join = [bisec[0] * bisecLen, bisec[1] * bisecLen];
+		};
+		} else {
+		join = [vert[0] * vertSdev, vert[1] * vertSdev];
+		};
+		};
+		};
+
+		// avgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);
+		// avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
+
+		// position += sign * join * .5 * thickness / viewport.zw;
+		let pos0 = [
+			position[0] + join[0] * .5 * thickness / viewport[2],
+			position[1] + join[1] * .5 * thickness / viewport[3]
+		]
+		let pos1 = [
+			position[0] - join[0] * .5 * thickness / viewport[2],
+			position[1] - join[1] * .5 * thickness / viewport[3]
+		]
+
+		_position.push(...pos0, ...pos1, ...pos0, ...pos1)
+	}
+
+	this.drawOptions._position = _position
 
 	return this.drawOptions
 }

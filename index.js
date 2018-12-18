@@ -482,6 +482,111 @@ Waveform.prototype.push = function (...samples) {
 	return this
 }
 
+// drain pushQueue
+Waveform.prototype.flush = function () {
+	// cancel planned callback
+	if (this.needsFlush && this.needsFlush.call) this.needsFlush()
+	if (this.pushQueue.length) {
+		let arr = this.pushQueue
+		this.set(arr, this.total)
+		this.pushQueue.length = 0
+	}
+	return this
+}
+
+// calculate draw options
+Waveform.prototype.calc = function () {
+	if (!this.needsFlush) return this.drawOptions
+
+	this.flush()
+
+	let {total, opacity, amplitude, viewport, range} = this
+
+	let color = this.color
+	let thickness = this.thickness
+
+	// calc runtime props
+	let span = (range[1] - range[0]) || 1
+
+	let dataLength = this.textureLength
+
+	let pxStep = Math.max(
+		// width / span makes step correspond to texture samples
+		viewport[2] / Math.abs(span),
+		// pxStep affects jittering on panning, .5 is good value
+		this.pxStep || Math.pow(thickness, .1) * .1
+	)
+	// pxStep = .25
+
+	let sampleStep = pxStep * span / viewport[2]
+	// sampleStep = .005
+	let sampleStepFract = f32.fract(sampleStep)
+	let sampleStepRatio = 1 / sampleStep
+	let sampleStepRatioFract = f32.fract(sampleStepRatio)
+
+	let pxPerSample = pxStep / sampleStep
+
+	// translate is calculated so to meet conditions:
+	// - sampling always starts at 0 sample of 0 texture
+	// - panning never breaks that rule
+	// - changing sampling step never breaks that rule
+	// - to reduce error for big translate, it is rotated by textureLength
+	// - panning is always perceived smooth
+
+	let translate = range[0]
+	let translater = translate % dataLength
+	let translates = Math.floor(translate / sampleStep)
+	let translatei = translates * sampleStep
+	let translateri = Math.floor(translatei % dataLength)
+	let translateriFract = (translatei % dataLength) - translateri
+
+	// correct translater to always be under translateri
+	// for correct posShift in shader
+	if (translater < translateri) translater += dataLength
+
+	// NOTE: this code took ~3 days
+	// please beware of circular texture join cases and low scales
+	// .1 / sampleStep is error compensation
+	let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
+
+	let currTexture = Math.floor(translatei / dataLength)
+	if (translateri < 0) currTexture += 1
+
+	let VERTEX_REPEAT = 2.;
+
+	// limit not existing in texture points
+	let offset = 2. * Math.max(-translates * VERTEX_REPEAT, 0)
+
+	let count = Math.max(2,
+		Math.min(
+			// number of visible texture sampling points
+			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
+
+			// number of available data points
+			2 * Math.floor(totals - Math.max(translates, 0)),
+
+			// number of visible vertices on the screen
+			2 * Math.ceil(viewport[2] / pxStep) + 4,
+
+			// number of ids available
+			this.maxSampleCount
+		) * VERTEX_REPEAT
+	)
+
+	let mode = this.mode
+
+	// use more complicated range draw only for sample intervals
+	// note that rangeDraw gives sdev error for high values dataLength
+	this.drawOptions = {
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, sampleStepFract, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode,
+		sampleStepRatio, sampleStepRatioFract
+	}
+
+	this.needsFlush = false
+
+	return this.drawOptions
+}
+
 // write samples into texture
 Waveform.prototype.set = function (samples, at=0) {
 	if (!samples || !samples.length) return this
@@ -670,111 +775,6 @@ Waveform.prototype.set = function (samples, at=0) {
 	}
 
 	return this
-}
-
-// drain pushQueue
-Waveform.prototype.flush = function () {
-	// cancel planned callback
-	if (this.needsFlush && this.needsFlush.call) this.needsFlush()
-	if (this.pushQueue.length) {
-		let arr = this.pushQueue
-		this.set(arr)
-		this.pushQueue.length = 0
-	}
-	return this
-}
-
-// calculate draw options
-Waveform.prototype.calc = function () {
-	if (!this.needsFlush) return this.drawOptions
-
-	this.flush()
-
-	let {total, opacity, amplitude, viewport, range} = this
-
-	let color = this.color
-	let thickness = this.thickness
-
-	// calc runtime props
-	let span = (range[1] - range[0]) || 1
-
-	let dataLength = this.textureLength
-
-	let pxStep = Math.max(
-		// width / span makes step correspond to texture samples
-		viewport[2] / Math.abs(span),
-		// pxStep affects jittering on panning, .5 is good value
-		this.pxStep || Math.pow(thickness, .1) * .1
-	)
-	pxStep = .25
-
-	let sampleStep = pxStep * span / viewport[2]
-	sampleStep = .005
-	let sampleStepFract = f32.fract(sampleStep)
-	let sampleStepRatio = 1 / sampleStep
-	let sampleStepRatioFract = f32.fract(sampleStepRatio)
-
-	let pxPerSample = pxStep / sampleStep
-
-	// translate is calculated so to meet conditions:
-	// - sampling always starts at 0 sample of 0 texture
-	// - panning never breaks that rule
-	// - changing sampling step never breaks that rule
-	// - to reduce error for big translate, it is rotated by textureLength
-	// - panning is always perceived smooth
-
-	let translate = range[0]
-	let translater = translate % dataLength
-	let translates = Math.floor(translate / sampleStep)
-	let translatei = translates * sampleStep
-	let translateri = Math.floor(translatei % dataLength)
-	let translateriFract = (translatei % dataLength) - translateri
-
-	// correct translater to always be under translateri
-	// for correct posShift in shader
-	if (translater < translateri) translater += dataLength
-
-	// NOTE: this code took ~3 days
-	// please beware of circular texture join cases and low scales
-	// .1 / sampleStep is error compensation
-	let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
-
-	let currTexture = Math.floor(translatei / dataLength)
-	if (translateri < 0) currTexture += 1
-
-	let VERTEX_REPEAT = 2.;
-
-	// limit not existing in texture points
-	let offset = 2. * Math.max(-translates * VERTEX_REPEAT, 0)
-
-	let count = Math.max(2,
-		Math.min(
-			// number of visible texture sampling points
-			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
-
-			// number of available data points
-			2 * Math.floor(totals - Math.max(translates, 0)),
-
-			// number of visible vertices on the screen
-			2 * Math.ceil(viewport[2] / pxStep) + 4,
-
-			// number of ids available
-			this.maxSampleCount
-		) * VERTEX_REPEAT
-	)
-
-	let mode = this.mode
-
-	// use more complicated range draw only for sample intervals
-	// note that rangeDraw gives sdev error for high values dataLength
-	this.drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, sampleStepFract, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode,
-		sampleStepRatio, sampleStepRatioFract
-	}
-
-	this.needsFlush = false
-
-	return this.drawOptions
 }
 
 // draw frame according to state

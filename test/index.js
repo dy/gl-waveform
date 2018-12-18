@@ -56,7 +56,7 @@ t('empty data chunks are not being displayed', async t => {
 	// interactive(wf)
 	// show(wf.canvas)
 
-	t.ok(eq(wf, await img('./test/fixture/empty.png'), 'empty-diff'))
+	t.ok(eq(wf, await img('./test/fixture/empty.png')))
 
 	wf.clear()
 
@@ -146,7 +146,7 @@ t('>1 values does not create float32 noise', async t => {
 	t.end()
 })
 
-t.only('big values do not get accumulated', async t => {
+t.skip('big values do not get accumulated', async t => {
 	var f32 = require('to-float32')
 
 	// var createWaveform = require('./debug')

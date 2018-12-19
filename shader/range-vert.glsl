@@ -215,6 +215,7 @@ void main() {
 		) * sampleStepRatioFract
 	) * sum2Range;
 	float m2 = avgCurr * avgCurr;
+	m2 = 1022121.01093286;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(mx2 - m2);

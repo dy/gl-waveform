@@ -148,14 +148,14 @@ void main() {
 			+ sample1lf.y
 			- sample0lf.y
 			) / sumRange
-			+ ((sample1r.y/ sumRange - sample1l.y/ sumRange) ) * t1
-			- ((sample0r.y/ sumRange - sample0l.y/ sumRange) ) * t0
-			+ ((sample1rf.y/ sumRange - sample1lf.y/ sumRange) ) * t1
-			- ((sample0rf.y/ sumRange - sample0lf.y/ sumRange) ) * t0
-			+ ((sample1r.y/ sumRange - sample1l.y/ sumRange) ) * t1f
-			- ((sample0r.y/ sumRange - sample0l.y/ sumRange) ) * t0f
-			+ ((sample1rf.y/ sumRange - sample1lf.y/ sumRange) ) * t1f
-			- ((sample0rf.y/ sumRange - sample0lf.y/ sumRange) ) * t0f
+			+ ((sample1r.y / sumRange - sample1l.y / sumRange) ) * t1
+			- ((sample0r.y / sumRange - sample0l.y / sumRange) ) * t0
+			+ ((sample1rf.y / sumRange - sample1lf.y / sumRange) ) * t1
+			- ((sample0rf.y / sumRange - sample0lf.y / sumRange) ) * t0
+			+ ((sample1r.y / sumRange - sample1l.y / sumRange) ) * t1f
+			- ((sample0r.y / sumRange - sample0l.y / sumRange) ) * t0f
+			+ ((sample1rf.y / sumRange - sample1lf.y / sumRange) ) * t1f
+			- ((sample0rf.y / sumRange - sample0lf.y / sumRange) ) * t0f
 		) * sampleStepRatio + (
 			(
 			+ sample1l.y
@@ -180,7 +180,7 @@ void main() {
 	// avgNext = reamp(avgNext, sumLimits);
 	// avgCurr = reamp(avgCurr, sumLimits);
 
-	float sum2Range = 1.;//sum2Limits.y - sum2Limits.x;
+	float sum2Range = sum2Limits.y - sum2Limits.x;
 	float mx2 = (
 		(
 			(
@@ -189,33 +189,36 @@ void main() {
 			+ sample1lf.z
 			- sample0lf.z
 			) / sum2Range
-			+ ((sample1r.z/ sum2Range - sample1l.z/ sum2Range)) * t1
-			- ((sample0r.z/ sum2Range - sample0l.z/ sum2Range)) * t0
-			+ ((sample1rf.z/ sum2Range - sample1lf.z/ sum2Range)) * t1
-			- ((sample0rf.z/ sum2Range - sample0lf.z/ sum2Range)) * t0
-			+ ((sample1r.z/ sum2Range - sample1l.z/ sum2Range)) * t1f
-			- ((sample0r.z/ sum2Range - sample0l.z/ sum2Range)) * t0f
-			+ ((sample1rf.z/ sum2Range - sample1lf.z/ sum2Range)) * t1f
-			- ((sample0rf.z/ sum2Range - sample0lf.z/ sum2Range)) * t0f
+			+ ((sample1r.z - sample1l.z)) * t1
+			- ((sample0r.z - sample0l.z)) * t0
+			+ ((sample1rf.z - sample1lf.z)) * t1
+			- ((sample0rf.z - sample0lf.z)) * t0
+			+ ((sample1r.z - sample1l.z)) * t1f
+			- ((sample0r.z - sample0l.z)) * t0f
+			+ ((sample1rf.z - sample1lf.z)) * t1f
+			- ((sample0rf.z - sample0lf.z)) * t0f
 		)  * sampleStepRatio + (
 			(
 			+ sample1l.z
 			- sample0l.z
 			+ sample1lf.z
 			- sample0lf.z
-			) / sum2Range
-			+ ((sample1r.z - sample1l.z) / sum2Range) * t1
-			- ((sample0r.z - sample0l.z) / sum2Range) * t0
-			+ ((sample1rf.z - sample1lf.z) / sum2Range) * t1
-			- ((sample0rf.z - sample0lf.z) / sum2Range) * t0
-			+ ((sample1r.z - sample1l.z) / sum2Range) * t1f
-			- ((sample0r.z - sample0l.z) / sum2Range) * t0f
-			+ ((sample1rf.z - sample1lf.z) / sum2Range) * t1f
-			- ((sample0rf.z - sample0lf.z) / sum2Range) * t0f
+			)
+			+ ((sample1r.z - sample1l.z) ) * t1
+			- ((sample0r.z - sample0l.z) ) * t0
+			+ ((sample1rf.z - sample1lf.z) ) * t1
+			- ((sample0rf.z - sample0lf.z) ) * t0
+			+ ((sample1r.z - sample1l.z) ) * t1f
+			- ((sample0r.z - sample0l.z) ) * t0f
+			+ ((sample1rf.z - sample1lf.z) ) * t1f
+			- ((sample0rf.z - sample0lf.z) ) * t0f
 		) * sampleStepRatioFract
 	) * sum2Range;
+
+	// both m2 and mx2 add up to noise issue
 	float m2 = avgCurr * avgCurr;
-	m2 = 1022121.01093286;
+	// m2 = 1022121.01093286;
+	// mx2 = 1022121.0054664367;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(mx2 - m2);

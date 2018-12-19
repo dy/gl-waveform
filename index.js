@@ -637,7 +637,30 @@ Waveform.prototype.calc = function () {
 	this.drawOptions._offset0 = _offset0
 	this.drawOptions._offset1 = _offset1
 
+	// update texture data by mapping sumSamples to range
+	let tex = this.textures[currTexture]
+	let tex2 = this.textures2[currTexture]
+	let data = tex.data
+	let ndata = data.slice()
+	let ch = this.textureChannels
+	for (let i = 0; i < data.length * ch; i+=ch) {
+		// ndata[i + 1] = (data[i + 1] - sumLimits[0]) / (sumLimits[1] - sumLimits[0])
+		ndata[i + 2] = (data[i + 2] - sum2Limits[0]) / (sum2Limits[1] - sum2Limits[0])
+	}
+
 	this.needsFlush = false
+	// this.set(ndata, 0)
+
+	tex.subimage({
+		data: f32.float(ndata),
+		width: this.textureShape[0],
+		height: this.textureShape[1]
+	}, 0, 0)
+	tex2.subimage({
+		data: f32.fract(ndata),
+		width: this.textureShape[0],
+		height: this.textureShape[1]
+	}, 0, 0)
 
 	return this.drawOptions
 }
@@ -702,7 +725,6 @@ Waveform.prototype.set = function (samples, at=0) {
 			wrap: ['clamp', 'clamp']
 		})
 		this.lastY = txt.sum = txt.sum2 = 0
-
 		txtFract = this.textures2[id] = this.regl.texture({
 			width: this.textureShape[0],
 			height: this.textureShape[1],
@@ -715,7 +737,7 @@ Waveform.prototype.set = function (samples, at=0) {
 			wrap: ['clamp', 'clamp']
 		})
 
-		txt.data = pool.mallocFloat64(txtLen)
+		txt.data = pool.mallocFloat64(txtLen * 3)
 	}
 
 	// calc sum, sum2 and form data for the samples

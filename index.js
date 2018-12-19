@@ -207,6 +207,8 @@ Waveform.prototype.createShader = function (o) {
 				offset: 4
 			},
 			_position: regl.prop('_position'),
+			_avgCurr: regl.prop('_avgCurr'),
+			_join: regl.prop('_join'),
 		},
 		blend: {
 			enable: true,
@@ -586,7 +588,9 @@ Waveform.prototype.calc = function () {
 	samples._data = f32.float(samples.data)
 	fractions._data = f32.fract(samples.data)
 
-	let _position = []
+	let _position = [],
+		_avgCurr = [],
+		_join = []
 
 	for (let id = 0; id < this.maxSampleCount; id++) {
 		let normThickness = thickness / viewport[3];
@@ -683,10 +687,17 @@ Waveform.prototype.calc = function () {
 			position[1] - join[1] * .5 * thickness / viewport[3]
 		]
 
+		// does not affect hidden 1px lines
+		let avgCurrf = f32.fract(avgCurr)
+		_avgCurr.push(avgCurr, avgCurrf, avgCurr, avgCurrf, avgCurr, avgCurrf, avgCurr, avgCurrf)
+
+		_join.push(...join, ...join, ...join, ...join)
 		_position.push(...pos0, ...pos1, ...pos0, ...pos1)
 	}
 
 	this.drawOptions._position = _position
+	this.drawOptions._avgCurr = _avgCurr
+	this.drawOptions._join = _join
 
 	return this.drawOptions
 }

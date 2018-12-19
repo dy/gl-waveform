@@ -15,6 +15,8 @@ uniform vec4 viewport, color;
 uniform vec2 amp;
 
 attribute vec2 _position;
+attribute vec2 _join;
+attribute vec2 _avgCurr;
 
 varying vec4 fragColor;
 varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
@@ -24,6 +26,9 @@ void main() {
 
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
+
+	vec2 join = _join;
+	float avgCurr = _avgCurr.x;
 
 	// normThickness = thickness / viewport.w;
 
@@ -130,10 +135,10 @@ void main() {
 	// avgPrev = reamp(avgPrev, amp);
 
 	// // compensate for sampling rounding
-	// vec2 position = vec2(
-	// 	(pxStep * (id) ) / viewport.z,
-	// 	avgCurr
-	// );
+	vec2 position = vec2(
+		(pxStep * id) / viewport.z,
+		avgCurr
+	);
 
 	// float x = pxStep / viewport.z;
 	// vec2 normalLeft = normalize(vec2(
@@ -184,6 +189,7 @@ void main() {
 	// avgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);
 	// avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
 
-	// position += sign * join * .5 * thickness / viewport.zw;
-	gl_Position = vec4(_position * 2. - 1., 0, 1);
+	position += sign * join * .5 * thickness / viewport.zw;
+
+	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

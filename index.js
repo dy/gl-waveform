@@ -557,7 +557,7 @@ Waveform.prototype.calc = function () {
 	let translates = Math.floor(translate / sampleStep)
 	let translatei = translates * sampleStep
 	let translateri = Math.floor(translatei % dataLength)
-	let translateriFract = (translatei % dataLength) - translateri
+	let translateriFract = f32.fract(translateri)
 
 	// correct translater to always be under translateri
 	// for correct posShift in shader

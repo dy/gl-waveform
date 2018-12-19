@@ -75,7 +75,7 @@ void main() {
 	// sampleNext.y = deamp(sampleNext.y, sumLimits);
 	// sampleNext.z = deamp(sampleNext.z, sum2Limits);
 
-	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
+	avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) * sampleStepRatio + (sample0.y - samplePrev.y) * sampleStepRatioFract;
 	avgNext = (sampleNext.y - sample1.y) * sampleStepRatio + (sampleNext.y - sample1.y) * sampleStepRatioFract;
 
@@ -214,11 +214,12 @@ void main() {
 			- ((sample0rf.z - sample0lf.z) / sum2Range) * t0f
 		) * sampleStepRatioFract
 	) * sum2Range;
-	float m2 = nAvgCurr * nAvgCurr * sumRange * sumRange;
+	float m2 = avgCurr * avgCurr;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(mx2 - m2);
 	// variance = 0.;
+
 
 	sdev = sqrt(variance);
 	sdev /= abs(amp.y - amp.x);

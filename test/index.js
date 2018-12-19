@@ -146,29 +146,29 @@ t('>1 values does not create float32 noise', async t => {
 	t.end()
 })
 
-t.skip('big values do not get accumulated', async t => {
+t.only('big values do not get accumulated', async t => {
 	var f32 = require('to-float32')
 
 	// var createWaveform = require('./debug')
 	var wf = createWaveform(gl)
 
 	for (let i = 0; i < 5; i++) {
-		wf.push(1027 / 10000)
+		wf.push(1027)
 	}
 	for (let i = 0; i < 5; i++) {
-		wf.push(1007 / 10000)
+		wf.push(1007)
 	}
 	for (let i = 0; i < 5; i++) {
-		wf.push(1017 / 10000)
+		wf.push(1017)
 	}
 	for (let i = 0; i < 5; i++) {
-		wf.push(1147 / 10000)
+		wf.push(1147)
 	}
 	for (let i = 0; i < 10; i++) {
-		wf.push(1011 / 10000)
+		wf.push(1011)
 	}
 	for (let i = 0; i < 5; i++) {
-		wf.push(1170 / 10000)
+		wf.push(1170)
 	}
 
 	document.body.appendChild(wf.canvas)
@@ -176,7 +176,7 @@ t.skip('big values do not get accumulated', async t => {
 		console.log(wf.range)
 	})
 
-	wf.update({mode: 'range', amplitude: [1005 / 10000, 1171 / 10000]})
+	wf.update({mode: 'range', amplitude: [1005, 1171]})
 	wf.render()
 
 	t.end()

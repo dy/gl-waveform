@@ -43,6 +43,8 @@ function Waveform (o) {
 	// used for organizing data gaps
 	this.lastY
 	this.minY = Infinity, this.maxY = -Infinity
+	this.minSum = Infinity, this.maxSum = -Infinity
+	this.minSum2 = Infinity, this.maxSum2 = -Infinity
 	this.total = 0
 
 	// find a good name for runtime draw state
@@ -189,8 +191,21 @@ Waveform.prototype.createShader = function (o) {
 			// number of sample steps
 			totals: regl.prop('totals'),
 
-			// min/max amplitude
+			// min/max amplitude for the current range
 			amp: regl.prop('amplitude'),
+			// amp: (c, p) => {
+			// 	// since we normalize picked samples to 0..1
+			// 	// we have to normalize amplitude range correspondingly as well
+			// 	let span = p.ampLimits[1] - p.ampLimits[0]
+			// 	return [
+			// 		(p.amplitude[0] - p.ampLimits[0]) / span,
+			// 		(p.amplitude[1] - p.ampLimits[0]) / span
+			// 	]
+			// },
+
+			ampLimits: regl.prop('ampLimits'),
+			sumLimits: regl.prop('sumLimits'),
+			sum2Limits: regl.prop('sum2Limits'),
 
 			viewport: regl.prop('viewport'),
 			opacity: regl.prop('opacity'),
@@ -516,7 +531,7 @@ Waveform.prototype.calc = function () {
 		// pxStep affects jittering on panning, .5 is good value
 		this.pxStep || Math.pow(thickness, .1) * .1
 	)
-	// pxStep = .25
+	pxStep = .5
 
 	let sampleStep = pxStep * span / viewport[2]
 	// sampleStep = .005
@@ -575,11 +590,16 @@ Waveform.prototype.calc = function () {
 
 	let mode = this.mode
 
+	let ampLimits = [this.minY, this.maxY],
+		sumLimits = [this.minSum, this.maxSum],
+		sum2Limits = [this.minSum2, this.maxSum2]
+
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	this.drawOptions = {
 		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, sampleStepFract, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode,
-		sampleStepRatio, sampleStepRatioFract
+		sampleStepRatio, sampleStepRatioFract,
+		ampLimits, sumLimits, sum2Limits
 	}
 
 	this.needsFlush = false
@@ -618,12 +638,6 @@ Waveform.prototype.set = function (samples, at=0) {
 		}
 
 		samples = floatSamples
-	}
-
-	// detect min/maxY
-	for (let i = 0; i < samples.length; i++) {
-		if (this.minY > samples[i]) this.minY = samples[i]
-		if (this.maxY < samples[i]) this.maxY = samples[i]
 	}
 
 	let [txtW, txtH] = this.textureShape
@@ -690,6 +704,14 @@ Waveform.prototype.set = function (samples, at=0) {
 
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
+
+		// measure limits
+		if (this.minY > data[i * ch]) this.minY = data[i * ch]
+		if (this.maxY < data[i * ch]) this.maxY = data[i * ch]
+		if (this.minSum > data[i * ch + 1]) this.minSum = data[i * ch + 1]
+		if (this.maxSum < data[i * ch + 1]) this.maxSum = data[i * ch + 1]
+		if (this.minSum2 > data[i * ch + 2]) this.minSum2 = data[i * ch + 2]
+		if (this.maxSum2 < data[i * ch + 2]) this.maxSum2 = data[i * ch + 2]
 	}
 	// increase total by the number of new samples
 	if (this.total - at < dataLen) this.total += dataLen - (this.total - at)

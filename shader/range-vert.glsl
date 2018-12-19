@@ -5,6 +5,7 @@ precision highp float;
 #pragma glslify: Samples = require('./samples.glsl')
 #pragma glslify: lerp = require('./lerp.glsl')
 #pragma glslify: reamp = require('./reamp.glsl')
+#pragma glslify: deamp = require('./deamp.glsl')
 #pragma glslify: pick = require('./pick.glsl')
 
 attribute float id, sign, side;
@@ -13,6 +14,7 @@ uniform Samples samples, fractions;
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, sampleStepFract, total, totals, translate, translateri, translateriFract, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
 uniform vec4 viewport, color;
 uniform vec2 amp;
+uniform vec2 ampLimits, sumLimits, sum2Limits;
 
 varying vec4 fragColor;
 varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
@@ -57,6 +59,18 @@ void main() {
 	vec4 sample1 = pick(samples, offset1, baseOffset, translateri);
 	vec4 samplePrev = pick(samples, baseOffset, baseOffset, translateri);
 	vec4 sampleNext = pick(samples, offset + sampleStep + sampleStepFract, baseOffset, translateri);
+	// sample0.x = deamp(sample0.x, ampLimits);
+	// sample0.y = deamp(sample0.y, sumLimits);
+	// sample0.z = deamp(sample0.z, sum2Limits);
+	// sample1.x = deamp(sample1.x, ampLimits);
+	// sample1.y = deamp(sample1.y, sumLimits);
+	// sample1.z = deamp(sample1.z, sum2Limits);
+	// samplePrev.x = deamp(samplePrev.x, ampLimits);
+	// samplePrev.y = deamp(samplePrev.y, sumLimits);
+	// samplePrev.z = deamp(samplePrev.z, sum2Limits);
+	// sampleNext.x = deamp(sampleNext.x, ampLimits);
+	// sampleNext.y = deamp(sampleNext.y, sumLimits);
+	// sampleNext.z = deamp(sampleNext.z, sum2Limits);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) * sampleStepRatio + (sample0.y - samplePrev.y) * sampleStepRatioFract;
@@ -83,6 +97,35 @@ void main() {
 	vec4 sample1rf = pick(fractions, offset1r, baseOffset, translateri);
 	vec4 sample0rf = pick(fractions, offset0r, baseOffset, translateri);
 
+
+	// normalize output: reduces float32 error (hopefully)
+	// sample0l.x = deamp(sample0l.x, ampLimits);
+	// sample0l.y = deamp(sample0l.y, sumLimits);
+	// sample0l.z = deamp(sample0l.z, sum2Limits);
+	// sample0r.x = deamp(sample0r.x, ampLimits);
+	// sample0r.y = deamp(sample0r.y, sumLimits);
+	// sample0r.z = deamp(sample0r.z, sum2Limits);
+	// sample1r.x = deamp(sample1r.x, ampLimits);
+	// sample1r.y = deamp(sample1r.y, sumLimits);
+	// sample1r.z = deamp(sample1r.z, sum2Limits);
+	// sample1l.x = deamp(sample1l.x, ampLimits);
+	// sample1l.y = deamp(sample1l.y, sumLimits);
+	// sample1l.z = deamp(sample1l.z, sum2Limits);
+	// sample1lf.x = deamp(sample1lf.x, ampLimits);
+	// sample1lf.y = deamp(sample1lf.y, sumLimits);
+	// sample1lf.z = deamp(sample1lf.z, sum2Limits);
+	// sample0lf.x = deamp(sample0lf.x, ampLimits);
+	// sample0lf.y = deamp(sample0lf.y, sumLimits);
+	// sample0lf.z = deamp(sample0lf.z, sum2Limits);
+	// sample1rf.x = deamp(sample1rf.x, ampLimits);
+	// sample1rf.y = deamp(sample1rf.y, sumLimits);
+	// sample1rf.z = deamp(sample1rf.z, sum2Limits);
+	// sample0rf.x = deamp(sample0rf.x, ampLimits);
+	// sample0rf.y = deamp(sample0rf.y, sumLimits);
+	// sample0rf.z = deamp(sample0rf.z, sum2Limits);
+
+	float nAvgCurr;
+	float sumRange = sumLimits.y - sumLimits.x;
 	if (isStart) {
 		avgCurr = sample1.x;
 	}
@@ -90,57 +133,76 @@ void main() {
 			avgCurr = (sample1.y - sample0.y) * sampleStepRatio;
 		}
 	else {
-		avgCurr = (
+		nAvgCurr = (
+		(
+			(
 			+ sample1l.y
 			- sample0l.y
 			+ sample1lf.y
 			- sample0lf.y
-			+ t1 * (sample1r.y - sample1l.y)
-			- t0 * (sample0r.y - sample0l.y)
-			+ t1 * (sample1rf.y - sample1lf.y)
-			- t0 * (sample0rf.y - sample0lf.y)
+			) / sumRange
+			+ ((sample1r.y/ sumRange - sample1l.y/ sumRange) ) * t1
+			- ((sample0r.y/ sumRange - sample0l.y/ sumRange) ) * t0
+			+ ((sample1rf.y/ sumRange - sample1lf.y/ sumRange) ) * t1
+			- ((sample0rf.y/ sumRange - sample0lf.y/ sumRange) ) * t0
 		) * sampleStepRatio + (
+			(
 			+ sample1l.y
 			- sample0l.y
 			+ sample1lf.y
 			- sample0lf.y
-			+ t1 * (sample1r.y - sample1l.y)
-			- t0 * (sample0r.y - sample0l.y)
-			+ t1 * (sample1rf.y - sample1lf.y)
-			- t0 * (sample0rf.y - sample0lf.y)
-		) * sampleStepRatioFract;
+			) / sumRange
+			+ ((sample1r.y - sample1l.y) / sumRange ) * t1
+			- ((sample0r.y - sample0l.y) / sumRange ) * t0
+			+ ((sample1rf.y - sample1lf.y) / sumRange ) * t1
+			- ((sample0rf.y - sample0lf.y) / sumRange ) * t0
+		) * sampleStepRatioFract
+		);
+		avgCurr = nAvgCurr * sumRange;
 	}
 
+	// avgPrev = reamp(avgPrev, sumLimits);
+	// avgNext = reamp(avgNext, sumLimits);
+	// avgCurr = reamp(avgCurr, sumLimits);
+
+	float sum2Range = 1.;//sum2Limits.y - sum2Limits.x;
 	float mx2 = (
-		+ sample1l.z
-		- sample0l.z
-		+ sample1lf.z
-		- sample0lf.z
-		+ t1 * (sample1r.z - sample1l.z)
-		- t0 * (sample0r.z - sample0l.z)
-		+ t1 * (sample1rf.z - sample1lf.z)
-		- t0 * (sample0rf.z - sample0lf.z)
-	)  * sampleStepRatio + (
-		+ sample1l.z
-		- sample0l.z
-		+ sample1lf.z
-		- sample0lf.z
-		+ t1 * (sample1r.z - sample1l.z)
-		- t0 * (sample0r.z - sample0l.z)
-		+ t1 * (sample1rf.z - sample1lf.z)
-		- t0 * (sample0rf.z - sample0lf.z)
-	)  * sampleStepRatioFract;
-	float m2 = avgCurr * avgCurr;
+		(
+			(
+			+ sample1l.z
+			- sample0l.z
+			+ sample1lf.z
+			- sample0lf.z
+			) / sum2Range
+			+ ((sample1r.z/ sum2Range - sample1l.z/ sum2Range)) * t1
+			- ((sample0r.z/ sum2Range - sample0l.z/ sum2Range)) * t0
+			+ ((sample1rf.z/ sum2Range - sample1lf.z/ sum2Range)) * t1
+			- ((sample0rf.z/ sum2Range - sample0lf.z/ sum2Range)) * t0
+		)  * sampleStepRatio + (
+			(
+			+ sample1l.z
+			- sample0l.z
+			+ sample1lf.z
+			- sample0lf.z
+			) / sum2Range
+			+ ((sample1r.z - sample1l.z) / sum2Range) * t1
+			- ((sample0r.z - sample0l.z) / sum2Range) * t0
+			+ ((sample1rf.z - sample1lf.z) / sum2Range) * t1
+			- ((sample0rf.z - sample0lf.z) / sum2Range) * t0
+		) * sampleStepRatioFract
+	) * sum2Range;
+	float m2 = nAvgCurr * nAvgCurr * sumRange * sumRange;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(mx2 - m2);
+	// variance = 0.;
 
 	sdev = sqrt(variance);
 	sdev /= abs(amp.y - amp.x);
 
-	avgCurr = reamp(avgCurr, amp);
-	avgNext = reamp(avgNext, amp);
-	avgPrev = reamp(avgPrev, amp);
+	avgCurr = deamp(avgCurr, amp);
+	avgNext = deamp(avgNext, amp);
+	avgPrev = deamp(avgPrev, amp);
 
 	// compensate for sampling rounding
 	vec2 position = vec2(

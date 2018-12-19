@@ -4,6 +4,7 @@
 #pragma glslify: lerp = require('./lerp.glsl')
 #pragma glslify: Samples = require('./samples.glsl')
 
+// uniform vec2 ampLimits, sumLimits, sum2Limits;
 
 // pick integer offset
 vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
@@ -17,7 +18,6 @@ vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
 		floor(mod(offset, samples.shape.x)) + .5,
 		floor(offset / samples.shape.x) + .5
 	) / samples.shape;
-
 
 	vec4 sample;
 
@@ -42,6 +42,11 @@ vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
 	else {
 		sample = texture2D(samples.data[0], uv);
 	}
+
+	// normalize output: reduces float32 error (hopefully)
+	// sample.x = (sample.x - ampLimits.x) / (ampLimits.y - ampLimits.x);
+	// sample.y = (sample.y - sumLimits.x) / (sumLimits.y - sumLimits.x);
+	// sample.z = (sample.z - sum2Limits.x) / (sum2Limits.y - sum2Limits.x);
 
 	return sample;
 }

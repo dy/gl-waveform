@@ -517,8 +517,12 @@ Waveform.prototype.calc = function () {
 		this.pxStep || Math.pow(thickness, .1) * .1
 	)
 	// pxStep = .25
-
 	let sampleStep = pxStep * span / viewport[2]
+
+	// round big sample steps in order to remove round error
+	if (sampleStep > 1) sampleStep = Math.floor(sampleStep)
+	if (sampleStep > .1) sampleStep = Math.floor(sampleStep * 2) / 2
+
 	// sampleStep = .005
 	let sampleStepFract = f32.fract(sampleStep)
 	let sampleStepRatio = 1 / sampleStep
@@ -666,7 +670,7 @@ Waveform.prototype.set = function (samples, at=0) {
 			wrap: ['clamp', 'clamp']
 		})
 
-		txt.data = pool.mallocFloat64(txtLen)
+		txt.data = pool.mallocFloat64(txtLen * ch)
 	}
 
 	// calc sum, sum2 and form data for the samples

@@ -37,6 +37,8 @@ void main() {
 	float baseOffset = offset - sampleStep * 2. - sampleStepFract * 2.;
 	float offset0 = offset - sampleStep - sampleStepFract;
 	float offset1 = offset;
+	float offsetPrev = baseOffset;
+	float offsetNext = offset + sampleStep;
 	if (isEnd) offset = total - 1.;
 
 	// DEBUG: mark adjacent texture with different color
@@ -55,8 +57,8 @@ void main() {
 	// vec4 sample0 = isStart ? vec4(0) : pick(samples, offset0, baseOffset, translateri);
 	vec4 sample0 = pick(samples, offset0, baseOffset, translateri);
 	vec4 sample1 = pick(samples, offset1, baseOffset, translateri);
-	vec4 samplePrev = pick(samples, baseOffset, baseOffset, translateri);
-	vec4 sampleNext = pick(samples, offset + sampleStep + sampleStepFract, baseOffset, translateri);
+	vec4 samplePrev = pick(samples, offsetPrev, baseOffset, translateri);
+	vec4 sampleNext = pick(samples, offsetNext, baseOffset, translateri);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
 	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) * sampleStepRatio + (sample0.y - samplePrev.y) * sampleStepRatioFract;
@@ -83,6 +85,11 @@ void main() {
 	vec4 sample1rf = pick(fractions, offset1r, baseOffset, translateri);
 	vec4 sample0rf = pick(fractions, offset0r, baseOffset, translateri);
 
+	vec4 samplePrevl = pick(samples, floor(offsetPrev), baseOffset, translateri);
+	vec4 sampleNextl = pick(samples, floor(offsetNext), baseOffset, translateri);
+	vec4 samplePrevlf = pick(fractions, floor(offsetPrev), baseOffset, translateri);
+	vec4 sampleNextlf = pick(fractions, floor(offsetNext), baseOffset, translateri);
+
 	if (isStart) {
 		avgCurr = sample1.x;
 	}
@@ -95,19 +102,42 @@ void main() {
 			- sample0l.y
 			+ sample1lf.y
 			- sample0lf.y
-			+ t1 * (sample1r.y - sample1l.y)
-			- t0 * (sample0r.y - sample0l.y)
-			+ t1 * (sample1rf.y - sample1lf.y)
-			- t0 * (sample0rf.y - sample0lf.y)
+			// + t1 * (sample1r.y - sample1l.y)
+			// - t0 * (sample0r.y - sample0l.y)
+			// + t1 * (sample1rf.y - sample1lf.y)
+			// - t0 * (sample0rf.y - sample0lf.y)
 		) * sampleStepRatio + (
 			+ sample1l.y
 			- sample0l.y
 			+ sample1lf.y
 			- sample0lf.y
-			+ t1 * (sample1r.y - sample1l.y)
-			- t0 * (sample0r.y - sample0l.y)
-			+ t1 * (sample1rf.y - sample1lf.y)
-			- t0 * (sample0rf.y - sample0lf.y)
+			// + t1 * (sample1r.y - sample1l.y)
+			// - t0 * (sample0r.y - sample0l.y)
+			// + t1 * (sample1rf.y - sample1lf.y)
+			// - t0 * (sample0rf.y - sample0lf.y)
+		) * sampleStepRatioFract;
+
+		avgPrev = (
+			+ sample0l.y
+			- samplePrevl.y
+			+ sample0lf.y
+			- samplePrevlf.y
+		) * sampleStepRatio + (
+			+ sample0l.y
+			- samplePrevl.y
+			+ sample0lf.y
+			- samplePrevlf.y
+		) * sampleStepRatioFract;
+		avgNext = (
+			+ sampleNextl.y
+			- sample1l.y
+			+ sampleNextlf.y
+			- sample1lf.y
+		) * sampleStepRatio + (
+			+ sampleNextl.y
+			- sample1l.y
+			+ sampleNextlf.y
+			- sample1lf.y
 		) * sampleStepRatioFract;
 	}
 
@@ -116,19 +146,19 @@ void main() {
 		- sample0l.z
 		+ sample1lf.z
 		- sample0lf.z
-		+ t1 * (sample1r.z - sample1l.z)
-		- t0 * (sample0r.z - sample0l.z)
-		+ t1 * (sample1rf.z - sample1lf.z)
-		- t0 * (sample0rf.z - sample0lf.z)
+		// + t1 * (sample1r.z - sample1l.z)
+		// - t0 * (sample0r.z - sample0l.z)
+		// + t1 * (sample1rf.z - sample1lf.z)
+		// - t0 * (sample0rf.z - sample0lf.z)
 	)  * sampleStepRatio + (
 		+ sample1l.z
 		- sample0l.z
 		+ sample1lf.z
 		- sample0lf.z
-		+ t1 * (sample1r.z - sample1l.z)
-		- t0 * (sample0r.z - sample0l.z)
-		+ t1 * (sample1rf.z - sample1lf.z)
-		- t0 * (sample0rf.z - sample0lf.z)
+		// + t1 * (sample1r.z - sample1l.z)
+		// - t0 * (sample0r.z - sample0l.z)
+		// + t1 * (sample1rf.z - sample1lf.z)
+		// - t0 * (sample0rf.z - sample0lf.z)
 	)  * sampleStepRatioFract;
 	float m2 = avgCurr * avgCurr;
 

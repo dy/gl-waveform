@@ -9,6 +9,7 @@ precision highp float;
 #pragma glslify: pick = require('./pick.glsl')
 
 attribute float id, sign, side;
+attribute vec2 _t0, _t1, _offset0, _offset1;
 
 uniform Samples samples, fractions;
 uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, sampleStepFract, total, totals, translate, translateri, translateriFract, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
@@ -37,8 +38,10 @@ void main() {
 	bool isEnd = id >= floor(totals - translates - 1.);
 
 	float baseOffset = offset - sampleStep * 2. - sampleStepFract * 2.;
-	float offset0 = offset - sampleStep - sampleStepFract;
-	float offset1 = offset;
+	// float offset0 = offset - sampleStep - sampleStepFract;
+	// float offset1 = offset;
+	float offset0 = _offset0.x;
+	float offset1 = _offset1.x;
 	if (isEnd) offset = total - 1.;
 
 	// DEBUG: mark adjacent texture with different color
@@ -79,8 +82,12 @@ void main() {
 	// error proof variance calculation
 	float offset0l = floor(offset0);
 	float offset1l = floor(offset1);
-	float t0 = offset0 - offset0l;
-	float t1 = offset1 - offset1l;
+	float t0 = _t0.x;
+	float t1 = _t1.x;
+	float t0f = _t0.y;
+	float t1f = _t1.y;
+	// float t0 = offset0 - offset0l;
+	// float t1 = offset1 - offset1l;
 	float offset0r = offset0l + 1.;
 	float offset1r = offset1l + 1.;
 
@@ -125,7 +132,7 @@ void main() {
 	// sample0rf.z = deamp(sample0rf.z, sum2Limits);
 
 	float nAvgCurr;
-	float sumRange = sumLimits.y - sumLimits.x;
+	float sumRange = 1.;//sumLimits.y - sumLimits.x;
 	if (isStart) {
 		avgCurr = sample1.x;
 	}
@@ -145,6 +152,10 @@ void main() {
 			- ((sample0r.y/ sumRange - sample0l.y/ sumRange) ) * t0
 			+ ((sample1rf.y/ sumRange - sample1lf.y/ sumRange) ) * t1
 			- ((sample0rf.y/ sumRange - sample0lf.y/ sumRange) ) * t0
+			+ ((sample1r.y/ sumRange - sample1l.y/ sumRange) ) * t1f
+			- ((sample0r.y/ sumRange - sample0l.y/ sumRange) ) * t0f
+			+ ((sample1rf.y/ sumRange - sample1lf.y/ sumRange) ) * t1f
+			- ((sample0rf.y/ sumRange - sample0lf.y/ sumRange) ) * t0f
 		) * sampleStepRatio + (
 			(
 			+ sample1l.y
@@ -156,6 +167,10 @@ void main() {
 			- ((sample0r.y - sample0l.y) / sumRange ) * t0
 			+ ((sample1rf.y - sample1lf.y) / sumRange ) * t1
 			- ((sample0rf.y - sample0lf.y) / sumRange ) * t0
+			+ ((sample1r.y - sample1l.y) / sumRange ) * t1f
+			- ((sample0r.y - sample0l.y) / sumRange ) * t0f
+			+ ((sample1rf.y - sample1lf.y) / sumRange ) * t1f
+			- ((sample0rf.y - sample0lf.y) / sumRange ) * t0f
 		) * sampleStepRatioFract
 		);
 		avgCurr = nAvgCurr * sumRange;
@@ -178,6 +193,10 @@ void main() {
 			- ((sample0r.z/ sum2Range - sample0l.z/ sum2Range)) * t0
 			+ ((sample1rf.z/ sum2Range - sample1lf.z/ sum2Range)) * t1
 			- ((sample0rf.z/ sum2Range - sample0lf.z/ sum2Range)) * t0
+			+ ((sample1r.z/ sum2Range - sample1l.z/ sum2Range)) * t1f
+			- ((sample0r.z/ sum2Range - sample0l.z/ sum2Range)) * t0f
+			+ ((sample1rf.z/ sum2Range - sample1lf.z/ sum2Range)) * t1f
+			- ((sample0rf.z/ sum2Range - sample0lf.z/ sum2Range)) * t0f
 		)  * sampleStepRatio + (
 			(
 			+ sample1l.z
@@ -189,6 +208,10 @@ void main() {
 			- ((sample0r.z - sample0l.z) / sum2Range) * t0
 			+ ((sample1rf.z - sample1lf.z) / sum2Range) * t1
 			- ((sample0rf.z - sample0lf.z) / sum2Range) * t0
+			+ ((sample1r.z - sample1l.z) / sum2Range) * t1f
+			- ((sample0r.z - sample0l.z) / sum2Range) * t0f
+			+ ((sample1rf.z - sample1lf.z) / sum2Range) * t1f
+			- ((sample0rf.z - sample0lf.z) / sum2Range) * t0f
 		) * sampleStepRatioFract
 	) * sum2Range;
 	float m2 = nAvgCurr * nAvgCurr * sumRange * sumRange;

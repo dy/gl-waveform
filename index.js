@@ -228,7 +228,11 @@ Waveform.prototype.createShader = function (o) {
 				buffer: idBuffer,
 				stride: 6,
 				offset: 4
-			}
+			},
+			_t0: regl.prop('_t0'),
+			_t1: regl.prop('_t1'),
+			_offset0: regl.prop('_offset0'),
+			_offset1: regl.prop('_offset1')
 		},
 		blend: {
 			enable: true,
@@ -601,6 +605,37 @@ Waveform.prototype.calc = function () {
 		sampleStepRatio, sampleStepRatioFract,
 		ampLimits, sumLimits, sum2Limits
 	}
+
+
+	// calculate t0/t1s
+	let _t0 = [], _t1 = [], _offset0 = [], _offset1 = []
+	for (let id = 0; id < this.maxSampleCount; id++) {
+		let offset = id * sampleStep;
+		let offset0 = offset - sampleStep;
+		let offset1 = offset;
+
+		let offset0l = Math.floor(offset0);
+		let offset1l = Math.floor(offset1);
+		let t0 = offset0 - offset0l;
+		let t1 = offset1 - offset1l;
+
+		// t0 reduces half of the noise, t0f does not affect that.
+		let t0f = f32.fract(t0),
+			t1f = f32.fract(t1)
+		_t0.push(t0, t0f, t0, t0f, t0, t0f, t0, t0f)
+		_t1.push(t1, t1f, t1, t1f, t1, t1f, t1, t1f)
+
+		// offset0/f does not reduce noise at all
+		let offset0f = f32.fract(offset0),
+			offset1f = f32.fract(offset1)
+		_offset0.push(offset0, offset0f, offset0, offset0f, offset0, offset0f, offset0, offset0f)
+		_offset1.push(offset1, offset1f, offset1, offset1f, offset1, offset1f, offset1, offset1f)
+	}
+
+	this.drawOptions._t0 = _t0
+	this.drawOptions._t1 = _t1
+	this.drawOptions._offset0 = _offset0
+	this.drawOptions._offset1 = _offset1
 
 	this.needsFlush = false
 

@@ -68,6 +68,23 @@ vec4 pick (Samples samples, float offset, float baseOffset, float translate) {
 		return lerp(left, right, t);
 	}
 }
+// shift is passed separately for higher float32 precision of offset
+// export pickLinear for the case of emulating texture linear interpolation
+vec4 pick (Samples samples, vec2 offset, float baseOffset, float translate) {
+	float offsetLeft = floor(offset.x);
+	float offsetRight = ceil(offset.x);
+	float t = offset.x - offsetLeft + offset.y;
+	vec4 left = picki(samples, offsetLeft, baseOffset, translate);
+
+	if (t == 0. || offsetLeft == offsetRight) {
+		return left;
+	}
+	else {
+		vec4 right = picki(samples, offsetRight, baseOffset, translate);
+
+		return lerp(left, right, t);
+	}
+}
 
 
 

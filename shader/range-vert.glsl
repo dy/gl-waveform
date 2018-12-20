@@ -10,7 +10,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, sampleStepFract, total, totals, translate, translateri, translateriFract, translater, translatei, translates, sampleStepRatio, sampleStepRatioFract;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, translateri, translateriFract, translater, translatei, translates;
 uniform vec4 viewport, color;
 uniform vec2 amp;
 
@@ -25,7 +25,7 @@ void main() {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
-	float offset = id * sampleStep + id * sampleStepFract;
+	float offset = id * sampleStep;
 
 	// compensate snapping for low scale levels
 	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
@@ -34,13 +34,13 @@ void main() {
 	bool isStart = id <= 0.;//-translates;
 	bool isEnd = id >= floor(totals - translates - 1.);
 
-	float baseOffset = offset - sampleStep * 2. - sampleStepFract * 2.;
-	float offset0 = offset - sampleStep - sampleStepFract;
+	float baseOffset = offset - sampleStep * 2.;
+	float offset0 = offset - sampleStep;
 	float offset1 = offset;
 	float offsetPrev = baseOffset;
 	float offsetNext = offset + sampleStep;
-	if (isEnd) offset = total - 1.;
 
+	if (isEnd) offset = total - 1.;
 	// DEBUG: mark adjacent texture with different color
 	// if (translate + (id + 1.) * sampleStep > 8192. * 2.) {
 	// 	fragColor.x *= .5;
@@ -54,23 +54,29 @@ void main() {
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	// vec4 sample0 = isStart ? vec4(0) : pick(samples, offset0, baseOffset, translateri);
 	vec4 sample0 = pick(samples, offset0, baseOffset, translateri);
 	vec4 sample1 = pick(samples, offset1, baseOffset, translateri);
 	vec4 samplePrev = pick(samples, offsetPrev, baseOffset, translateri);
 	vec4 sampleNext = pick(samples, offsetNext, baseOffset, translateri);
 
 	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
-	avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) * sampleStepRatio + (sample0.y - samplePrev.y) * sampleStepRatioFract;
-	avgNext = (sampleNext.y - sample1.y) * sampleStepRatio + (sampleNext.y - sample1.y) * sampleStepRatioFract;
+	// avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
+	// avgNext = (sampleNext.y - sample1.y) / sampleStep;
 
 	// error proof variance calculation
 	float offset0l = floor(offset0);
 	float offset1l = floor(offset1);
-	float t0 = offset0 - offset0l;
-	float t1 = offset1 - offset1l;
 	float offset0r = offset0l + 1.;
 	float offset1r = offset1l + 1.;
+	float offsetPrevl = floor(offsetPrev);
+	float offsetPrevr = offsetPrevl + 1.;
+	float offsetNextl = floor(offsetNext);
+	float offsetNextr = offsetNextl + 1.;
+	float t0 = offset0 - offset0l;
+	float t1 = offset1 - offset1l;
+	// FIXME: optimize tNext, tPrev knowing the fact of sampleStep ratio
+	float tNext = offsetNext - offsetNextl;
+	float tPrev = offsetPrev - offsetPrevl;
 
 	// ALERT: this formula took 9 days
 	// the order of operations is important to provide precision
@@ -85,16 +91,20 @@ void main() {
 	vec4 sample1rf = pick(fractions, offset1r, baseOffset, translateri);
 	vec4 sample0rf = pick(fractions, offset0r, baseOffset, translateri);
 
-	vec4 samplePrevl = pick(samples, floor(offsetPrev), baseOffset, translateri);
-	vec4 sampleNextl = pick(samples, floor(offsetNext), baseOffset, translateri);
-	vec4 samplePrevlf = pick(fractions, floor(offsetPrev), baseOffset, translateri);
-	vec4 sampleNextlf = pick(fractions, floor(offsetNext), baseOffset, translateri);
+	vec4 samplePrevl = pick(samples, offsetPrevl, baseOffset, translateri);
+	vec4 sampleNextl = pick(samples, offsetNextl, baseOffset, translateri);
+	vec4 samplePrevlf = pick(fractions, offsetPrevl, baseOffset, translateri);
+	vec4 sampleNextlf = pick(fractions, offsetNextl, baseOffset, translateri);
+	vec4 samplePrevr = pick(samples, offsetPrevr, baseOffset, translateri);
+	vec4 sampleNextr = pick(samples, offsetNextr, baseOffset, translateri);
+	vec4 samplePrevrf = pick(fractions, offsetPrevr, baseOffset, translateri);
+	vec4 sampleNextrf = pick(fractions, offsetNextr, baseOffset, translateri);
 
 	if (isStart) {
 		avgCurr = sample1.x;
 	}
 	else if (isPrevStart) {
-			avgCurr = (sample1.y - sample0.y) * sampleStepRatio;
+			avgCurr = (sample1.y - sample0.y) / sampleStep;
 		}
 	else {
 		avgCurr = (
@@ -102,43 +112,33 @@ void main() {
 			- sample0l.y
 			+ sample1lf.y
 			- sample0lf.y
-			// + t1 * (sample1r.y - sample1l.y)
-			// - t0 * (sample0r.y - sample0l.y)
-			// + t1 * (sample1rf.y - sample1lf.y)
-			// - t0 * (sample0rf.y - sample0lf.y)
-		) * sampleStepRatio + (
-			+ sample1l.y
-			- sample0l.y
-			+ sample1lf.y
-			- sample0lf.y
-			// + t1 * (sample1r.y - sample1l.y)
-			// - t0 * (sample0r.y - sample0l.y)
-			// + t1 * (sample1rf.y - sample1lf.y)
-			// - t0 * (sample0rf.y - sample0lf.y)
-		) * sampleStepRatioFract;
+			+ t1 * (sample1r.y - sample1l.y)
+			- t0 * (sample0r.y - sample0l.y)
+			+ t1 * (sample1rf.y - sample1lf.y)
+			- t0 * (sample0rf.y - sample0lf.y)
+		) / sampleStep;
 
 		avgPrev = (
 			+ sample0l.y
 			- samplePrevl.y
 			+ sample0lf.y
 			- samplePrevlf.y
-		) * sampleStepRatio + (
-			+ sample0l.y
-			- samplePrevl.y
-			+ sample0lf.y
-			- samplePrevlf.y
-		) * sampleStepRatioFract;
+			+ t0 * (sample0r.y - sample0l.y)
+			- tPrev * (samplePrevr.y - samplePrevl.y)
+			+ t0 * (sample0rf.y - sample0lf.y)
+			- tPrev * (samplePrevrf.y - samplePrevlf.y)
+		) / sampleStep;
+
 		avgNext = (
 			+ sampleNextl.y
 			- sample1l.y
 			+ sampleNextlf.y
 			- sample1lf.y
-		) * sampleStepRatio + (
-			+ sampleNextl.y
-			- sample1l.y
-			+ sampleNextlf.y
-			- sample1lf.y
-		) * sampleStepRatioFract;
+			+ tNext * (sampleNextr.y - sampleNextl.y)
+			- t1 * (sample1r.y - sample1l.y)
+			+ tNext * (sampleNextrf.y - sampleNextlf.y)
+			- t1 * (sample1rf.y - sample1lf.y)
+		) / sampleStep;
 	}
 
 	float mx2 = (
@@ -146,20 +146,11 @@ void main() {
 		- sample0l.z
 		+ sample1lf.z
 		- sample0lf.z
-		// + t1 * (sample1r.z - sample1l.z)
-		// - t0 * (sample0r.z - sample0l.z)
-		// + t1 * (sample1rf.z - sample1lf.z)
-		// - t0 * (sample0rf.z - sample0lf.z)
-	)  * sampleStepRatio + (
-		+ sample1l.z
-		- sample0l.z
-		+ sample1lf.z
-		- sample0lf.z
-		// + t1 * (sample1r.z - sample1l.z)
-		// - t0 * (sample0r.z - sample0l.z)
-		// + t1 * (sample1rf.z - sample1lf.z)
-		// - t0 * (sample0rf.z - sample0lf.z)
-	)  * sampleStepRatioFract;
+		+ t1 * (sample1r.z - sample1l.z)
+		- t0 * (sample0r.z - sample0l.z)
+		+ t1 * (sample1rf.z - sample1lf.z)
+		- t0 * (sample0rf.z - sample0lf.z)
+	)  / sampleStep;
 	float m2 = avgCurr * avgCurr;
 
 	// σ(x)² = M(x²) - M(x)²

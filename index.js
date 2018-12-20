@@ -519,14 +519,8 @@ Waveform.prototype.calc = function () {
 	// pxStep = .25
 	let sampleStep = pxStep * span / viewport[2]
 
-	// round big sample steps in order to remove round error
-	if (sampleStep > 1) sampleStep = Math.floor(sampleStep)
-	if (sampleStep > .1) sampleStep = Math.floor(sampleStep * 2) / 2
-
-	// sampleStep = .005
-	let sampleStepFract = f32.fract(sampleStep)
-	let sampleStepRatio = 1 / sampleStep
-	let sampleStepRatioFract = f32.fract(sampleStepRatio)
+	// snap sample step to 2^n grid: still smooth, but reduces float32 error
+	if (sampleStep) sampleStep = Math.round(sampleStep * 16) / 16
 
 	let pxPerSample = pxStep / sampleStep
 
@@ -582,8 +576,7 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	this.drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, sampleStepFract, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode,
-		sampleStepRatio, sampleStepRatioFract
+		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode
 	}
 
 	this.needsFlush = false

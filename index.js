@@ -173,20 +173,7 @@ Waveform.prototype.createShader = function (o) {
 			pxPerSample: regl.prop('pxPerSample'),
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
-			sampleStepFract: regl.prop('sampleStepFract'),
-			sampleStepRatioFract: regl.prop('sampleStepRatioFract'),
-			sampleStepRatio: regl.prop('sampleStepRatio'),
 			translate: regl.prop('translate'),
-			// circular translate by textureData
-			translater: regl.prop('translater'),
-			// translate rounded to sampleSteps
-			translatei: regl.prop('translatei'),
-			// rotated translatei
-			translateri: regl.prop('translateri'),
-			translateriFract: regl.prop('translateriFract'),
-			// translate in terms of sample steps
-			translates: regl.prop('translates'),
-			// number of sample steps
 			totals: regl.prop('totals'),
 
 			// min/max amplitude
@@ -531,24 +518,22 @@ Waveform.prototype.calc = function () {
 	// - to reduce error for big translate, it is rotated by textureLength
 	// - panning is always perceived smooth
 
-	let translate = range[0]
-	let translater = translate % dataLength
-	let translates = Math.floor(translate / sampleStep)
-	let translatei = translates * sampleStep
-	let translateri = Math.floor(translatei % dataLength)
-	let translateriFract = (translatei % dataLength) - translateri
+	let translates = Math.floor(range[0] / sampleStep)
+	let translate =  Math.floor((range[0] % dataLength) / sampleStep) * sampleStep
+	// let translatei = translates * sampleStep
+	// let translateri = Math.floor(translatei % dataLength)
 
 	// correct translater to always be under translateri
 	// for correct posShift in shader
-	if (translater < translateri) translater += dataLength
+	// if (translater < translateri) translater += dataLength
 
 	// NOTE: this code took ~3 days
 	// please beware of circular texture join cases and low scales
 	// .1 / sampleStep is error compensation
 	let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
 
-	let currTexture = Math.floor(translatei / dataLength)
-	if (translateri < 0) currTexture += 1
+	let currTexture = Math.floor(range[0] / dataLength)
+	if (translate < 0) currTexture += 1
 
 	let VERTEX_REPEAT = 2.;
 
@@ -576,7 +561,8 @@ Waveform.prototype.calc = function () {
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	this.drawOptions = {
-		offset, count, thickness, color, pxStep, pxPerSample, viewport, translate, translater, totals, translatei, translateri, translateriFract, translates, currTexture, sampleStep, span, total, opacity, amplitude, range, mode
+		offset, count, thickness, color, pxStep, pxPerSample, viewport,
+		translate, currTexture, sampleStep, span, total, opacity, amplitude, range, mode, totals
 	}
 
 	this.needsFlush = false

@@ -152,31 +152,35 @@ t.only('big values do not get accumulated', async t => {
 	// var createWaveform = require('./debug')
 	var wf = createWaveform(gl)
 
+	console.time(1)
+	let arr = []
 	for (let i = 0; i < 50000; i++) {
-		wf.push(1027)
+		arr.push(1027)
 	}
 	for (let i = 0; i < 50000; i++) {
-		wf.push(1007)
+		arr.push(1007)
 	}
 	for (let i = 0; i < 50000; i++) {
-		wf.push(1017)
+		arr.push(1017)
 	}
 	for (let i = 0; i < 50000; i++) {
-		wf.push(1147)
+		arr.push(1147)
 	}
 	for (let i = 0; i < 10000; i++) {
-		wf.push(1011)
+		arr.push(1011)
 	}
 	for (let i = 0; i < 50000; i++) {
-		wf.push(1170)
+		arr.push(1170)
 	}
+	wf.push(arr)
+	console.timeEnd(1)
 
 	document.body.appendChild(wf.canvas)
 	interactive(wf, x => {
 		console.log(wf.range)
 	})
 
-	wf.update({amplitude: [1005, 1171]})
+	wf.update({amplitude: [1005, 1171], width: 1})
 	wf.render()
 
 	t.end()

@@ -42,6 +42,32 @@ t('calibrate automatic values/range', async t => {
 	t.end()
 })
 
+t('calibrate step/end: thickness should not bend', async t => {
+	var wf = createWaveform(gl)
+
+	wf.push([0, 1, 1, -1, 1, 0])
+	wf.thickness = 10
+	wf.amplitude = [-2, 2]
+	wf.viewport = [100,100,200,200]
+	wf.range = [-.5, 6.5]
+
+	// calibrate end
+	wf.render()
+	t.ok(eq(await img`./test/fixture/calibrate-end.png`, wf, .3))
+	wf.clear()
+
+	wf.range = [1, 7]
+	wf.mode = 'range'
+	wf.render()
+	t.ok(eq(await img`./test/fixture/calibrate-end-range.png`, wf, .3))
+	// document.body.appendChild(wf.canvas)
+	// interactive(wf)
+
+	wf.clear()
+
+	t.end()
+})
+
 t('empty data chunks are not being displayed', async t => {
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])
@@ -54,9 +80,9 @@ t('empty data chunks are not being displayed', async t => {
 	wf.render()
 
 	// interactive(wf)
-	// show(wf.canvas)
+	// document.body.appendChild(wf.canvas)
 
-	t.ok(eq(wf, await img('./test/fixture/empty.png')))
+	t.ok(eq(wf, await img('./test/fixture/empty.png'), .3))
 
 	wf.clear()
 
@@ -103,16 +129,21 @@ t.skip('xy noises case', async t => {
 
 t('first point displays correctly', async t => {
 	var wf = createWaveform(gl)
-	wf.push(oscillate.sin(1024).map(x => x + 10))
-
+	var data = oscillate.sin(1024)
+	wf.push(data
+		.map(x => x + 10)
+	)
 	wf.update({
 		width: 5,
 		amplitude: [1, 12],
-		range: [0, 400]
+		range: [0, 400],
+		mode: 'range'
 	})
 
 	wf.render()
 
+	// document.body.appendChild(wf.canvas)
+	// interactive(wf)
 	// show(wf.canvas, document)
 	t.ok(eq(wf, await img('./test/fixture/first-point.png')))
 
@@ -146,7 +177,8 @@ t('>1 values does not create float32 noise', async t => {
 	t.end()
 })
 
-t.only('big values do not get accumulated', async t => {
+// TODO
+t.skip('big values do not get accumulated', async t => {
 	var f32 = require('to-float32')
 
 	// var createWaveform = require('./debug')
@@ -166,11 +198,14 @@ t.only('big values do not get accumulated', async t => {
 	for (let i = 0; i < 50000; i++) {
 		arr.push(1147)
 	}
-	for (let i = 0; i < 10000; i++) {
+	for (let i = 0; i < 500000; i++) {
 		arr.push(1011)
 	}
-	for (let i = 0; i < 50000; i++) {
-		arr.push(1170)
+	// for (let i = 0; i < 50000; i++) {
+	// 	arr.push(1170)
+	// }
+	for (let i = 0; i < 100000; i++) {
+		arr.push(1011)
 	}
 	wf.push(arr)
 	console.timeEnd(1)

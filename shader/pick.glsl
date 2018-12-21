@@ -1,21 +1,21 @@
 // pick texture sample linearly interpolated:
 // default webgl interpolation is more broken
 
+precision highp float;
+
 #pragma glslify: lerp = require('./lerp.glsl')
 #pragma glslify: Samples = require('./samples.glsl')
 
 
 // pick integer offset
 vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
-	offset = max(offset, 0.);
-
 	// translate is here in order to remove float32 error (at the latest stage)
 	offset += translate;
 	baseOffset += translate;
 
 	vec2 uv = vec2(
 		floor(mod(offset, samples.shape.x)) + .5,
-		floor(offset / samples.shape.x) + .5
+		floor((offset) / samples.shape.x) + .5
 	) / samples.shape;
 
 

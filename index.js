@@ -174,7 +174,6 @@ Waveform.prototype.createShader = function (o) {
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
 			translate: regl.prop('translate'),
-			totals: regl.prop('totals'),
 
 			// min/max amplitude
 			amp: regl.prop('amplitude'),
@@ -259,7 +258,7 @@ Object.defineProperties(Waveform.prototype, {
 			var viewport
 
 			if (!this._viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
-			else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]
+			else viewport = [this._viewport.x, this._viewport.y, this._viewport.width, this._viewport.height]
 
 			// invert viewport if necessary
 			if (!this.flip) {
@@ -503,6 +502,8 @@ Waveform.prototype.calc = function () {
 		// pxStep affects jittering on panning, .5 is good value
 		this.pxStep || Math.pow(thickness, .1) * .1
 	)
+	// pxStep = Math.ceil(pxStep * 16) / 16
+
 	// pxStep = .25
 	let sampleStep = pxStep * span / viewport[2]
 
@@ -518,8 +519,9 @@ Waveform.prototype.calc = function () {
 	// - to reduce error for big translate, it is rotated by textureLength
 	// - panning is always perceived smooth
 
-	let translates = Math.floor(range[0] / sampleStep)
+	// let translates = Math.floor(range[0] / sampleStep)
 	let translate =  Math.floor((range[0] % dataLength) / sampleStep) * sampleStep
+
 	// let translatei = translates * sampleStep
 	// let translateri = Math.floor(translatei % dataLength)
 
@@ -530,15 +532,16 @@ Waveform.prototype.calc = function () {
 	// NOTE: this code took ~3 days
 	// please beware of circular texture join cases and low scales
 	// .1 / sampleStep is error compensation
-	let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
+	// let totals = Math.floor(this.total / sampleStep + .1 / sampleStep)
 
 	let currTexture = Math.floor(range[0] / dataLength)
-	if (translate < 0) currTexture += 1
+
+	if (range[0] < 0) currTexture += 1
 
 	let VERTEX_REPEAT = 2.;
 
 	// limit not existing in texture points
-	let offset = 2. * Math.max(-translates * VERTEX_REPEAT, 0)
+	let offset = 2. * Math.max(-VERTEX_REPEAT * Math.floor(range[0] / sampleStep), 0)
 
 	let count = Math.max(2,
 		Math.min(
@@ -546,7 +549,7 @@ Waveform.prototype.calc = function () {
 			// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
 
 			// number of available data points
-			2 * Math.floor(totals - Math.max(translates, 0)),
+			2 * Math.floor(total - Math.max(translate / sampleStep, 0)),
 
 			// number of visible vertices on the screen
 			2 * Math.ceil(viewport[2] / pxStep) + 4,
@@ -562,7 +565,7 @@ Waveform.prototype.calc = function () {
 	// note that rangeDraw gives sdev error for high values dataLength
 	this.drawOptions = {
 		offset, count, thickness, color, pxStep, pxPerSample, viewport,
-		translate, currTexture, sampleStep, span, total, opacity, amplitude, range, mode, totals
+		translate, currTexture, sampleStep, span, total, opacity, amplitude, range, mode
 	}
 
 	this.needsFlush = false
@@ -670,7 +673,6 @@ Waveform.prototype.set = function (samples, at=0) {
 		// we cannot rotate sums here because there can be any number of rotations between two edge samples
 		// also that is hard to guess correct rotation limit, that can change at any new data
 		// so we just keep precise secondary texture and hope the sum is not huge enough to reset at the next texture
-
 		data[i * ch + 1] = txt.sum
 		data[i * ch + 2] = txt.sum2
 	}
@@ -722,7 +724,7 @@ Waveform.prototype.set = function (samples, at=0) {
 
 	// shorten block till the end of texture
 	if (tillEndOfTxt < samples.length) {
-		this.push(samples.subarray(tillEndOfTxt))
+		this.set(samples.subarray(tillEndOfTxt), this.total)
 
 		pool.freeFloat64(samples)
 		pool.freeFloat64(data)
@@ -776,7 +778,6 @@ Waveform.prototype.render = function () {
 	// line case
 	else {
 		this.shader.drawLine.call(this, o)
-
 		// this.shader.drawLine.call(this, extend(o, {
 		// 	primitive: 'line strip',
 		// 	color: [0,0,255,255]

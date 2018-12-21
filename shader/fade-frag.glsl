@@ -38,8 +38,11 @@ void main() {
 		dist = pdf(dist, 0., sdev * sdev  ) / pdfMax;
 	}
 
+	// gl_FragColor = vec4(0,0,0,1);
+	// return;
 	if (dist == 0.) { discard; return; }
 
 	gl_FragColor = fragColor;
 	gl_FragColor.a *= dist;
+
 }

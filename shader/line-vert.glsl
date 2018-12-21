@@ -9,7 +9,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total,translate;
 uniform vec4 viewport, color;
 uniform vec2 amp;
 
@@ -31,9 +31,8 @@ void main () {
 
 	float offset = id * sampleStep;
 
-
-	bool isStart = id <= -translates;
-	bool isEnd = id >= floor(totals - translates - 1.);
+	bool isStart = offset <= max(-translate, 0.);
+	bool isEnd = offset >= total - translate - 1.;
 
 	// DEBUG: mark adjacent texture with different color
 	// if (translate + (id) * sampleStep > 64. * 64.) {
@@ -43,9 +42,9 @@ void main () {
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	vec4 sampleCurr = pick(samples, offset, offset - sampleStep, translateri);
-	vec4 sampleNext = pick(samples, offset + sampleStep, offset - sampleStep, translateri);
-	vec4 samplePrev = pick(samples, offset - sampleStep, offset - sampleStep, translateri);
+	vec4 sampleCurr = pick(samples, offset, offset - sampleStep, translate);
+	vec4 sampleNext = pick(samples, offset + sampleStep, offset - sampleStep, translate);
+	vec4 samplePrev = pick(samples, offset - sampleStep, offset - sampleStep, translate);
 
 	avgCurr = reamp(sampleCurr.x, amp);
 	avgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);
@@ -56,7 +55,7 @@ void main () {
 	sdev = 0.;
 
 	// compensate snapping for low scale levels
-	float posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;
+	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translater - offset - translate) / sampleStep;
 
 	vec2 position = vec2(
 		pxStep * (id - posShift) / viewport.z,

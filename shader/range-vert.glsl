@@ -10,12 +10,13 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate;
+uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, translate;
 uniform vec4 viewport, color;
 uniform vec2 amp;
 
 varying vec4 fragColor;
 varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
+
 
 void main() {
 	gl_PointSize = 1.5;
@@ -30,26 +31,15 @@ void main() {
 	// compensate snapping for low scale levels
 	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translater - offset - translate) / sampleStep;
 
-	bool isPrevStart = id == 1.;
-	bool isStart = id <= 0.;//-translates;
-	bool isEnd = id >= floor(totals - translate - 1.);
+	bool isStart = offset <= max( -translate, 0.);
+	bool isEnd = offset >= total - translate - 1.;
 
-	float baseOffset = offset - sampleStep * 2.;
+	float baseOffset = offset - 2. * sampleStep;
 	float offset0 = offset - sampleStep;
 	float offset1 = offset;
 	float offsetPrev = baseOffset;
 	float offsetNext = offset + sampleStep;
 
-	if (isEnd) offset = total - 1.;
-	// DEBUG: mark adjacent texture with different color
-	// if (translate + (id + 1.) * sampleStep > 8192. * 2.) {
-	// 	fragColor.x *= .5;
-	// }
-
-	// if right sample is from the next texture - align it to left texture
-	// if (offset1 + translate >= (512. * 512.)) {
-	// 	fragColor = vec4(0,1,1,1);
-	// }
 	// if (isEnd) fragColor = vec4(0,0,1,1);
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
@@ -58,10 +48,6 @@ void main() {
 	vec4 sample1 = pick(samples, offset1, baseOffset, translate);
 	vec4 samplePrev = pick(samples, offsetPrev, baseOffset, translate);
 	vec4 sampleNext = pick(samples, offsetNext, baseOffset, translate);
-
-	// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;
-	// avgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;
-	// avgNext = (sampleNext.y - sample1.y) / sampleStep;
 
 	// error proof variance calculation
 	float offset0l = floor(offset0);
@@ -100,61 +86,60 @@ void main() {
 	vec4 samplePrevrf = pick(fractions, offsetPrevr, baseOffset, translate);
 	vec4 sampleNextrf = pick(fractions, offsetNextr, baseOffset, translate);
 
-	if (isStart) {
-		avgCurr = sample1.x;
-	}
-	else if (isPrevStart) {
-			avgCurr = (sample1.y - sample0.y) / sampleStep;
-		}
-	else {
-		avgCurr = (
-			+ sample1l.y
-			- sample0l.y
-			+ sample1lf.y
-			- sample0lf.y
-			+ t1 * (sample1r.y - sample1l.y)
-			- t0 * (sample0r.y - sample0l.y)
-			+ t1 * (sample1rf.y - sample1lf.y)
-			- t0 * (sample0rf.y - sample0lf.y)
-		) / sampleStep;
+	avgCurr = (
+		+ sample1l.y
+		- sample0l.y
+		+ sample1lf.y
+		- sample0lf.y
+		// + t1 * (sample1r.y - sample1l.y)
+		// - t0 * (sample0r.y - sample0l.y)
+		// + t1 * (sample1rf.y - sample1lf.y)
+		// - t0 * (sample0rf.y - sample0lf.y)
+	) / sampleStep;
 
-		avgPrev = (
-			+ sample0l.y
-			- samplePrevl.y
-			+ sample0lf.y
-			- samplePrevlf.y
-			+ t0 * (sample0r.y - sample0l.y)
-			- tPrev * (samplePrevr.y - samplePrevl.y)
-			+ t0 * (sample0rf.y - sample0lf.y)
-			- tPrev * (samplePrevrf.y - samplePrevlf.y)
-		) / sampleStep;
+	// because for 0 offset sample0l === sample1l - texture is clamped
+	if (isStart) avgCurr = sample1l.x;
 
-		avgNext = (
-			+ sampleNextl.y
-			- sample1l.y
-			+ sampleNextlf.y
-			- sample1lf.y
-			+ tNext * (sampleNextr.y - sampleNextl.y)
-			- t1 * (sample1r.y - sample1l.y)
-			+ tNext * (sampleNextrf.y - sampleNextlf.y)
-			- t1 * (sample1rf.y - sample1lf.y)
-		) / sampleStep;
-	}
+	avgPrev = (
+		+ sample0l.y
+		- samplePrevl.y
+		+ sample0lf.y
+		- samplePrevlf.y
+		// + t0 * (sample0r.y - sample0l.y)
+		// - tPrev * (samplePrevr.y - samplePrevl.y)
+		// + t0 * (sample0rf.y - sample0lf.y)
+		// - tPrev * (samplePrevrf.y - samplePrevlf.y)
+	) / sampleStep;
+
+	avgNext = (
+		+ sampleNextl.y
+		- sample1l.y
+		+ sampleNextlf.y
+		- sample1lf.y
+		// + tNext * (sampleNextr.y - sampleNextl.y)
+		// - t1 * (sample1r.y - sample1l.y)
+		// + tNext * (sampleNextrf.y - sampleNextlf.y)
+		// - t1 * (sample1rf.y - sample1lf.y)
+	) / sampleStep;
 
 	float mx2 = (
 		+ sample1l.z
 		- sample0l.z
 		+ sample1lf.z
 		- sample0lf.z
-		+ t1 * (sample1r.z - sample1l.z)
-		- t0 * (sample0r.z - sample0l.z)
-		+ t1 * (sample1rf.z - sample1lf.z)
-		- t0 * (sample0rf.z - sample0lf.z)
+		// + t1 * (sample1r.z - sample1l.z)
+		// - t0 * (sample0r.z - sample0l.z)
+		// + t1 * (sample1rf.z - sample1lf.z)
+		// - t0 * (sample0rf.z - sample0lf.z)
 	)  / sampleStep;
 	float m2 = avgCurr * avgCurr;
 
+	// m2 = 1022121.01093286;
+	// mx2 = 1022121.0054664367;
+
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(mx2 - m2);
+
 
 	sdev = sqrt(variance);
 	sdev /= abs(amp.y - amp.x);
@@ -165,17 +150,16 @@ void main() {
 
 	// compensate for sampling rounding
 	vec2 position = vec2(
-		(pxStep * (id - posShift) ) / viewport.z,
+		(pxStep * id) / viewport.z,
 		avgCurr
 	);
 
-	float x = pxStep / viewport.z;
 	vec2 normalLeft = normalize(vec2(
-		-(avgCurr - avgPrev), x
-	) / viewport.zw);
+		-(avgCurr - avgPrev), pxStep / viewport.w
+	));
 	vec2 normalRight = normalize(vec2(
-		-(avgNext - avgCurr), x
-	) / viewport.zw);
+		-(avgNext - avgCurr), pxStep / viewport.w
+	));
 
 	vec2 bisec = normalize(normalLeft + normalRight);
 	vec2 vert = vec2(0, 1);
@@ -190,7 +174,7 @@ void main() {
 
 	vec2 join;
 
-	if (isStart || isPrevStart) {
+	if (isStart) {
 		join = normalRight;
 	}
 	else if (isEnd) {

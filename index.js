@@ -136,9 +136,9 @@ Waveform.prototype.createShader = function (o) {
 		count: regl.prop('count'),
 
 		frag: glsl('./shader/fade-frag.glsl'),
+		// frag: glsl('./shader/fill-frag.glsl'),
 
 		uniforms: {
-			// amplitude, sum, sum2 values
 			'samples.id': regl.prop('textureId'),
 			'samples.data': regl.prop('samples'),
 			'samples.prev': regl.prop('prevSamples'),
@@ -214,7 +214,7 @@ Waveform.prototype.createShader = function (o) {
 		},
 		depth: {
 			// FIXME: disable for the case of null folding
-			enable: true
+			enable: false
 		},
 		scissor: {
 			enable: true,
@@ -364,6 +364,8 @@ Object.defineProperties(Waveform.prototype, {
 			else if (typeof range === 'number') {
 				this._range = [-range, -0]
 			}
+
+			this.dirty = true
 		}
 	}
 })
@@ -556,44 +558,32 @@ Waveform.prototype.calc = function () {
 
 	// detect number of passes required to render full waveform
 	let passes = []
-	let idx = offset, texId = 0
-	// while (idx < range[1]) {
-	// 	idx = idx % this.textureLength + Math.floor(this.textureLength / sampleStep)
-	// 	let prevSample = i === 0 ? [] ;
-	// 	passes.push({
-
-	// 		idx: i,
-	// 		count,
-	// 		clip,
-	// 		texture: this.textures[id]
-	// 	})
-	// 	i += this.textureLength
-	// }
-
-	let id = 0
-	let clipWidth = (this.textureLength - 1) * pxStep / sampleStep
-	let clipLeft = id * clipWidth
-	let clipRight = (id + 1) * clipWidth
-
-	let clip = [
-		Math.round(clipLeft) + viewport[0],
-		viewport[1],
-		Math.round(clipRight) - Math.round(clipLeft),
-		viewport[3]
-	]
-	passes.push({
-		textureId: id,
-		clip: clip,
-		count: count,//Math.min(count, this.textureLength * 4) + VERTEX_REPEAT * 2.,
-		offset: offset,
-		samples: this.textures[currTexture],
-		fractions: this.textures2[currTexture],
-		prevSamples: this.textures[currTexture - 1] || this.NaNTexture,
-		nextSamples: this.textures[currTexture + 1] || this.NaNTexture,
-		prevFractions: this.textures[currTexture - 1] || this.blankTexture,
-		nextFractions: this.textures[currTexture + 1] || this.blankTexture,
-		shift: 0
-	})
+	for (let i = 0; i < 2; i++) {
+		currTexture = i;
+		let clipWidth = (this.textureLength - .5) * pxStep / sampleStep
+		let clipLeft = currTexture * clipWidth
+		let clipRight = (currTexture + 1) * clipWidth
+		let clip = [
+			Math.round(clipLeft) + viewport[0],
+			viewport[1],
+			Math.round(clipRight) - Math.round(clipLeft),
+			viewport[3]
+		]
+		passes.push({
+			textureId: currTexture,
+			clip: clip,
+			// clip: viewport,
+			count: Math.min(count, this.textureLength * 2 * VERTEX_REPEAT) + VERTEX_REPEAT * 4.,
+			offset: offset,
+			samples: this.textures[currTexture],
+			fractions: this.textures2[currTexture],
+			prevSamples: this.textures[currTexture - 1] || this.NaNTexture,
+			nextSamples: this.textures[currTexture + 1] || this.NaNTexture,
+			prevFractions: this.textures[currTexture - 1] || this.blankTexture,
+			nextFractions: this.textures[currTexture + 1] || this.blankTexture,
+			shift: 0
+		})
+	}
 
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength

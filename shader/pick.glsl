@@ -23,11 +23,15 @@ vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
 	if (uv.y < 0.) {
 		uv.y += 1.;
 		sample = texture2D(samples.prev, uv);
+		sample.y -= samples.prevSum;
+		sample.z -= samples.prevSum2;
 	}
 	// next texture
 	else if (uv.y > 1.) {
 		uv.y -= 1.;
 		sample = texture2D(samples.next, uv);
+		sample.y += samples.sum;
+		sample.z += samples.sum2;
 	}
 	// curr texture
 	else {

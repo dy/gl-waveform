@@ -85,6 +85,9 @@ void main() {
 	vec4 samplePrevrf = pick(fractions, offsetPrevr, offsetPrev, translate);
 	vec4 sampleNextrf = pick(fractions, offsetNextr, offsetPrev, translate);
 
+	// TODO: replace with stats(offset) returning avg, mean, sdev
+	// that removes pick dependency
+	// and incorporates fractions into samples
 	avgCurr = (
 		+ sample1l.y
 		- sample0l.y

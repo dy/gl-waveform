@@ -570,9 +570,20 @@ Waveform.prototype.calc = function () {
 	// 	i += this.textureLength
 	// }
 
+	let id = 0
+	let clipWidth = (this.textureLength - 1) * pxStep / sampleStep
+	let clipLeft = id * clipWidth
+	let clipRight = (id + 1) * clipWidth
+
+	let clip = [
+		Math.round(clipLeft) + viewport[0],
+		viewport[1],
+		Math.round(clipRight) - Math.round(clipLeft),
+		viewport[3]
+	]
 	passes.push({
-		textureId: 0,
-		clip: viewport,
+		textureId: id,
+		clip: clip,
 		count: count,//Math.min(count, this.textureLength * 4) + VERTEX_REPEAT * 2.,
 		offset: offset,
 		samples: this.textures[currTexture],

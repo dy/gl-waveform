@@ -227,7 +227,7 @@ t.only('multipass renderer: line mode', async t => {
 
 	let wf = createWaveform(gl)
 
-	wf.update({shape: [4, 4], thickness: 10})
+	wf.update({shape: [4, 4], thickness: 10, amplitude: [3, -3]})
 	wf.push(data)
 	wf.render()
 

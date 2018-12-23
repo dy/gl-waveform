@@ -40,6 +40,7 @@ void main () {
 	// }
 	if (isEnd) fragColor = vec4(0,0,1,1);
 	if (isStart) fragColor = vec4(0,0,1,1);
+	if (id == 15.) fragColor = vec4(1,0,0,1);
 
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = pick(samples, offset, offset - sampleStep, translate);

@@ -222,7 +222,7 @@ t.skip('big values do not get accumulated', async t => {
 	t.end()
 })
 
-t.skip('multipass renderer: line mode', async t => {
+t.only('multipass renderer: line mode', async t => {
 	let data = oscillate.sin(40, {f: 5000})
 
 	let wf = createWaveform(gl)

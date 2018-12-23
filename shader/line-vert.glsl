@@ -7,7 +7,7 @@ precision highp float;
 
 attribute float id, sign, side;
 
-uniform sampler2D samples, fractions;
+uniform sampler2D samples, prevSamples, nextSamples, prevFractions, nextFractions, fractions;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
@@ -37,8 +37,8 @@ void main () {
 	// if (offset >= 16.) {
 	// 	fragColor.x = 1.;
 	// }
-	// if (isEnd) fragColor = vec4(0,0,1,1);
-	// if (isStart) fragColor = vec4(0,0,1,1);
+	if (isEnd) fragColor = vec4(0,0,1,1);
+	if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = pick(samples, offset, offset - sampleStep, translate);

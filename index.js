@@ -114,11 +114,17 @@ Waveform.prototype.createShader = function (o) {
 		type: 'int16',
 		data: (N => {
 			let x = Array()
+
+			// prepend -1 at the start
+			x.push(-1, 1, -1, -1, -1, -1)
+			x.push(-1, 1, 1, -1, -1, 1)
+
 			for (let i = 0; i < N; i++) {
 				// id, sign, side, id, sign, side
 				x.push(i, 1, -1, i, -1, -1)
 				x.push(i, 1, 1, i, -1, 1)
 			}
+
 			return x
 		})(this.maxSampleCount)
 	})
@@ -133,11 +139,16 @@ Waveform.prototype.createShader = function (o) {
 		uniforms: {
 			// amplitude, sum, sum2 values
 			samples: regl.prop('samples'),
-			dataShape: regl.prop('dataShape'),
-			dataLength: regl.prop('dataLength'),
+			prevSamples: regl.prop('prevSamples'),
+			nextSamples: regl.prop('nextSamples'),
 
 			// float32 sample fractions for precision
 			fractions: regl.prop('fractions'),
+			prevFractions: regl.prop('prevFractions'),
+			nextFractions: regl.prop('nextFractions'),
+
+			dataShape: regl.prop('dataShape'),
+			dataLength: regl.prop('dataLength'),
 
 			// total number of samples
 			total: regl.prop('total'),
@@ -497,7 +508,7 @@ Waveform.prototype.calc = function () {
 
 	let mode = this.mode
 
-	let VERTEX_REPEAT = 2.;
+	const VERTEX_REPEAT = 2.;
 
 	// limit not existing in texture points
 	let offset = 2. * Math.max(-VERTEX_REPEAT * Math.floor(range[0] / sampleStep), 0)
@@ -538,10 +549,14 @@ Waveform.prototype.calc = function () {
 
 	passes.push({
 		clip: viewport,
-		count: Math.min(count, this.textureLength * 4),
+		count: Math.min(count, this.textureLength * 4) + VERTEX_REPEAT * 2.,
 		offset: offset,
 		samples: this.textures[currTexture],
 		fractions: this.textures2[currTexture],
+		prevSamples: this.textures[currTexture - 1] || this.blankTexture,
+		nextSamples: this.textures[currTexture + 1] || this.blankTexture,
+		prevFractions: this.textures[currTexture - 1] || this.blankTexture,
+		nextFractions: this.textures[currTexture + 1] || this.blankTexture,
 		shift: 0
 	})
 

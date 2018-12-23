@@ -8,7 +8,7 @@ precision highp float;
 
 attribute float id, sign, side;
 
-uniform sampler2D samples, fractions;
+uniform sampler2D samples, prevSamples, nextSamples, fractions, prevFractions, nextFractions;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;

@@ -4,7 +4,6 @@ precision highp float;
 
 uniform vec4 viewport;
 uniform float thickness;
-uniform vec2 amp;
 
 varying vec4 fragColor;
 varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;

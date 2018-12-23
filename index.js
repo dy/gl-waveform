@@ -38,7 +38,6 @@ function Waveform (o) {
 	// ampFract has util values: -1 for NaN amplitude
 	this.textures = []
 	this.textures2 = []
-	this.textureLength = this.textureShape[0] * this.textureShape[1]
 
 	// pointer to the first/last x values, detected from the first data
 	// used for organizing data gaps
@@ -54,6 +53,7 @@ function Waveform (o) {
 	this.gl = this.shader.gl
 	this.regl = this.shader.regl
 	this.canvas = this.gl.canvas
+	this.blankTexture = this.shader.blankTexture
 
 	// tick processes accumulated samples to push in the next render frame
 	// to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
@@ -138,17 +138,26 @@ Waveform.prototype.createShader = function (o) {
 
 		uniforms: {
 			// amplitude, sum, sum2 values
-			samples: regl.prop('samples'),
-			prevSamples: regl.prop('prevSamples'),
-			nextSamples: regl.prop('nextSamples'),
+			'samples.data': regl.prop('samples'),
+			'samples.prev': regl.prop('prevSamples'),
+			'samples.next': regl.prop('nextSamples'),
+			'samples.shape': regl.prop('dataShape'),
+			'samples.length': regl.prop('dataLength'),
+			'samples.sum': (c, p) => p.samples.sum,
+			'samples.sum2': (c, p) => p.samples.sum2,
+			'samples.prevSum': (c, p) => p.prevSamples.sum,
+			'samples.prevSum2': (c, p) => p.prevSamples.sum2,
 
 			// float32 sample fractions for precision
-			fractions: regl.prop('fractions'),
-			prevFractions: regl.prop('prevFractions'),
-			nextFractions: regl.prop('nextFractions'),
-
-			dataShape: regl.prop('dataShape'),
-			dataLength: regl.prop('dataLength'),
+			'fractions.data': regl.prop('fractions'),
+			'fractions.prev': regl.prop('prevFractions'),
+			'fractions.next': regl.prop('nextFractions'),
+			'fractions.shape': regl.prop('dataShape'),
+			'fractions.length': regl.prop('dataLength'),
+			'fractions.sum': 0,
+			'fractions.sum2': 0,
+			'fractions.prevSum': 0,
+			'fractions.prevSum2': 0,
 
 			// total number of samples
 			total: regl.prop('total'),
@@ -230,6 +239,8 @@ Waveform.prototype.createShader = function (o) {
 		channels: this.textureChannels,
 		type: 'float'
 	})
+	blankTexture.sum = 0
+	blankTexture.sum2 = 0
 	shader = { drawRanges, drawLine, regl, idBuffer, blankTexture, gl }
 	shaderCache.set( gl, shader )
 	return shader
@@ -684,6 +695,13 @@ Waveform.prototype.set = function (samples, at=0) {
 		if (this.maxY < samples[i]) this.maxY = samples[i]
 	}
 
+	// detect textureShape based on limits
+	// in order to reset sum2 more frequently to reduce error
+	if (!this.textureShape) {
+		this.textureShape = [512, 512]
+		this.textureLength = this.textureShape[0] * this.textureShape[1]
+	}
+
 	let [txtW, txtH] = this.textureShape
 	let txtLen = this.textureLength
 
@@ -918,8 +936,8 @@ Waveform.prototype.flip = false
 // - performance: bigger texture is slower to create
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
-Waveform.prototype.textureShape = [512, 512]
-
+Waveform.prototype.textureShape
+Waveform.prototype.textureLength
 Waveform.prototype.textureChannels = 3
 Waveform.prototype.maxSampleCount = 8192 * 2
 

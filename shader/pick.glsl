@@ -4,27 +4,25 @@
 precision highp float;
 
 #pragma glslify: lerp = require('./lerp.glsl')
-
-uniform vec2 dataShape;
-uniform float dataLength;
+#pragma glslify: Samples = require('./samples.glsl')
 
 // pick integer offset
-vec4 picki (sampler2D samples, float offset, float baseOffset, float translate) {
+vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
 	// translate is here in order to remove float32 error (at the latest stage)
 	offset += translate;
 	baseOffset += translate;
 
 	vec2 uv = vec2(
-		floor(mod(offset, dataShape.x)) + .5,
-		floor((offset) / dataShape.x) + .5
-	) / dataShape;
+		floor(mod(offset, samples.shape.x)) + .5,
+		floor((offset) / samples.shape.x) + .5
+	) / samples.shape;
 
-	return texture2D(samples, uv);
+	return texture2D(samples.data, uv);
 }
 
 // shift is passed separately for higher float32 precision of offset
 // export pickLinear for the case of emulating texture linear interpolation
-vec4 pick (sampler2D samples, float offset, float baseOffset, float translate) {
+vec4 pick (Samples samples, float offset, float baseOffset, float translate) {
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;

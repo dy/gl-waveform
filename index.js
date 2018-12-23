@@ -54,6 +54,7 @@ function Waveform (o) {
 	this.regl = this.shader.regl
 	this.canvas = this.gl.canvas
 	this.blankTexture = this.shader.blankTexture
+	this.NaNTexture = this.shader.NaNTexture
 
 	// tick processes accumulated samples to push in the next render frame
 	// to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
@@ -138,6 +139,7 @@ Waveform.prototype.createShader = function (o) {
 
 		uniforms: {
 			// amplitude, sum, sum2 values
+			'samples.id': regl.prop('textureId'),
 			'samples.data': regl.prop('samples'),
 			'samples.prev': regl.prop('prevSamples'),
 			'samples.next': regl.prop('nextSamples'),
@@ -149,6 +151,7 @@ Waveform.prototype.createShader = function (o) {
 			'samples.prevSum2': (c, p) => p.prevSamples.sum2,
 
 			// float32 sample fractions for precision
+			'fractions.id': regl.prop('textureId'),
 			'fractions.data': regl.prop('fractions'),
 			'fractions.prev': regl.prop('prevFractions'),
 			'fractions.next': regl.prop('nextFractions'),
@@ -241,7 +244,16 @@ Waveform.prototype.createShader = function (o) {
 	})
 	blankTexture.sum = 0
 	blankTexture.sum2 = 0
-	shader = { drawRanges, drawLine, regl, idBuffer, blankTexture, gl }
+	let NaNTexture = regl.texture({
+		width: 1,
+		height: 1,
+		channels: this.textureChannels,
+		type: 'float',
+		data: new Float32Array([NaN, NaN, NaN])
+	})
+	NaNTexture.sum = 0
+	NaNTexture.sum2 = 0
+	shader = { drawRanges, drawLine, regl, idBuffer, NaNTexture, blankTexture, gl }
 	shaderCache.set( gl, shader )
 	return shader
 }
@@ -559,13 +571,14 @@ Waveform.prototype.calc = function () {
 	// }
 
 	passes.push({
+		textureId: 0,
 		clip: viewport,
-		count: Math.min(count, this.textureLength * 4) + VERTEX_REPEAT * 2.,
+		count: count,//Math.min(count, this.textureLength * 4) + VERTEX_REPEAT * 2.,
 		offset: offset,
 		samples: this.textures[currTexture],
 		fractions: this.textures2[currTexture],
-		prevSamples: this.textures[currTexture - 1] || this.blankTexture,
-		nextSamples: this.textures[currTexture + 1] || this.blankTexture,
+		prevSamples: this.textures[currTexture - 1] || this.NaNTexture,
+		nextSamples: this.textures[currTexture + 1] || this.NaNTexture,
 		prevFractions: this.textures[currTexture - 1] || this.blankTexture,
 		nextFractions: this.textures[currTexture + 1] || this.blankTexture,
 		shift: 0
@@ -594,7 +607,7 @@ Waveform.prototype.render = function () {
 	let o = this.calc()
 
 	// multipass renders different textures to adjacent clip areas
-	o.passes.forEach(pass => {
+	o.passes.forEach((pass) => {
 		// o ← {count, offset, clip, texture, shift}
 		extend(o, pass)
 

@@ -17,7 +17,24 @@ vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
 		floor((offset) / samples.shape.x) + .5
 	) / samples.shape;
 
-	return texture2D(samples.data, uv);
+	vec4 sample;
+
+	// prev texture
+	if (uv.y < 0.) {
+		uv.y += 1.;
+		sample = texture2D(samples.prev, uv);
+	}
+	// next texture
+	else if (uv.y > 1.) {
+		uv.y -= 1.;
+		sample = texture2D(samples.next, uv);
+	}
+	// curr texture
+	else {
+		sample = texture2D(samples.data, uv);
+	}
+
+	return sample;
 }
 
 // shift is passed separately for higher float32 precision of offset

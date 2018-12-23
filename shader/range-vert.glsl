@@ -2,17 +2,16 @@
 
 precision highp float;
 
-#pragma glslify: Samples = require('./samples.glsl')
 #pragma glslify: lerp = require('./lerp.glsl')
-#pragma glslify: reamp = require('./reamp.glsl')
+#pragma glslify: deamp = require('./deamp.glsl')
 #pragma glslify: pick = require('./pick.glsl')
 
 attribute float id, sign, side;
 
-uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, translate;
+uniform sampler2D samples, fractions;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
-uniform vec2 amp;
+uniform vec2 amplitude;
 
 varying vec4 fragColor;
 varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
@@ -29,25 +28,24 @@ void main() {
 	float offset = id * sampleStep;
 
 	// compensate snapping for low scale levels
-	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translater - offset - translate) / sampleStep;
+	float posShift = 0.;
 
 	bool isStart = offset <= max( -translate, 0.);
 	bool isEnd = offset >= total - translate - 1.;
 
-	float baseOffset = offset - 2. * sampleStep;
-	float offset0 = offset - sampleStep;
-	float offset1 = offset;
-	float offsetPrev = baseOffset;
-	float offsetNext = offset + sampleStep;
+	float offset0 = offset - sampleStep * .5;
+	float offset1 = offset + sampleStep * .5;
+	float offsetPrev = offset - sampleStep - sampleStep * .5;
+	float offsetNext = offset + sampleStep + sampleStep * .5;
 
 	// if (isEnd) fragColor = vec4(0,0,1,1);
 	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
-	vec4 sample0 = pick(samples, offset0, baseOffset, translate);
-	vec4 sample1 = pick(samples, offset1, baseOffset, translate);
-	vec4 samplePrev = pick(samples, offsetPrev, baseOffset, translate);
-	vec4 sampleNext = pick(samples, offsetNext, baseOffset, translate);
+	vec4 sample0 = pick(samples, offset0, offsetPrev, translate);
+	vec4 sample1 = pick(samples, offset1, offsetPrev, translate);
+	vec4 samplePrev = pick(samples, offsetPrev, offsetPrev, translate);
+	vec4 sampleNext = pick(samples, offsetNext, offsetPrev, translate);
 
 	// error proof variance calculation
 	float offset0l = floor(offset0);
@@ -68,23 +66,23 @@ void main() {
 	// the order of operations is important to provide precision
 	// that comprises linear interpolation and range calculation
 	// x - amplitude, y - sum, z - sum2, w - x offset
-	vec4 sample0l = pick(samples, offset0l, baseOffset, translate);
-	vec4 sample0r = pick(samples, offset0r, baseOffset, translate);
-	vec4 sample1r = pick(samples, offset1r, baseOffset, translate);
-	vec4 sample1l = pick(samples, offset1l, baseOffset, translate);
-	vec4 sample1lf = pick(fractions, offset1l, baseOffset, translate);
-	vec4 sample0lf = pick(fractions, offset0l, baseOffset, translate);
-	vec4 sample1rf = pick(fractions, offset1r, baseOffset, translate);
-	vec4 sample0rf = pick(fractions, offset0r, baseOffset, translate);
+	vec4 sample0l = pick(samples, offset0l, offsetPrev, translate);
+	vec4 sample0r = pick(samples, offset0r, offsetPrev, translate);
+	vec4 sample1r = pick(samples, offset1r, offsetPrev, translate);
+	vec4 sample1l = pick(samples, offset1l, offsetPrev, translate);
+	vec4 sample1lf = pick(fractions, offset1l, offsetPrev, translate);
+	vec4 sample0lf = pick(fractions, offset0l, offsetPrev, translate);
+	vec4 sample1rf = pick(fractions, offset1r, offsetPrev, translate);
+	vec4 sample0rf = pick(fractions, offset0r, offsetPrev, translate);
 
-	vec4 samplePrevl = pick(samples, offsetPrevl, baseOffset, translate);
-	vec4 sampleNextl = pick(samples, offsetNextl, baseOffset, translate);
-	vec4 samplePrevlf = pick(fractions, offsetPrevl, baseOffset, translate);
-	vec4 sampleNextlf = pick(fractions, offsetNextl, baseOffset, translate);
-	vec4 samplePrevr = pick(samples, offsetPrevr, baseOffset, translate);
-	vec4 sampleNextr = pick(samples, offsetNextr, baseOffset, translate);
-	vec4 samplePrevrf = pick(fractions, offsetPrevr, baseOffset, translate);
-	vec4 sampleNextrf = pick(fractions, offsetNextr, baseOffset, translate);
+	vec4 samplePrevl = pick(samples, offsetPrevl, offsetPrev, translate);
+	vec4 sampleNextl = pick(samples, offsetNextl, offsetPrev, translate);
+	vec4 samplePrevlf = pick(fractions, offsetPrevl, offsetPrev, translate);
+	vec4 sampleNextlf = pick(fractions, offsetNextl, offsetPrev, translate);
+	vec4 samplePrevr = pick(samples, offsetPrevr, offsetPrev, translate);
+	vec4 sampleNextr = pick(samples, offsetNextr, offsetPrev, translate);
+	vec4 samplePrevrf = pick(fractions, offsetPrevr, offsetPrev, translate);
+	vec4 sampleNextrf = pick(fractions, offsetNextr, offsetPrev, translate);
 
 	avgCurr = (
 		+ sample1l.y
@@ -96,6 +94,7 @@ void main() {
 		// + t1 * (sample1rf.y - sample1lf.y)
 		// - t0 * (sample0rf.y - sample0lf.y)
 	) / sampleStep;
+
 
 	// because for 0 offset sample0l === sample1l - texture is clamped
 	if (isStart) avgCurr = sample1l.x;
@@ -142,11 +141,11 @@ void main() {
 
 
 	sdev = sqrt(variance);
-	sdev /= abs(amp.y - amp.x);
+	sdev /= abs(amplitude.y - amplitude.x);
 
-	avgCurr = reamp(avgCurr, amp);
-	avgNext = reamp(avgNext, amp);
-	avgPrev = reamp(avgPrev, amp);
+	avgCurr = deamp(avgCurr, amplitude);
+	avgNext = deamp(avgNext, amplitude);
+	avgPrev = deamp(avgPrev, amplitude);
 
 	// compensate for sampling rounding
 	vec2 position = vec2(

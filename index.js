@@ -18,6 +18,7 @@ let lerp = require('lerp')
 let isBrowser = require('is-browser')
 let elOffset = require('offset')
 let idle = require('on-idle')
+let nidx = require('negative-index')
 
 const MAX_ARGUMENTS = 1024
 
@@ -48,9 +49,6 @@ function Waveform (o) {
 	// find a good name for runtime draw state
 	this.drawOptions = {}
 
-	// needs recalc
-	this.needsFlush = true
-
 	this.shader = this.createShader(o)
 
 	this.gl = this.shader.gl
@@ -60,6 +58,9 @@ function Waveform (o) {
 	// tick processes accumulated samples to push in the next render frame
 	// to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
 	this.pushQueue = []
+
+	// needs flush and recalc
+	this.dirty = true
 
 	// FIXME: add beter recognition
 	// if (o.pick != null) this.storeData = !!o.pick
@@ -130,53 +131,26 @@ Waveform.prototype.createShader = function (o) {
 		frag: glsl('./shader/fade-frag.glsl'),
 
 		uniforms: {
-			// we provide only 2 textures
-			// in order to display texture join smoothly
-			// but min zoom level is limited so
-			// that only 2 textures can fit the screen
-			// zoom levels higher than that give artifacts
-			'samples.data[0]': function (c, p) {
-				return this.textures[p.currTexture] || this.shader.blankTexture
-			},
-			'samples.data[1]': function (c, p) {
-				return this.textures[p.currTexture + 1] || this.shader.blankTexture
-			},
-			// data0 texture sums
-			'samples.sum': function (c, p) {
-				return this.textures[p.currTexture] ? this.textures[p.currTexture].sum : 0
-			},
-			'samples.sum2': function (c, p) {
-				return this.textures[p.currTexture] ? this.textures[p.currTexture].sum2 : 0
-			},
-			'samples.shape': this.textureShape,
-			'samples.length': this.textureLength,
+			// amplitude, sum, sum2 values
+			samples: regl.prop('samples'),
+			dataShape: regl.prop('dataShape'),
+			dataLength: regl.prop('dataLength'),
 
-			// samples-compatible struct with fractions
-			'fractions.data[0]': function (c, p) {
-				return this.textures2[p.currTexture] || this.shader.blankTexture
-			},
-			'fractions.data[1]': function (c, p) {
-				return this.textures2[p.currTexture + 1] || this.shader.blankTexture
-			},
-			'fractions.sum': 0,
-			'fractions.sum2': 0,
-			'fractions.shape': this.textureShape,
-			'fractions.length': this.textureLength,
+			// float32 sample fractions for precision
+			fractions: regl.prop('fractions'),
 
-			// number of samples per viewport
-			span: regl.prop('span'),
 			// total number of samples
 			total: regl.prop('total'),
+
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
-			// number of pixels per sample step
-			pxPerSample: regl.prop('pxPerSample'),
+
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
 			translate: regl.prop('translate'),
 
 			// min/max amplitude
-			amp: regl.prop('amplitude'),
+			amplitude: regl.prop('amplitude'),
 
 			viewport: regl.prop('viewport'),
 			opacity: regl.prop('opacity'),
@@ -221,7 +195,7 @@ Waveform.prototype.createShader = function (o) {
 		},
 		scissor: {
 			enable: true,
-			box: (c, {viewport}) => ({x: viewport[0], y: viewport[1], width: viewport[2], height: viewport[3]})
+			box: (c, {clip, viewport}) => clip ? ({x: clip[0], y: clip[1], width: clip[2], height: clip[3]}) : ({x: viewport[0], y: viewport[1], width: viewport[2], height: viewport[3]})
 		},
 		viewport: (c, {viewport}) => ({x: viewport[0], y: viewport[1], width: viewport[2], height: viewport[3]}),
 		stencil: false
@@ -253,7 +227,7 @@ Waveform.prototype.createShader = function (o) {
 Object.defineProperties(Waveform.prototype, {
 	viewport: {
 		get: function () {
-			if (!this.needsFlush) return this.drawOptions.viewport
+			if (!this.dirty) return this.drawOptions.viewport
 
 			var viewport
 
@@ -274,7 +248,7 @@ Object.defineProperties(Waveform.prototype, {
 
 	color: {
 		get: function () {
-			if (!this.needsFlush) return this.drawOptions.color
+			if (!this.dirty) return this.drawOptions.color
 
 			return this._color || [0, 0, 0, 255]
 		},
@@ -310,7 +284,7 @@ Object.defineProperties(Waveform.prototype, {
 
 	amplitude: {
 		get: function () {
-			if (!this.needsFlush) return this.drawOptions.amplitude
+			if (!this.dirty) return this.drawOptions.amplitude
 			return this._amplitude || [this.minY, this.maxY]
 		},
 		set: function (amplitude) {
@@ -328,8 +302,19 @@ Object.defineProperties(Waveform.prototype, {
 
 	range: {
 		get: function () {
-			if (!this.needsFlush) return this.drawOptions.range
-			return this._range || [0, this.total + this.pushQueue.length - 1]
+			if (!this.dirty) return this.drawOptions.range
+			if (this._range) {
+				if (this._range[0] < 0 && this._range[1] <= 0) {
+					// wrap negative numbers
+					return [
+						nidx(this._range[0], this.total),
+						nidx(this._range[1], this.total)
+					]
+				}
+
+				return this._range
+			}
+			return [0, this.total + this.pushQueue.length - 1]
 		},
 		set: function (range) {
 			if (range.length) {
@@ -354,7 +339,7 @@ Waveform.prototype.update = function (o) {
 	if (!o) return this
 	if (o.length != null) o = {data: o}
 
-	this.needsFlush = true
+	this.dirty = true
 
 	o = pick(o, {
 		data: 'data value values sample samples',
@@ -368,11 +353,18 @@ Waveform.prototype.update = function (o) {
 		viewport: 'clip vp viewport viewBox viewbox viewPort area',
 		opacity: 'opacity alpha transparency visible visibility opaque',
 		flip: 'flip iviewport invertViewport inverseViewport',
-		mode: 'mode'
+		mode: 'mode',
+		shape: 'shape textureShape'
 	})
 
 	// forcing rendering mode is mostly used for debugging purposes
 	if (o.mode !== undefined) this.mode = o.mode
+
+	if (o.shape !== undefined) {
+		if (this.textures.length) throw Error('Cannot set texture shape because textures are initialized already')
+		this.textureShape = o.shape
+		this.textureLength = this.textureShape[0] * this.textureShape[1]
+	}
 
 	// parse line style
 	if (o.line) {
@@ -444,45 +436,9 @@ Waveform.prototype.update = function (o) {
 	return this
 }
 
-// append samples, will be put into texture at the next frame or idle
-Waveform.prototype.push = function (...samples) {
-	if (!samples || !samples.length) return this
-
-	for (let i = 0; i < samples.length; i++) {
-		if (samples[i].length) {
-			if (samples[i].length > MAX_ARGUMENTS) {
-				for (let j = 0; j < samples[i].length; j++) {
-					this.pushQueue.push(samples[i][j])
-				}
-			}
-			else this.pushQueue.push(...samples[i])
-		}
-		else this.pushQueue.push(samples[i])
-	}
-
-	if (this.needsFlush && this.needsFlush.call) this.needsFlush()
-	this.needsFlush = idle(() => {
-		this.flush()
-	})
-
-	return this
-}
-
-// drain pushQueue
-Waveform.prototype.flush = function () {
-	// cancel planned callback
-	if (this.needsFlush && this.needsFlush.call) this.needsFlush()
-	if (this.pushQueue.length) {
-		let arr = this.pushQueue
-		this.set(arr, this.total)
-		this.pushQueue.length = 0
-	}
-	return this
-}
-
 // calculate draw options
 Waveform.prototype.calc = function () {
-	if (!this.needsFlush) return this.drawOptions
+	if (!this.dirty) return this.drawOptions
 
 	this.flush()
 
@@ -508,6 +464,7 @@ Waveform.prototype.calc = function () {
 	let sampleStep = pxStep * span / viewport[2]
 
 	// snap sample step to 2^n grid: still smooth, but reduces float32 error
+	// FIXME: make sampleStep more round
 	if (sampleStep) sampleStep = Math.round(sampleStep * 16) / 16
 
 	let pxPerSample = pxStep / sampleStep
@@ -538,6 +495,8 @@ Waveform.prototype.calc = function () {
 
 	if (range[0] < 0) currTexture += 1
 
+	let mode = this.mode
+
 	let VERTEX_REPEAT = 2.;
 
 	// limit not existing in texture points
@@ -559,18 +518,116 @@ Waveform.prototype.calc = function () {
 		) * VERTEX_REPEAT
 	)
 
-	let mode = this.mode
+
+
+	// detect number of passes required to render full waveform
+	let passes = []
+	let idx = offset, texId = 0
+	// while (idx < range[1]) {
+	// 	idx = idx % this.textureLength + Math.floor(this.textureLength / sampleStep)
+	// 	let prevSample = i === 0 ? [] ;
+	// 	passes.push({
+
+	// 		idx: i,
+	// 		count,
+	// 		clip,
+	// 		texture: this.textures[id]
+	// 	})
+	// 	i += this.textureLength
+	// }
+
+	passes.push({
+		clip: viewport,
+		count: Math.min(count, this.textureLength * 4),
+		offset: offset,
+		samples: this.textures[currTexture],
+		fractions: this.textures2[currTexture],
+		shift: 0
+	})
 
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	this.drawOptions = {
 		offset, count, thickness, color, pxStep, pxPerSample, viewport,
-		translate, currTexture, sampleStep, span, total, opacity, amplitude, range, mode
+		translate, currTexture, sampleStep, span, total, opacity, amplitude, range, mode, passes,
+		dataShape: this.textureShape,
+		dataLength: this.textureLength
 	}
 
-	this.needsFlush = false
+	this.dirty = false
 
 	return this.drawOptions
+}
+
+// draw frame according to state
+Waveform.prototype.render = function () {
+	this.flush()
+
+	if (this.total < 2) return this
+
+	let o = this.calc()
+
+	// multipass renders different textures to adjacent clip areas
+	o.passes.forEach(pass => {
+		// o ← {count, offset, clip, texture, shift}
+		extend(o, pass)
+
+		// range case
+		if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
+			this.shader.drawRanges.call(this, o)
+			console.log('range')
+		}
+
+		// line case
+		else {
+			// this.shader.drawLine.call(this, extend({}, o, {
+			// 	color: [255, 0, 0, 255],
+			// 	primitive: 'points'
+			// }))
+
+			this.shader.drawLine.call(this, o)
+			console.log('line')
+		}
+	})
+
+
+	return this
+}
+
+// append samples, will be put into texture at the next frame or idle
+Waveform.prototype.push = function (...samples) {
+	if (!samples || !samples.length) return this
+
+	for (let i = 0; i < samples.length; i++) {
+		if (samples[i].length) {
+			if (samples[i].length > MAX_ARGUMENTS) {
+				for (let j = 0; j < samples[i].length; j++) {
+					this.pushQueue.push(samples[i][j])
+				}
+			}
+			else this.pushQueue.push(...samples[i])
+		}
+		else this.pushQueue.push(samples[i])
+	}
+
+	if (this.dirty && this.dirty.call) this.dirty()
+	this.dirty = idle(() => {
+		this.flush()
+	})
+
+	return this
+}
+
+// drain pushQueue
+Waveform.prototype.flush = function () {
+	// cancel planned callback
+	if (this.dirty && this.dirty.call) this.dirty()
+	if (this.pushQueue.length) {
+		let arr = this.pushQueue
+		this.set(arr, this.total)
+		this.pushQueue.length = 0
+	}
+	return this
 }
 
 // write samples into texture
@@ -587,7 +644,7 @@ Waveform.prototype.set = function (samples, at=0) {
 		this.set(Array(at - this.total), this.total)
 	}
 
-	this.needsFlush = true
+	this.dirty = true
 
 	// carefully handle array
 	if (Array.isArray(samples)) {
@@ -757,35 +814,6 @@ Waveform.prototype.set = function (samples, at=0) {
 
 		pool.freeFloat32(f32data)
 		pool.freeFloat32(f32fract)
-	}
-
-	return this
-}
-
-// draw frame according to state
-Waveform.prototype.render = function () {
-	this.flush()
-
-	if (this.total < 2) return this
-
-	let o = this.calc()
-
-	// range case
-	if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
-		this.shader.drawRanges.call(this, o)
-	}
-
-	// line case
-	else {
-		this.shader.drawLine.call(this, o)
-		// this.shader.drawLine.call(this, extend(o, {
-		// 	primitive: 'line strip',
-		// 	color: [0,0,255,255]
-		// }))
-		// this.shader.drawLine.call(this, extend(o, {
-		// 	primitive: 'points',
-		// 	color: [0,0,0,255]
-		// }))
 	}
 
 	return this

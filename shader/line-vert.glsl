@@ -3,15 +3,14 @@
 precision highp float;
 
 #pragma glslify: pick = require('./pick.glsl')
-#pragma glslify: reamp = require('./reamp.glsl')
-#pragma glslify: Samples = require('./samples.glsl')
+#pragma glslify: deamp = require('./deamp.glsl')
 
 attribute float id, sign, side;
 
-uniform Samples samples;
-uniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total,translate;
+uniform sampler2D samples, fractions;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
-uniform vec2 amp;
+uniform vec2 amplitude;
 
 
 varying vec4 fragColor;
@@ -35,8 +34,8 @@ void main () {
 	bool isEnd = offset >= total - translate - 1.;
 
 	// DEBUG: mark adjacent texture with different color
-	// if (translate + (id) * sampleStep > 64. * 64.) {
-	// 	fragColor.x *= .5;
+	// if (offset >= 16.) {
+	// 	fragColor.x = 1.;
 	// }
 	// if (isEnd) fragColor = vec4(0,0,1,1);
 	// if (isStart) fragColor = vec4(0,0,1,1);
@@ -46,16 +45,16 @@ void main () {
 	vec4 sampleNext = pick(samples, offset + sampleStep, offset - sampleStep, translate);
 	vec4 samplePrev = pick(samples, offset - sampleStep, offset - sampleStep, translate);
 
-	avgCurr = reamp(sampleCurr.x, amp);
-	avgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);
-	avgPrev = reamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amp);
+	avgCurr = deamp(sampleCurr.x, amplitude);
+	avgNext = deamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amplitude);
+	avgPrev = deamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amplitude);
 
 	// fake sdev 2σ = thickness
 	// sdev = normThickness / 2.;
 	sdev = 0.;
 
 	// compensate snapping for low scale levels
-	float posShift = 0.;//pxPerSample < 1. ? 0. : id + (translater - offset - translate) / sampleStep;
+	float posShift = 0.;//id + (translater - offset - translate) / sampleStep;
 
 	vec2 position = vec2(
 		pxStep * (id - posShift) / viewport.z,

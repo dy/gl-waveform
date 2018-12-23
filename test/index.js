@@ -52,6 +52,7 @@ t('calibrate step/end: thickness should not bend', async t => {
 	wf.range = [-.5, 6.5]
 
 	// calibrate end
+	wf.mode = 'range'
 	wf.render()
 	t.ok(eq(await img`./test/fixture/calibrate-end.png`, wf, .3))
 	wf.clear()
@@ -59,10 +60,9 @@ t('calibrate step/end: thickness should not bend', async t => {
 	wf.range = [1, 7]
 	wf.mode = 'range'
 	wf.render()
-	t.ok(eq(await img`./test/fixture/calibrate-end-range.png`, wf, .3))
 	// document.body.appendChild(wf.canvas)
 	// interactive(wf)
-
+	t.ok(eq(await img`./test/fixture/calibrate-end-range.png`, wf, .3))
 	wf.clear()
 
 	t.end()
@@ -208,7 +208,6 @@ t.skip('big values do not get accumulated', async t => {
 		arr.push(1011)
 	}
 	wf.push(arr)
-	console.timeEnd(1)
 
 	document.body.appendChild(wf.canvas)
 	interactive(wf, x => {
@@ -217,6 +216,31 @@ t.skip('big values do not get accumulated', async t => {
 
 	wf.update({amplitude: [1005, 1171], width: 1})
 	wf.render()
+
+	// second-texture start is ok
+
+	t.end()
+})
+
+t.skip('multipass renderer: line mode', async t => {
+	let data = oscillate.sin(40, {f: 5000})
+
+	let wf = createWaveform(gl)
+
+	wf.update({shape: [4, 4], thickness: 30})
+	wf.push(data)
+	wf.render()
+
+	document.body.appendChild(wf.canvas)
+	interactive(wf)
+
+
+	t.end()
+})
+
+t.skip('shared texture rendering', async t => {
+
+	// TODO: various-size textures
 
 	t.end()
 })

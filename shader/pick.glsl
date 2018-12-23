@@ -4,51 +4,27 @@
 precision highp float;
 
 #pragma glslify: lerp = require('./lerp.glsl')
-#pragma glslify: Samples = require('./samples.glsl')
 
+uniform vec2 dataShape;
+uniform float dataLength;
 
 // pick integer offset
-vec4 picki (Samples samples, float offset, float baseOffset, float translate) {
+vec4 picki (sampler2D samples, float offset, float baseOffset, float translate) {
 	// translate is here in order to remove float32 error (at the latest stage)
 	offset += translate;
 	baseOffset += translate;
 
 	vec2 uv = vec2(
-		floor(mod(offset, samples.shape.x)) + .5,
-		floor((offset) / samples.shape.x) + .5
-	) / samples.shape;
+		floor(mod(offset, dataShape.x)) + .5,
+		floor((offset) / dataShape.x) + .5
+	) / dataShape;
 
-
-	vec4 sample;
-
-	// use last sample for textures past 2nd
-	// TODO: remove when multipass rendering is implemented
-	if (uv.y > 2.) {
-		sample = texture2D(samples.data[1], vec2(1, 1));
-		sample.x = 0.;
-	}
-	else if (uv.y > 1.) {
-		uv.y = uv.y - 1.;
-
-		sample = texture2D(samples.data[1], uv);
-
-		// if right sample is from the next texture - align it to left texture
-		if (offset >= samples.shape.x * samples.shape.y &&
-			baseOffset < samples.shape.x * samples.shape.y) {
-			sample.y += samples.sum;
-			sample.z += samples.sum2;
-		}
-	}
-	else {
-		sample = texture2D(samples.data[0], uv);
-	}
-
-	return sample;
+	return texture2D(samples, uv);
 }
 
 // shift is passed separately for higher float32 precision of offset
 // export pickLinear for the case of emulating texture linear interpolation
-vec4 pick (Samples samples, float offset, float baseOffset, float translate) {
+vec4 pick (sampler2D samples, float offset, float baseOffset, float translate) {
 	float offsetLeft = floor(offset);
 	float offsetRight = ceil(offset);
 	float t = offset - offsetLeft;

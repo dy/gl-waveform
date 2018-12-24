@@ -63,8 +63,6 @@ void main () {
 	if (isEnd) fragColor = vec4(0,0,1,.5);
 	if (isStart) fragColor = vec4(0,0,1,.3);
 
-	if (id == -1.) fragColor = vec4(0,0,1,1);
-
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = stats(offset);
 	vec4 sampleNext = stats(offset + sampleStep);
@@ -82,7 +80,7 @@ void main () {
 	float posShift = 0.;//id + (translater - offset - translate) / sampleStep;
 
 	vec2 position = vec2(
-		pxStep * (id - posShift) / viewport.z,
+		pxStep * (id + .5) / (viewport.z),
 		avgCurr
 	);
 
@@ -118,7 +116,8 @@ void main () {
 	position += sign * join * .5 * thickness / viewport.zw;
 
 	// shift position by the clip offset
-	position.x += samples.id * pxStep * (samples.length) / sampleStep / viewport.z;
+	// FIXME: move to uniform
+	position.x += samples.id * pxStep * samples.length / sampleStep / viewport.z;
 
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

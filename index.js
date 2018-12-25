@@ -163,6 +163,7 @@ Waveform.prototype.createShader = function (o) {
 			'fractions.prevSum2': 0,
 
 			passesNum: regl.prop('passesNum'),
+			idOffset: regl.prop('idOffset'),
 
 			// total number of samples
 			total: regl.prop('total'),
@@ -544,6 +545,7 @@ Waveform.prototype.calc = function () {
 	let passes = Array(passesNum)
 	let firstTextureId = Math.round(range[0] / this.textureLength)
 	let clipWidth = viewport[2] / passesNum
+	let samplesPerPass = Math.ceil(clipWidth / pxStep)
 
 	for (let i = 0; i < passesNum; i++) {
 		let textureId = firstTextureId + i;
@@ -560,13 +562,16 @@ Waveform.prototype.calc = function () {
 			clipRight - clipLeft,
 			viewport[3]
 		]
+
 		passes[i] = {
 			textureId: textureId,
 			clip: clip,
 
 			// FIXME: reduce count number for the tail
 			// number of vertices to fill the clip width, including l/r overlay
-			count: 2 + 4 + 4 * Math.ceil(clipWidth / pxStep) * 2 + 4 + 2,
+			count: 2 + 4 + 4 * samplesPerPass * 3 + 4 + 2,
+
+			idOffset: -samplesPerPass,
 
 			// FIXME: first texture has redundant offsets
 			offset: 0,//!textureId ? 2. * Math.max(-2. * Math.floor(range[0] / sampleStep), 0) : 0,

@@ -11,7 +11,7 @@ uniform Samples samples;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
-uniform float passesNum;
+uniform float passesNum, idOffset;
 
 varying vec4 fragColor;
 varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;
@@ -57,6 +57,7 @@ void main () {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
+	float id = id + idOffset;
 	float offset = id * sampleStep;
 
 	bool isStart = samples.id == 0. && offset <= max(-translate, 0.);

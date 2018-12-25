@@ -243,9 +243,9 @@ t.only('multipass: single txt line mode', async t => {
 	t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
 	wf.clear()
 
-	wf.range = [6, 22]
+	wf.range = [10, 26]
 	wf.render()
-	// t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
+	t.ok(eq(await img`./test/fixture/multipass-16l.png`, wf))
 	// wf.clear()
 
 	document.body.appendChild(wf.canvas)
@@ -258,7 +258,6 @@ t.only('multipass: single txt line mode', async t => {
 	// zoom out
 	// range mode the same
 	// let data = oscillate.sin(64, {f: 5000})
-
 
 	t.end()
 })

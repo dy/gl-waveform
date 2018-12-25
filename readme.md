@@ -69,7 +69,7 @@ Update state of the renderer instance. Possible `options`:
 Property | Meaning
 ---|---
 `data`			| Array or typed array with sample values. Usually it contains values from `-1..+1` range, but that can be adjusted via `amplitude` property. Can be a `regl-texture` instance or a list of textures, to share data between instances. If you need time series data, have a look at `tick-array` package to normalize input data values.
-`range`			| Visible data x-range, an array `[start, end]` offsets or a number of the last samples to show. Can also be a 4-value array `[xStart, minAmplitude, xEnd, maxAmplityde]` compatible with other gl-components, in this case `amplitude` property is ignored. Negative x-offsets use data from the end. `null` range displays all available data.
+`range`			| Visible data x-range, an array `[start, end]` offsets or a number of the last samples to show. Can also be a 4-value array `[xStart, minAmplitude, xEnd, maxAmplityde]` compatible with other gl-components, in this case `amplitude` property is ignored. Negative number value counts data from the end. `null` range displays all available data.
 `amplitude` 	| Amplitudes range, number or array `[min, max]`. `null` value uses data min/max.
 `color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).
 `thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.
@@ -88,7 +88,7 @@ Draw trace frame according to the state.
 
 ### `waveform.pick(event|x)`
 
-Get information about samples at `x` coordinate relative to the canvas. Returns an object with `{ values, average, sdev, offset, x, y }` properties.
+Get information about samples at `x` coordinate relative to the canvas. Returns an object with props:
 
 Property | Meaning
 ---|---
@@ -99,7 +99,7 @@ Property | Meaning
 
 ### `waveform.clear()`
 
-Clear viewport area disposed for the instance.
+Clear viewport area dedicated for the instance.
 
 ### `waveform.destroy()`
 

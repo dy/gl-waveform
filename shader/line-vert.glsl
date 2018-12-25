@@ -11,12 +11,13 @@ uniform Samples samples;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
+uniform float passesNum;
 
 varying vec4 fragColor;
 varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;
 
-bool isNaN( float val ){
-  return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
+bool isNaN (vec4 sample) {
+	return sample.w == -1.;
 }
 
 vec4 stats (float offset) {
@@ -43,6 +44,7 @@ vec4 stats (float offset) {
 	// curr texture
 	else {
 		sample = texture2D(samples.data, uv);
+		// if (isNaN(sample.x)) sample.x = 0.;
 	}
 
 	return sample;
@@ -58,10 +60,10 @@ void main () {
 	float offset = id * sampleStep;
 
 	bool isStart = samples.id == 0. && offset <= max(-translate, 0.);
-	bool isEnd = offset >= total - translate - 1.;
+	bool isEnd = samples.id == passesNum - 1. && offset >= total - translate - 1.;
 
-	if (isEnd) fragColor = vec4(0,0,1,.5);
-	if (isStart) fragColor = vec4(0,0,1,.3);
+	// if (isEnd) fragColor = vec4(0,0,1,1);
+	// if (isStart) fragColor = vec4(0,0,1,1);
 
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = stats(offset);
@@ -69,8 +71,8 @@ void main () {
 	vec4 samplePrev = stats(offset - sampleStep);
 
 	avgCurr = deamp(sampleCurr.x, amplitude);
-	avgNext = deamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amplitude);
-	avgPrev = deamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amplitude);
+	avgNext = deamp(isNaN(sampleNext) ? sampleCurr.x : sampleNext.x, amplitude);
+	avgPrev = deamp(isNaN(samplePrev) ? sampleCurr.x : samplePrev.x, amplitude);
 
 	// fake sdev 2σ = thickness
 	// sdev = normThickness / 2.;
@@ -93,10 +95,10 @@ void main () {
 	) / viewport.zw);
 
 	vec2 join;
-	if (isStart || isNaN(samplePrev.x)) {
+	if (isStart || isNaN(samplePrev)) {
 		join = normalRight;
 	}
-	else if (isEnd || isNaN(sampleNext.x)) {
+	else if (isEnd || isNaN(sampleNext)) {
 		join = normalLeft;
 	}
 	else {

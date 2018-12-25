@@ -222,12 +222,51 @@ t.skip('big values do not get accumulated', async t => {
 	t.end()
 })
 
-t.only('multipass renderer: line mode', async t => {
-	// TODO
-	// let data = oscillate.sin(16, {f: 5000})
-	// let data = oscillate.sin(32, {f: 5000})
+t.only('multipass: single txt line mode', async t => {
+	let data = oscillate.sin(16, {f: 5000})
+	let wf = createWaveform(gl)
 
-	let data = oscillate.sin(64, {f: 5000})
+	wf.update({shape: [4, 4], thickness: 10, amplitude: [-3, 3]})
+	wf.push(data)
+
+	wf.render()
+	t.ok(eq(await img`./test/fixture/multipass-16.png`, wf))
+	wf.clear()
+
+	wf.range = [-6, 10]
+	wf.render()
+	t.ok(eq(await img`./test/fixture/multipass-16r.png`, wf))
+	wf.clear()
+
+	wf.range = [-10, 6]
+	wf.render()
+	t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
+	wf.clear()
+
+	wf.range = [6, 22]
+	wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
+	// wf.clear()
+
+	document.body.appendChild(wf.canvas)
+	interactive(wf, c => {
+		console.log(wf.range)
+	})
+
+	// range change to the left
+	// range change to the right
+	// zoom out
+	// range mode the same
+	// let data = oscillate.sin(64, {f: 5000})
+
+
+	t.end()
+})
+
+t('multipass: 2 txt join', async t => {
+	// let data = oscillate.sin(24, {f: 5000})
+	// let data = oscillate.sin(64, {f: 5000})
+	// let data = oscillate.sin(32, {f: 5000})
 
 	let wf = createWaveform(gl)
 

@@ -162,8 +162,11 @@ Waveform.prototype.createShader = function (o) {
 			'fractions.prevSum': 0,
 			'fractions.prevSum2': 0,
 
+			passesNum: regl.prop('passesNum'),
+
 			// total number of samples
 			total: regl.prop('total'),
+
 
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
@@ -249,7 +252,7 @@ Waveform.prototype.createShader = function (o) {
 		height: 1,
 		channels: this.textureChannels,
 		type: 'float',
-		data: new Float32Array([NaN, NaN, NaN])
+		data: new Float32Array([NaN, NaN, NaN, -1])
 	})
 	NaNTexture.sum = 0
 	NaNTexture.sum2 = 0
@@ -337,12 +340,10 @@ Object.defineProperties(Waveform.prototype, {
 	range: {
 		get: function () {
 			if (!this.dirty) return this.drawOptions.range
-			if (this._range) {
-				if (this._range[0] < 0 && this._range[1] <= 0) {
-					// wrap negative numbers
+			if (this._range != null) {
+				if (typeof this._range === 'number') {
 					return [
-						nidx(this._range[0], this.total),
-						nidx(this._range[1], this.total)
+						nidx(this._range), this.total
 					]
 				}
 
@@ -362,7 +363,7 @@ Object.defineProperties(Waveform.prototype, {
 				}
 			}
 			else if (typeof range === 'number') {
-				this._range = [-range, -0]
+				this._range = range
 			}
 
 			this.dirty = true
@@ -516,7 +517,8 @@ Waveform.prototype.calc = function () {
 	// - panning is always perceived smooth
 
 	// translate snapped to samplesteps makes sure 0 sample is picked pefrectly
-	let translate =  Math.floor((range[0] % this.textureLength) / sampleStep) * sampleStep
+	let translate =  Math.floor(range[0] / sampleStep) * sampleStep
+	// Math.floor((range[0] % this.textureLength) / sampleStep) * sampleStep
 
 	let mode = this.mode
 
@@ -538,16 +540,16 @@ Waveform.prototype.calc = function () {
 	// )
 
 	// detect passes number needed to render full waveform
-	let passesNum = Math.ceil(span / this.textureLength)
+	let passesNum = Math.ceil(Math.floor(span * 1000) / 1000 / this.textureLength)
 	let passes = Array(passesNum)
-	let firstTextureId = Math.floor(range[0] / this.textureLength)
+	let firstTextureId = Math.round(range[0] / this.textureLength)
 	let clipWidth = viewport[2] / passesNum
 
 	for (let i = 0; i < passesNum; i++) {
 		let textureId = firstTextureId + i;
 
 		// ignore negative textures
-		if (textureId < 0) continue;
+		if (textureId < -1) continue;
 
 		let clipLeft = Math.round(i * clipWidth)
 		let clipRight = Math.round((i + 1) * clipWidth)
@@ -558,20 +560,19 @@ Waveform.prototype.calc = function () {
 			clipRight - clipLeft,
 			viewport[3]
 		]
-
 		passes[i] = {
 			textureId: textureId,
 			clip: clip,
 
 			// FIXME: reduce count number for the tail
 			// number of vertices to fill the clip width, including l/r overlay
-			count: 2 + 4 + 4 * Math.ceil(clipWidth / pxStep) + 4 + 2,
+			count: 2 + 4 + 4 * Math.ceil(clipWidth / pxStep) * 2 + 4 + 2,
 
 			// FIXME: first texture has redundant offsets
 			offset: 0,//!textureId ? 2. * Math.max(-2. * Math.floor(range[0] / sampleStep), 0) : 0,
 
-			samples: this.textures[textureId],
-			fractions: this.textures2[textureId],
+			samples: this.textures[textureId] || this.NaNTexture,
+			fractions: this.textures2[textureId] || this.blankTexture,
 			prevSamples: this.textures[textureId - 1] || this.NaNTexture,
 			nextSamples: this.textures[textureId + 1] || this.NaNTexture,
 			prevFractions: this.textures[textureId - 1] || this.blankTexture,
@@ -585,6 +586,7 @@ Waveform.prototype.calc = function () {
 	this.drawOptions = {
 		thickness, color, pxStep, pxPerSample, viewport,
 		translate, sampleStep, span, total, opacity, amplitude, range, mode, passes,
+		passesNum,
 		dataShape: this.textureShape,
 		dataLength: this.textureLength
 	}
@@ -766,6 +768,9 @@ Waveform.prototype.set = function (samples, at=0) {
 		}
 		else {
 			data[i * ch] = NaN
+
+			// write NaN values as a definite flag
+			data[i * ch + 3] = -1
 		}
 
 		txt.sum += this.lastY
@@ -949,7 +954,7 @@ Waveform.prototype.flip = false
 // - max number of textures
 Waveform.prototype.textureShape
 Waveform.prototype.textureLength
-Waveform.prototype.textureChannels = 3
+Waveform.prototype.textureChannels = 4
 Waveform.prototype.maxSampleCount = 8192 * 2
 
 Waveform.prototype.storeData = true

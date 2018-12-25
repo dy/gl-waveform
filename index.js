@@ -571,6 +571,7 @@ Waveform.prototype.calc = function () {
 			// number of vertices to fill the clip width, including l/r overlay
 			count: 2 + 4 + 4 * samplesPerPass * 3 + 4 + 2,
 
+			// FIXME: adjust that number to avoid oversampling
 			idOffset: -samplesPerPass,
 
 			// FIXME: first texture has redundant offsets
@@ -582,6 +583,8 @@ Waveform.prototype.calc = function () {
 			nextSamples: this.textures[textureId + 1] || this.NaNTexture,
 			prevFractions: this.textures[textureId - 1] || this.blankTexture,
 			nextFractions: this.textures[textureId + 1] || this.blankTexture,
+
+			// position shift to compensate rigid rounding
 			shift: 0
 		}
 	}

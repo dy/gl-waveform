@@ -4,91 +4,86 @@ precision highp float;
 
 #pragma glslify: lerp = require('./lerp.glsl')
 #pragma glslify: deamp = require('./deamp.glsl')
-#pragma glslify: pick = require('./pick.glsl')
 #pragma glslify: Samples = require('./samples.glsl')
 
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, sampleStep, total, translate;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate, idOffset;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
 
 varying vec4 fragColor;
 varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
 
+const vec3 NaN = vec3(0,0,-1);
 
-void main() {
-	gl_PointSize = 1.5;
+vec4 picki (Samples samples, float offset) {
+	// translate is here in order to remove float32 error (at the latest stage)
+	offset += translate;
 
-	normThickness = thickness / viewport.w;
+	vec2 uv = vec2(
+		floor(mod(offset, samples.shape.x)) + .5,
+		floor(offset / samples.shape.x) + .5
+	) / samples.shape;
 
-	fragColor = color / 255.;
-	fragColor.a *= opacity;
+	vec4 sample;
 
-	float offset = id * sampleStep;
+	// prev texture
+	if (uv.y < 0.) {
+		uv.y += 1.;
+		sample = texture2D(samples.prev, uv);
+		sample.y -= samples.prevSum;
+		sample.z -= samples.prevSum2;
+		// if (sample.w < 0.) sample.y = 0.;
+		// if (sample.w < 0.) sample.z = 0.;
+	}
+	// next texture
+	else if (uv.y > 1.) {
+		uv.y -= 1.;
+		sample = texture2D(samples.next, uv);
+		sample.y += samples.sum;
+		sample.z += samples.sum2;
+	}
+	// curr texture
+	else {
+		sample = texture2D(samples.data, uv);
+	}
 
-	// compensate snapping for low scale levels
-	float posShift = 0.;
+	return sample;
+}
 
-	bool isStart = offset <= max( -translate, 0.);
-	bool isEnd = offset >= total - translate - 1.;
+// returns {avg, sdev, isNaN}
+vec3 stats (float offset) {
+	// ignore head offsets
+	if (offset < 0.) return NaN;
 
-	float offset0 = offset - sampleStep * .5;
+	bool isFirst = offset <= 0.;
+	// if (isFirst) fragColor = vec4(1,0,0,1);
+
+	float offset0 = max(offset - sampleStep * .5, 0.);
 	float offset1 = offset + sampleStep * .5;
-	float offsetPrev = offset - sampleStep - sampleStep * .5;
-	float offsetNext = offset + sampleStep + sampleStep * .5;
-
-	// if (isEnd) fragColor = vec4(0,0,1,1);
-	// if (isStart) fragColor = vec4(0,0,1,1);
-
-	// calc average of curr..next sampling points
-	vec4 sample0 = pick(samples, offset0, offsetPrev, translate);
-	vec4 sample1 = pick(samples, offset1, offsetPrev, translate);
-	vec4 samplePrev = pick(samples, offsetPrev, offsetPrev, translate);
-	vec4 sampleNext = pick(samples, offsetNext, offsetPrev, translate);
-
-	// error proof variance calculation
 	float offset0l = floor(offset0);
 	float offset1l = floor(offset1);
-	float offset0r = offset0l + 1.;
-	float offset1r = offset1l + 1.;
-	float offsetPrevl = floor(offsetPrev);
-	float offsetPrevr = offsetPrevl + 1.;
-	float offsetNextl = floor(offsetNext);
-	float offsetNextr = offsetNextl + 1.;
-	float t0 = offset0 - offset0l;
-	float t1 = offset1 - offset1l;
-	// FIXME: optimize tNext, tPrev knowing the fact of sampleStep ratio
-	float tNext = offsetNext - offsetNextl;
-	float tPrev = offsetPrev - offsetPrevl;
+	// float offset0r = ceil(offset0);
+	// float offset1r = ceil(offset1);
 
-	// ALERT: this formula took 9 days
-	// the order of operations is important to provide precision
-	// that comprises linear interpolation and range calculation
-	// x - amplitude, y - sum, z - sum2, w - x offset
-	vec4 sample0l = pick(samples, offset0l, offsetPrev, translate);
-	vec4 sample0r = pick(samples, offset0r, offsetPrev, translate);
-	vec4 sample1r = pick(samples, offset1r, offsetPrev, translate);
-	vec4 sample1l = pick(samples, offset1l, offsetPrev, translate);
-	vec4 sample1lf = pick(fractions, offset1l, offsetPrev, translate);
-	vec4 sample0lf = pick(fractions, offset0l, offsetPrev, translate);
-	vec4 sample1rf = pick(fractions, offset1r, offsetPrev, translate);
-	vec4 sample0rf = pick(fractions, offset0r, offsetPrev, translate);
+	vec4 sample0l = picki(samples, offset0l);
+	vec4 sample1l = picki(samples, offset1l);
 
-	vec4 samplePrevl = pick(samples, offsetPrevl, offsetPrev, translate);
-	vec4 sampleNextl = pick(samples, offsetNextl, offsetPrev, translate);
-	vec4 samplePrevlf = pick(fractions, offsetPrevl, offsetPrev, translate);
-	vec4 sampleNextlf = pick(fractions, offsetNextl, offsetPrev, translate);
-	vec4 samplePrevr = pick(samples, offsetPrevr, offsetPrev, translate);
-	vec4 sampleNextr = pick(samples, offsetNextr, offsetPrev, translate);
-	vec4 samplePrevrf = pick(fractions, offsetPrevr, offsetPrev, translate);
-	vec4 sampleNextrf = pick(fractions, offsetNextr, offsetPrev, translate);
+	if (sample0l.w == -1. || sample1l.w == -1.) return NaN;
 
-	// TODO: replace with stats(offset) returning avg, mean, sdev
-	// that removes pick dependency
-	// and incorporates fractions into samples
-	avgCurr = (
+	vec4 sample0lf = picki(fractions, offset0l);
+	vec4 sample1lf = picki(fractions, offset1l);
+	// vec4 sample0r = picki(samples, offset0r);
+	// vec4 sample1r = picki(samples, offset1r);
+	// vec4 sample0rf = picki(fractions, offset0r);
+	// vec4 sample1rf = picki(fractions, offset1r);
+
+	// float t0 = offset0 - offset0l;
+	// float t1 = offset1 - offset1l;
+
+	float avg = (
 		+ sample1l.y
 		- sample0l.y
 		+ sample1lf.y
@@ -97,33 +92,10 @@ void main() {
 		// - t0 * (sample0r.y - sample0l.y)
 		// + t1 * (sample1rf.y - sample1lf.y)
 		// - t0 * (sample0rf.y - sample0lf.y)
-	) / sampleStep;
+	);
 
-
-	// because for 0 offset sample0l === sample1l - texture is clamped
-	if (isStart) avgCurr = sample1l.x;
-
-	avgPrev = (
-		+ sample0l.y
-		- samplePrevl.y
-		+ sample0lf.y
-		- samplePrevlf.y
-		// + t0 * (sample0r.y - sample0l.y)
-		// - tPrev * (samplePrevr.y - samplePrevl.y)
-		// + t0 * (sample0rf.y - sample0lf.y)
-		// - tPrev * (samplePrevrf.y - samplePrevlf.y)
-	) / sampleStep;
-
-	avgNext = (
-		+ sampleNextl.y
-		- sample1l.y
-		+ sampleNextlf.y
-		- sample1lf.y
-		// + tNext * (sampleNextr.y - sampleNextl.y)
-		// - t1 * (sample1r.y - sample1l.y)
-		// + tNext * (sampleNextrf.y - sampleNextlf.y)
-		// - t1 * (sample1rf.y - sample1lf.y)
-	) / sampleStep;
+	if (isFirst) avg /= sampleStep * .5;
+	else avg /= sampleStep;
 
 	float mx2 = (
 		+ sample1l.z
@@ -134,26 +106,64 @@ void main() {
 		// - t0 * (sample0r.z - sample0l.z)
 		// + t1 * (sample1rf.z - sample1lf.z)
 		// - t0 * (sample0rf.z - sample0lf.z)
-	)  / sampleStep;
-	float m2 = avgCurr * avgCurr;
+	);
 
-	// m2 = 1022121.01093286;
-	// mx2 = 1022121.0054664367;
+	if (isFirst) mx2 /= sampleStep * .5;
+	else mx2 /= sampleStep;
+
+	float m2 = avg * avg;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(mx2 - m2);
 
-
 	sdev = sqrt(variance);
-	sdev /= abs(amplitude.y - amplitude.x);
 
+	return vec3(avg, sdev, min(sample0l.w, sample1l.w));
+}
+
+
+void main() {
+	gl_PointSize = 1.5;
+
+	normThickness = thickness / viewport.w;
+
+	fragColor = color / 255.;
+	fragColor.a *= opacity;
+
+	float id = id + idOffset;
+	float offset = id * sampleStep;
+
+	// compensate snapping for low scale levels
+	float posShift = 0.;
+
+	bool isStart = offset <= max( -translate, 0.);
+	bool isEnd = offset >= total - translate - 1.;
+
+	vec3 statsCurr = stats(offset);
+	if (statsCurr == NaN) return;
+
+	vec3 statsPrev = stats(offset - sampleStep);
+	vec3 statsNext = stats(offset + sampleStep);
+
+	// if (statsPrev.z < 0.) fragColor = vec4(1,0,0,1);
+
+	// TODO: replace with stats(offset) returning avg, mean, sdev
+	// that removes pick dependency
+	// and incorporates fractions into samples
+	avgCurr = statsCurr.x;
+	avgPrev = statsPrev.x;
+	avgNext = statsNext.x;
+
+	float sdev = statsCurr.y;
+
+	sdev /= abs(amplitude.y - amplitude.x);
 	avgCurr = deamp(avgCurr, amplitude);
 	avgNext = deamp(avgNext, amplitude);
 	avgPrev = deamp(avgPrev, amplitude);
 
 	// compensate for sampling rounding
 	vec2 position = vec2(
-		(pxStep * id) / viewport.z,
+		(pxStep * (id + .5)) / viewport.z,
 		avgCurr
 	);
 
@@ -177,10 +187,10 @@ void main() {
 
 	vec2 join;
 
-	if (isStart) {
+	if (statsPrev == NaN) {
 		join = normalRight;
 	}
-	else if (isEnd) {
+	else if (statsNext == NaN) {
 		join = normalLeft;
 	}
 	// sdev less than projected to vertical shows simple line
@@ -206,5 +216,9 @@ void main() {
 	avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
 
 	position += sign * join * .5 * thickness / viewport.zw;
+
+	// shift position by the clip offset
+	position.x += samples.id * pxStep * samples.length / sampleStep / viewport.z;
+
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

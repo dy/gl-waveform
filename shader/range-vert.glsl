@@ -35,8 +35,6 @@ vec4 picki (Samples samples, float offset) {
 		sample = texture2D(samples.prev, uv);
 		sample.y -= samples.prevSum;
 		sample.z -= samples.prevSum2;
-		if (sample.w < 0.) sample.y = 0.;
-		if (sample.w < 0.) sample.z = 0.;
 	}
 	// next texture
 	else if (uv.y > 1.) {
@@ -55,19 +53,16 @@ vec4 picki (Samples samples, float offset) {
 
 // returns {avg, sdev, isNaN}
 vec3 stats (float offset) {
-	// ignore head offsets
-	if (offset + translate < 0.) return NaN;
+	bool isHead = samples.id <= 0. && mod(offset + translate, samples.length) == 0.;
 
-	bool isHead = offset + translate == 0.;
-	// if (isHead) fragColor = vec4(1,0,0,1);
-
-	float offset0 = max(offset - sampleStep * .5, 0.);
+	float offset0 = offset - sampleStep * .5;
 	float offset1 = offset + sampleStep * .5;
 	float offset0l = floor(offset0);
 	float offset1l = floor(offset1);
 	// float offset0r = ceil(offset0);
 	// float offset1r = ceil(offset1);
 
+	// head picks half the first sample
 	vec4 sample0l = isHead ? picki(samples, offset) : picki(samples, offset0l);
 	vec4 sample1l = picki(samples, offset1l);
 
@@ -136,26 +131,16 @@ void main() {
 	// compensate snapping for low scale levels
 	float posShift = 0.;
 
-	bool isStart = offset <= max( -translate, 0.);
-	bool isEnd = offset >= total - translate - 1.;
-
 	vec3 statsCurr = stats(offset);
-	if (statsCurr == NaN) return;
-	// if (statsCurr == NaN) {
-	// if (offset + translate) {
-	// 	fragColor = vec4(1,0,0,1);
-	// }
-	// if (floor(max(offset - sampleStep * .5, 0.)) == 5.) fragColor = vec4(1,0,0,1);
 
+	// ignore NaN amplitudes
+	// FIXME: likely adjacent to NaN nodes should get half-stats
+	// akin to first-last nodes
+	if (statsCurr == NaN) return;
 
 	vec3 statsPrev = stats(offset - sampleStep);
 	vec3 statsNext = stats(offset + sampleStep);
 
-	// if (statsPrev.z < 0.) fragColor = vec4(1,0,0,1);
-
-	// TODO: replace with stats(offset) returning avg, mean, sdev
-	// that removes pick dependency
-	// and incorporates fractions into samples
 	avgCurr = statsCurr.x;
 	avgPrev = statsPrev.x;
 	avgNext = statsNext.x;
@@ -163,6 +148,7 @@ void main() {
 	float sdev = statsCurr.y;
 
 	sdev /= abs(amplitude.y - amplitude.x);
+
 	avgCurr = deamp(avgCurr, amplitude);
 	avgNext = deamp(avgNext, amplitude);
 	avgPrev = deamp(avgPrev, amplitude);

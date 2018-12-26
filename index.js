@@ -581,8 +581,8 @@ Waveform.prototype.calc = function () {
 			fractions: this.textures2[textureId] || this.blankTexture,
 			prevSamples: this.textures[textureId - 1] || this.NaNTexture,
 			nextSamples: this.textures[textureId + 1] || this.NaNTexture,
-			prevFractions: this.textures[textureId - 1] || this.blankTexture,
-			nextFractions: this.textures[textureId + 1] || this.blankTexture,
+			prevFractions: this.textures2[textureId - 1] || this.blankTexture,
+			nextFractions: this.textures2[textureId + 1] || this.blankTexture,
 
 			// position shift to compensate rigid rounding
 			shift: 0

@@ -267,17 +267,17 @@ t.only('multipass: single txt range mode', async t => {
 	wf.update({shape: [4, 4], thickness: 10, amplitude: [-3, 3]})
 	wf.push(data)
 
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16.png`, wf))
-	wf.clear()
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-16.png`, wf))
+	// wf.clear()
 
-	wf.range = [-6, 10]
-	wf.render()
+	// wf.range = [-6, 10]
+	// wf.render()
 	// t.ok(eq(await img`./test/fixture/multipass-16r.png`, wf))
 	// wf.clear()
 
-	// wf.range = [-10, 6]
-	// wf.render()
+	wf.range = [-10, 6]
+	wf.render()
 	// t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
 	// wf.clear()
 

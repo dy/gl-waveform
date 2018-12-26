@@ -35,8 +35,8 @@ vec4 picki (Samples samples, float offset) {
 		sample = texture2D(samples.prev, uv);
 		sample.y -= samples.prevSum;
 		sample.z -= samples.prevSum2;
-		// if (sample.w < 0.) sample.y = 0.;
-		// if (sample.w < 0.) sample.z = 0.;
+		if (sample.w < 0.) sample.y = 0.;
+		if (sample.w < 0.) sample.z = 0.;
 	}
 	// next texture
 	else if (uv.y > 1.) {
@@ -56,10 +56,10 @@ vec4 picki (Samples samples, float offset) {
 // returns {avg, sdev, isNaN}
 vec3 stats (float offset) {
 	// ignore head offsets
-	if (offset < 0.) return NaN;
+	if (offset + translate < 0.) return NaN;
 
-	bool isFirst = offset <= 0.;
-	// if (isFirst) fragColor = vec4(1,0,0,1);
+	bool isHead = offset + translate == 0.;
+	// if (isHead) fragColor = vec4(1,0,0,1);
 
 	float offset0 = max(offset - sampleStep * .5, 0.);
 	float offset1 = offset + sampleStep * .5;
@@ -68,10 +68,10 @@ vec3 stats (float offset) {
 	// float offset0r = ceil(offset0);
 	// float offset1r = ceil(offset1);
 
-	vec4 sample0l = picki(samples, offset0l);
+	vec4 sample0l = isHead ? picki(samples, offset) : picki(samples, offset0l);
 	vec4 sample1l = picki(samples, offset1l);
 
-	if (sample0l.w == -1. || sample1l.w == -1.) return NaN;
+	if ((sample0l.w == -1. || sample1l.w == -1.)) return NaN;
 
 	vec4 sample0lf = picki(fractions, offset0l);
 	vec4 sample1lf = picki(fractions, offset1l);
@@ -94,7 +94,7 @@ vec3 stats (float offset) {
 		// - t0 * (sample0rf.y - sample0lf.y)
 	);
 
-	if (isFirst) avg /= sampleStep * .5;
+	if (isHead) avg /= sampleStep * .5;
 	else avg /= sampleStep;
 
 	float mx2 = (
@@ -108,7 +108,7 @@ vec3 stats (float offset) {
 		// - t0 * (sample0rf.z - sample0lf.z)
 	);
 
-	if (isFirst) mx2 /= sampleStep * .5;
+	if (isHead) mx2 /= sampleStep * .5;
 	else mx2 /= sampleStep;
 
 	float m2 = avg * avg;
@@ -141,6 +141,12 @@ void main() {
 
 	vec3 statsCurr = stats(offset);
 	if (statsCurr == NaN) return;
+	// if (statsCurr == NaN) {
+	// if (offset + translate) {
+	// 	fragColor = vec4(1,0,0,1);
+	// }
+	// if (floor(max(offset - sampleStep * .5, 0.)) == 5.) fragColor = vec4(1,0,0,1);
+
 
 	vec3 statsPrev = stats(offset - sampleStep);
 	vec3 statsNext = stats(offset + sampleStep);

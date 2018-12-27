@@ -572,7 +572,7 @@ Waveform.prototype.calc = function () {
 			count: 2 + 4 + 4 * samplesPerPass * 3 + 4 + 2,
 
 			// FIXME: adjust that number to avoid oversampling
-			idOffset: -samplesPerPass,
+			idOffset: -samplesPerPass * textureId,
 
 			// FIXME: first texture has redundant offsets
 			offset: 0,//!textureId ? 2. * Math.max(-2. * Math.floor(range[0] / sampleStep), 0) : 0,

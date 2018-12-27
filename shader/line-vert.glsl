@@ -11,7 +11,7 @@ uniform Samples samples;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
-uniform float passesNum, passNum;
+uniform float passNum, passId;
 
 varying vec4 fragColor;
 varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;
@@ -40,6 +40,7 @@ vec4 stats (float offset) {
 	else if (uv.y > 1.) {
 		uv.y -= 1.;
 		sample = texture2D(samples.next, uv);
+		// sample.x = 0.;
 	}
 	// curr texture
 	else {
@@ -58,11 +59,11 @@ void main () {
 
 	float offset = id * sampleStep;
 
-	bool isStart = samples.id == 0. && offset <= -translate;
-	bool isEnd = samples.id == passesNum - 1. && offset + translate >= total - 1.;
+	bool isStart = samples.id <= 0. && offset <= -translate;
+	bool isEnd = samples.id == passNum - 1. && offset + translate >= total - 1.;
 
 	// if (isEnd) fragColor = vec4(0,0,1,1);
-	// if (isStart) fragColor = vec4(0,0,1,1);
+	// if (isStart) fragColor = vec4(1,0,0,1);
 
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = stats(offset);
@@ -122,7 +123,7 @@ void main () {
 
 	// shift position by the clip offset
 	// FIXME: move to uniform
-	position.x += samples.id * pxStep * samples.length / sampleStep / viewport.z;
+	position.x += passId * pxStep * samples.length / sampleStep / viewport.z;
 
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

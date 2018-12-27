@@ -162,8 +162,8 @@ Waveform.prototype.createShader = function (o) {
 			'fractions.prevSum': 0,
 			'fractions.prevSum2': 0,
 
-			passesNum: regl.prop('passesNum'),
-			idOffset: regl.prop('idOffset'),
+			passNum: regl.prop('passNum'),
+			passId: regl.prop('passId'),
 
 			// total number of samples
 			total: regl.prop('total'),
@@ -542,20 +542,18 @@ Waveform.prototype.calc = function () {
 	// )
 
 	// detect passes number needed to render full waveform
-	let passesNum = Math.ceil(Math.floor(span * 1000) / 1000 / this.textureLength)
-	let passes = Array(passesNum)
-	let firstTextureId = Math.floor(range[0] / this.textureLength)
-	let clipWidth = viewport[2] / passesNum
-	let samplesPerPass = Math.ceil(clipWidth / pxStep)
+	let passNum = Math.ceil(Math.floor(span * 1000) / 1000 / this.textureLength)
+	let passes = Array(passNum)
+	let firstTextureId = Math.round(range[0] / this.textureLength)
+	let samplesPerPass = this.textureLength / sampleStep
+	let clipWidth = samplesPerPass * pxStep
 
-	// translate rotates correspondingly to the texture id
-	let translate = Math.floor(range[0] % (this.textureLength * 2))
-
-	for (let i = 0; i < passesNum; i++) {
+	for (let i = 0; i < passNum; i++) {
 		let textureId = firstTextureId + i;
 
 		// ignore negative textures
 		if (textureId < -1) continue;
+		if (textureId > this.textures.length) continue;
 
 		let clipLeft = Math.round(i * clipWidth)
 		let clipRight = Math.round((i + 1) * clipWidth)
@@ -566,10 +564,15 @@ Waveform.prototype.calc = function () {
 			clipRight - clipLeft,
 			viewport[3]
 		]
+		let translate = Math.round(range[0]) - firstTextureId * this.textureLength
 
 		passes[i] = {
+			passId: i,
 			textureId: textureId,
 			clip: clip,
+
+			// translate depends on pass
+			translate: translate,
 
 			// FIXME: reduce count number for the tail
 			// number of vertices to fill the clip width, including l/r overlay
@@ -589,13 +592,14 @@ Waveform.prototype.calc = function () {
 			shift: 0
 		}
 	}
+	// console.log(passes[0], translate)
 
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
 	this.drawOptions = {
 		thickness, color, pxStep, pxPerSample, viewport,
-		translate, sampleStep, span, total, opacity, amplitude, range, mode, passes,
-		passesNum,
+		sampleStep, span, total, opacity, amplitude, range, mode, passes,
+		passNum,
 		dataShape: this.textureShape,
 		dataLength: this.textureLength
 	}

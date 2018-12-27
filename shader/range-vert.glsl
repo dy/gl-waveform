@@ -9,7 +9,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, sampleStep, total, translate, passNum;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate, passNum, passId;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
 
@@ -210,7 +210,7 @@ void main() {
 	position += sign * join * .5 * thickness / viewport.zw;
 
 	// shift position by the clip offset
-	position.x += samples.id * pxStep * samples.length / sampleStep / viewport.z;
+	position.x += passId * pxStep * samples.length / sampleStep / viewport.z;
 
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

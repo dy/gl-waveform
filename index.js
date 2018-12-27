@@ -518,8 +518,9 @@ Waveform.prototype.calc = function () {
 	// - panning is always perceived smooth
 
 	// translate snapped to samplesteps makes sure 0 sample is picked pefrectly
-	let translate =  Math.floor(range[0] / sampleStep) * sampleStep
-	// Math.floor((range[0] % this.textureLength) / sampleStep) * sampleStep
+	// let translate =  Math.floor(range[0] / sampleStep) * sampleStep
+	// let translate = Math.floor((-range[0] % (this.textureLength * 3)) / sampleStep) * sampleStep
+	// if (translate < 0) translate += this.textureLength
 
 	let mode = this.mode
 
@@ -543,9 +544,12 @@ Waveform.prototype.calc = function () {
 	// detect passes number needed to render full waveform
 	let passesNum = Math.ceil(Math.floor(span * 1000) / 1000 / this.textureLength)
 	let passes = Array(passesNum)
-	let firstTextureId = Math.round(range[0] / this.textureLength)
+	let firstTextureId = Math.floor(range[0] / this.textureLength)
 	let clipWidth = viewport[2] / passesNum
 	let samplesPerPass = Math.ceil(clipWidth / pxStep)
+
+	// translate rotates correspondingly to the texture id
+	let translate = Math.floor(range[0] % (this.textureLength * 2))
 
 	for (let i = 0; i < passesNum; i++) {
 		let textureId = firstTextureId + i;
@@ -569,10 +573,7 @@ Waveform.prototype.calc = function () {
 
 			// FIXME: reduce count number for the tail
 			// number of vertices to fill the clip width, including l/r overlay
-			count: 2 + 4 + 4 * samplesPerPass * 3 + 4 + 2,
-
-			// FIXME: adjust that number to avoid oversampling
-			idOffset: -samplesPerPass * textureId,
+			count: 4 + 4 * samplesPerPass * 3 + 4,
 
 			// FIXME: first texture has redundant offsets
 			offset: 0,//!textureId ? 2. * Math.max(-2. * Math.floor(range[0] / sampleStep), 0) : 0,
@@ -584,7 +585,7 @@ Waveform.prototype.calc = function () {
 			prevFractions: this.textures2[textureId - 1] || this.blankTexture,
 			nextFractions: this.textures2[textureId + 1] || this.blankTexture,
 
-			// position shift to compensate rigid rounding
+			// position shift to compensate sampleStep snapping
 			shift: 0
 		}
 	}
@@ -984,6 +985,16 @@ function toPx(str) {
 	if (!isBrowser) return parseFloat(str)
 	let unit = parseUnit(str)
 	return unit[0] * px(unit[1])
+}
+
+function mod(value, left, right) {
+	var frame = right - left;
+
+	value = ((value + left) % frame) - left;
+	if (value < left) value += frame;
+	if (value > right) value -= frame;
+
+	return value;
 }
 
 

@@ -222,117 +222,134 @@ t.skip('big values do not get accumulated', async t => {
 	t.end()
 })
 
-t('multipass: single txt line mode', async t => {
+t.only('multipass: single txt line mode', async t => {
 	let data = oscillate.sin(16, {f: 5000})
 	let wf = createWaveform(gl)
-
 	wf.update({shape: [4, 4], thickness: 10, amplitude: [-3, 3]})
 	wf.push(data)
 
 	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16.png`, wf))
+	t.ok(eq(await img`./test/fixture/multipass-16.png`, wf), 'fit')
 	wf.clear()
 
 	wf.range = [-6, 10]
 	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16r.png`, wf))
+	t.ok(eq(await img`./test/fixture/multipass-16r.png`, wf), 'right')
 	wf.clear()
 
 	wf.range = [-10, 6]
 	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
+	t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf), 'right 2')
 	wf.clear()
 
 	wf.range = [10, 26]
 	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16l.png`, wf))
+	t.ok(eq(await img`./test/fixture/multipass-16l.png`, wf), 'left')
+	wf.clear()
+
+	wf.range = [15, 31]
+	wf.render()
+	t.ok(eq(await img`./test/fixture/multipass-16l-edge.png`, wf), 'left edge')
+	wf.clear()
+
+	wf.range = [16, 32]
+	wf.render()
+	t.ok(eq(await img`./test/fixture/none.png`, wf), 'left edge 2')
 	wf.clear()
 
 	wf.range = [-8, 24]
 	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16c.png`, wf))
+	t.ok(eq(await img`./test/fixture/multipass-16c.png`, wf), 'zoom out')
+	wf.clear()
+
+	wf.range = [-17, 15]
+	wf.render()
+	t.ok(eq(await img`./test/fixture/multipass-16cr.png`, wf), 'zoom out')
 	wf.clear()
 
 	// document.body.appendChild(wf.canvas)
-	// interactive(wf, c => {})
+	// interactive(wf, c => {console.log(wf.range)})
 
 	t.end()
 })
 
-t('multipass: single txt range mode', async t => {
+t.skip('multipass: single txt range mode', async t => {
 	let data = oscillate.sin(16, {f: 5000})
 	let wf = createWaveform(gl)
 	wf.mode = 'range'
-
 	wf.update({shape: [4, 4], thickness: 10, amplitude: [-3, 3]})
 	wf.push(data)
 
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16.png`, wf))
-	wf.clear()
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-16.png`, wf))
+	// wf.clear()
 
-	wf.range = [-6, 10]
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16r.png`, wf))
-	wf.clear()
+	// wf.range = [-6, 10]
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-16r.png`, wf))
+	// wf.clear()
 
-	wf.range = [-10, 6]
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
-	wf.clear()
+	// wf.range = [-10, 6]
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-16r2.png`, wf))
+	// wf.clear()
 
-	wf.range = [6, 22]
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16l2.png`, wf, .3))
-	wf.clear()
+	// wf.range = [6, 22]
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-16l2.png`, wf, .3))
+	// wf.clear()
 
-	wf.range = [10, 26]
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16l.png`, wf))
-	wf.clear()
+	// wf.range = [10, 26]
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-16l.png`, wf))
+	// wf.clear()
 
-	wf.range = [-8, 24]
+	wf.range = [-18, 34]
 	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-16c.png`, wf))
-	wf.clear()
+	// t.ok(eq(await img`./test/fixture/multipass-16c.png`, wf))
+	// wf.clear()
 
-	// document.body.appendChild(wf.canvas)
-	// interactive(wf, c => {})
+	document.body.appendChild(wf.canvas)
+	interactive(wf, c => {})
 
 	t.end()
 })
 
-t('multipass: aliquot txt numbers', async t => {
+t.skip('multipass: aliquot txt numbers (16, 32, 64, ...)', async t => {
 	let data = oscillate.sin(32, {f: 5000})
 	let wf = createWaveform(gl)
 
 	wf.update({shape: [4, 4], thickness: 10, amplitude: [-3, 3]})
 	wf.push(data)
 
-	wf.range = [-28, 4]
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-32r.png`, wf))
-	wf.clear()
+	// wf.range = [-28, 4]
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-32r.png`, wf))
+	// wf.clear()
 
-	wf.range = [28, 60]
-	wf.render()
-	t.ok(eq(await img`./test/fixture/multipass-32l.png`, wf))
-	wf.clear()
+	// wf.range = [28, 60]
+	// wf.render()
+	// t.ok(eq(await img`./test/fixture/multipass-32l.png`, wf))
+	// wf.clear()
 
-	// document.body.appendChild(wf.canvas)
-	// interactive(wf, c => {
-	// 	console.log(wf.range)
-	// })
+	wf.range = [-10, 42]
+	wf.render()
+
+	document.body.appendChild(wf.canvas)
+	interactive(wf, c => {
+		// console.log(wf.range)
+	})
 
 	t.end()
 })
 
-t.only('multipass: aliquant txt numbers', async t => {
+t.skip('multipass: aliquant txt numbers (20, 40, ...)', async t => {
 	let data = oscillate.sin(20, {f: 5000})
 	let wf = createWaveform(gl)
 
 	wf.update({shape: [4, 4], thickness: 10, amplitude: [-3, 3]})
 	wf.push(data)
+	wf.mode = 'line'
 
 	// wf.range = [-28, 4]
 	wf.render()
@@ -395,6 +412,8 @@ t.skip('multipass: n textures', async t => {
 
 	t.end()
 })
+
+t.skip('multipass: problematic sampleStep aliquant to texture length')
 
 t.skip('shared texture rendering', async t => {
 
@@ -887,6 +906,7 @@ function interactive(wf, cb) {
 		range[1] -= xrange * e.dx / w
 
 		if (cb) cb({ range })
+		wf.clear()
 		wf.update({ range })
 		wf.render()
 	})

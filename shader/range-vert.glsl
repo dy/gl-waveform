@@ -9,7 +9,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
-uniform float opacity, thickness, pxStep, sampleStep, total, translate, idOffset;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate, passNum;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
 
@@ -18,6 +18,7 @@ varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
 
 const vec3 NaN = vec3(0,0,-1);
 
+// returns sample picked from the texture
 vec4 picki (Samples samples, float offset) {
 	// translate is here in order to remove float32 error (at the latest stage)
 	offset += translate;
@@ -125,7 +126,6 @@ void main() {
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
 
-	float id = id + idOffset;
 	float offset = id * sampleStep;
 
 	// compensate snapping for low scale levels

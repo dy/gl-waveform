@@ -747,23 +747,31 @@ Waveform.prototype.set = function (samples, at=0) {
 	let txtFract = this.textures2[id]
 
 	if (!txt) {
+		let txtData = pool.mallocFloat64(txtLen * ch)
+
+		// fill txt data with NaNs for proper start/end/gap detection
+		for (let i = 0; i < txtData.length; i+=ch) {
+			txtData[i + 3] = -1
+		}
+
 		txt = this.textures[id] = this.regl.texture({
 			width: this.textureShape[0],
 			height: this.textureShape[1],
-			channels: this.textureChannels,
+			channels: ch,
 			type: 'float',
 			min: 'nearest',
 			mag: 'nearest',
 			// min: 'linear',
 			// mag: 'linear',
-			wrap: ['clamp', 'clamp']
+			wrap: ['clamp', 'clamp'],
+			data: f32.float(txtData)
 		})
 		this.lastY = txt.sum = txt.sum2 = 0
 
 		txtFract = this.textures2[id] = this.regl.texture({
 			width: this.textureShape[0],
 			height: this.textureShape[1],
-			channels: this.textureChannels,
+			channels: ch,
 			type: 'float',
 			min: 'nearest',
 			mag: 'nearest',
@@ -772,7 +780,7 @@ Waveform.prototype.set = function (samples, at=0) {
 			wrap: ['clamp', 'clamp']
 		})
 
-		txt.data = pool.mallocFloat64(txtLen * ch)
+		txt.data = txtData
 	}
 
 	// calc sum, sum2 and form data for the samples
@@ -782,6 +790,7 @@ Waveform.prototype.set = function (samples, at=0) {
 		// put NaN samples as indicators of blank samples
 		if (!isNaN(samples[i])) {
 			data[i * ch] = this.lastY = samples[i]
+			data[i * ch + 3] = 0
 		}
 		else {
 			data[i * ch] = NaN

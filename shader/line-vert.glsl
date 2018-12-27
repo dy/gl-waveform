@@ -40,7 +40,6 @@ vec4 stats (float offset) {
 	else if (uv.y > 1.) {
 		uv.y -= 1.;
 		sample = texture2D(samples.next, uv);
-		// sample.x = 0.;
 	}
 	// curr texture
 	else {
@@ -59,25 +58,19 @@ void main () {
 
 	float offset = id * sampleStep;
 
-	bool isStart = samples.id <= 0. && offset <= -translate;
-	// bool isEnd = samples.id == passNum - 1. && offset >= total - 1.;
-
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = stats(offset);
 	vec4 sampleNext = stats(offset + sampleStep);
 	vec4 samplePrev = stats(offset - sampleStep);
 
+	bool isStart = isNaN(samplePrev);
 	bool isEnd = isNaN(sampleNext);
 
-	// if (isNaN(samplePrev)) {
-	// 	fragColor = vec4(0,0,1,1);
-	// }
-	if (isEnd) fragColor = vec4(0,0,1,1);
-	// if (isStart) fragColor = vec4(1,0,0,1);
+	if (isNaN(sampleCurr)) return;
 
 	avgCurr = deamp(sampleCurr.x, amplitude);
-	avgNext = deamp(isNaN(sampleNext) ? sampleCurr.x : sampleNext.x, amplitude);
-	avgPrev = deamp(isNaN(samplePrev) ? sampleCurr.x : samplePrev.x, amplitude);
+	avgNext = deamp(isEnd ? sampleCurr.x : sampleNext.x, amplitude);
+	avgPrev = deamp(isStart ? sampleCurr.x : samplePrev.x, amplitude);
 
 	// fake sdev 2σ = thickness
 	// sdev = normThickness / 2.;
@@ -100,10 +93,10 @@ void main () {
 	) / viewport.zw);
 
 	vec2 join;
-	if (isStart || isNaN(samplePrev)) {
+	if (isStart || isStart) {
 		join = normalRight;
 	}
-	else if (isEnd || isNaN(sampleNext)) {
+	else if (isEnd || isEnd) {
 		join = normalLeft;
 	}
 	else {

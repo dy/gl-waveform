@@ -354,7 +354,7 @@ t('multipass: aliquot txt numbers (16, 32, 64, ...)', async t => {
 
 	// document.body.appendChild(wf.canvas)
 	// interactive(wf, c => {
-		// console.log(wf.range)
+	// 	console.log(wf.range)
 	// })
 
 	t.end()

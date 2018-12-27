@@ -164,10 +164,11 @@ Waveform.prototype.createShader = function (o) {
 
 			passNum: regl.prop('passNum'),
 			passId: regl.prop('passId'),
+			passOffset: regl.prop('passOffset'),
 
 			// total number of samples
 			total: regl.prop('total'),
-
+			range: regl.prop('range'),
 
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
@@ -564,12 +565,15 @@ Waveform.prototype.calc = function () {
 			clipRight - clipLeft,
 			viewport[3]
 		]
-		let translate = Math.round(range[0]) - firstTextureId * this.textureLength
+		// offset within the pass
+		let passOffset = Math.round(range[0] / this.textureLength) * this.textureLength
+		let translate = Math.round(range[0]) - passOffset
 
 		passes[i] = {
 			passId: i,
 			textureId: textureId,
 			clip: clip,
+			passOffset: passOffset,
 
 			// translate depends on pass
 			translate: translate,
@@ -989,16 +993,6 @@ function toPx(str) {
 	if (!isBrowser) return parseFloat(str)
 	let unit = parseUnit(str)
 	return unit[0] * px(unit[1])
-}
-
-function mod(value, left, right) {
-	var frame = right - left;
-
-	value = ((value + left) % frame) - left;
-	if (value < left) value += frame;
-	if (value > right) value -= frame;
-
-	return value;
 }
 
 

@@ -10,8 +10,8 @@ attribute float id, sign, side;
 uniform Samples samples;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate;
 uniform vec4 viewport, color;
-uniform vec2 amplitude;
-uniform float passNum, passId;
+uniform vec2 amplitude, range;
+uniform float passNum, passId, passOffset;
 
 varying vec4 fragColor;
 varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;
@@ -60,19 +60,20 @@ void main () {
 	float offset = id * sampleStep;
 
 	bool isStart = samples.id <= 0. && offset <= -translate;
-	bool isEnd = samples.id == passNum - 1. && offset + translate >= total - 1.;
-
-	// if (isEnd) fragColor = vec4(0,0,1,1);
-	// if (isStart) fragColor = vec4(1,0,0,1);
+	// bool isEnd = samples.id == passNum - 1. && offset >= total - 1.;
 
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = stats(offset);
 	vec4 sampleNext = stats(offset + sampleStep);
 	vec4 samplePrev = stats(offset - sampleStep);
 
+	bool isEnd = isNaN(sampleNext);
+
 	// if (isNaN(samplePrev)) {
 	// 	fragColor = vec4(0,0,1,1);
 	// }
+	if (isEnd) fragColor = vec4(0,0,1,1);
+	// if (isStart) fragColor = vec4(1,0,0,1);
 
 	avgCurr = deamp(sampleCurr.x, amplitude);
 	avgNext = deamp(isNaN(sampleNext) ? sampleCurr.x : sampleNext.x, amplitude);

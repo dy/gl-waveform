@@ -54,8 +54,6 @@ vec4 picki (Samples samples, float offset) {
 
 // returns {avg, sdev, isNaN}
 vec3 stats (float offset) {
-	bool isHead = samples.id <= 0. && mod(offset + translate, samples.length) == 0.;
-
 	float offset0 = offset - sampleStep * .5;
 	float offset1 = offset + sampleStep * .5;
 	float offset0l = floor(offset0);
@@ -63,11 +61,17 @@ vec3 stats (float offset) {
 	// float offset0r = ceil(offset0);
 	// float offset1r = ceil(offset1);
 
+	vec4 sample = picki(samples, offset);
+	if (sample.w == -1.) return NaN;
+
 	// head picks half the first sample
-	vec4 sample0l = isHead ? picki(samples, offset) : picki(samples, offset0l);
+	vec4 sample0l = picki(samples, offset0l);
 	vec4 sample1l = picki(samples, offset1l);
 
-	if ((sample0l.w == -1. || sample1l.w == -1.)) return NaN;
+	bool isStart = sample0l.w == -1.;
+	if (isStart) {
+		sample0l = sample;
+	}
 
 	vec4 sample0lf = picki(fractions, offset0l);
 	vec4 sample1lf = picki(fractions, offset1l);
@@ -89,9 +93,7 @@ vec3 stats (float offset) {
 		// + t1 * (sample1rf.y - sample1lf.y)
 		// - t0 * (sample0rf.y - sample0lf.y)
 	);
-
-	if (isHead) avg /= sampleStep * .5;
-	else avg /= sampleStep;
+	avg /= sampleStep;
 
 	float mx2 = (
 		+ sample1l.z
@@ -103,9 +105,7 @@ vec3 stats (float offset) {
 		// + t1 * (sample1rf.z - sample1lf.z)
 		// - t0 * (sample0rf.z - sample0lf.z)
 	);
-
-	if (isHead) mx2 /= sampleStep * .5;
-	else mx2 /= sampleStep;
+	mx2 /= sampleStep;
 
 	float m2 = avg * avg;
 
@@ -134,8 +134,6 @@ void main() {
 	vec3 statsCurr = stats(offset);
 
 	// ignore NaN amplitudes
-	// FIXME: likely adjacent to NaN nodes should get half-stats
-	// akin to first-last nodes
 	if (statsCurr == NaN) return;
 
 	vec3 statsPrev = stats(offset - sampleStep);

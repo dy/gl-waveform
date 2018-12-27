@@ -525,7 +525,6 @@ Waveform.prototype.calc = function () {
 
 	let mode = this.mode
 
-
 	// let count = Math.max(2,
 	// 	Math.min(
 	// 		// number of visible texture sampling points
@@ -984,6 +983,7 @@ Waveform.prototype.textureChannels = 4
 Waveform.prototype.maxSampleCount = 8192 * 2
 
 Waveform.prototype.storeData = true
+
 
 function isRegl (o) {
 	return typeof o === 'function' &&

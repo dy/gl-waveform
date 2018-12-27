@@ -60,13 +60,13 @@ void main () {
 
 	// calc average of curr..next sampling points
 	vec4 sampleCurr = stats(offset);
+	if (isNaN(sampleCurr)) return;
+
 	vec4 sampleNext = stats(offset + sampleStep);
 	vec4 samplePrev = stats(offset - sampleStep);
 
 	bool isStart = isNaN(samplePrev);
 	bool isEnd = isNaN(sampleNext);
-
-	if (isNaN(sampleCurr)) return;
 
 	avgCurr = deamp(sampleCurr.x, amplitude);
 	avgNext = deamp(isEnd ? sampleCurr.x : sampleNext.x, amplitude);

@@ -94,21 +94,24 @@ t('empty data chunks are not being displayed', async t => {
 })
 
 
-t.only('smooth position compensation', async t => {
+t('smooth position compensation', async t => {
 	let wf = createWaveform(gl)
 
-	wf.push(oscillate.tri(2e6, {f: 300}))
+	wf.push(oscillate.tri(20, {f: 300}))
 	wf.update({
-		width: 5
+		width: 5,
+		range: [-0.4, 19.6]
 	})
 	wf.render()
 
-	document.body.appendChild(wf.canvas)
-	interactive(wf, r => {
-		console.log(r)
-	})
+	// document.body.appendChild(wf.canvas)
+	// interactive(wf, r => {
+	// 	// console.log(r)
+	// })
 
-	// wf.clear()
+	t.ok(eq(await img`./test/fixture/smooth-position.png`, wf), 'smooth')
+
+	wf.clear()
 
 	t.end()
 })

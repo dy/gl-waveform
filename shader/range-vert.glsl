@@ -125,6 +125,7 @@ vec3 stats (float offset) {
 
 void main() {
 	gl_PointSize = 1.5;
+	if (color.a == 0.) return;
 
 	normThickness = thickness / viewport.w;
 

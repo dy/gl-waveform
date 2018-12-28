@@ -51,10 +51,12 @@ vec4 stats (float offset) {
 
 void main () {
 	gl_PointSize = 4.5;
+	if (color.a == 0.) return;
 
-	normThickness = thickness / viewport.w;
 	fragColor = color / 255.;
 	fragColor.a *= opacity;
+
+	normThickness = thickness / viewport.w;
 
 	float offset = id * sampleStep;
 
@@ -119,7 +121,6 @@ void main () {
 	// shift position by the clip offset
 	// FIXME: move to uniform
 	position.x += passId * pxStep * samples.length / sampleStep / viewport.z;
-
 
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

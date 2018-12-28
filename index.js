@@ -24,6 +24,8 @@ const MAX_ARGUMENTS = 1024
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
+// FIXME: shring 4th NaN channel by putting it to one of fract channels
+
 let shaderCache = new WeakMap()
 
 
@@ -172,6 +174,7 @@ Waveform.prototype.createShader = function (o) {
 
 			// number of pixels between vertices
 			pxStep: regl.prop('pxStep'),
+			posShift: regl.prop('posShift'),
 
 			// number of samples between vertices
 			sampleStep: regl.prop('sampleStep'),
@@ -508,7 +511,7 @@ Waveform.prototype.calc = function () {
 	// snap sample step to 2^n grid: still smooth, but reduces float32 error
 	// FIXME: make sampleStep snap step detection based on the span
 	// round is better than ceil: ceil generates jittering
-	sampleStep = Math.round(sampleStep * 16) / 16
+	sampleStep = Math.round(sampleStep * 1) / 1
 
 	// recalc pxStep to adjust changed sampleStep, to fit initial the range
 	pxStep = viewport[2] * sampleStep / span
@@ -528,6 +531,12 @@ Waveform.prototype.calc = function () {
 	// let translate =  Math.floor(range[0] / sampleStep) * sampleStep
 	// let translate = Math.floor((-range[0] % (this.textureLength * 3)) / sampleStep) * sampleStep
 	// if (translate < 0) translate += this.textureLength
+
+	// compensate snapping for low scale levels
+	let posShift = 0.
+	if (pxPerSample > 1) {
+		posShift = (Math.round(range[0]) - range[0]) * pxPerSample;
+	}
 
 	let mode = this.mode
 
@@ -591,7 +600,6 @@ Waveform.prototype.calc = function () {
 			shift: 0
 		}
 	}
-	// console.log(passes[0], translate)
 
 	// use more complicated range draw only for sample intervals
 	// note that rangeDraw gives sdev error for high values dataLength
@@ -599,6 +607,7 @@ Waveform.prototype.calc = function () {
 		thickness, color, pxStep, pxPerSample, viewport,
 		sampleStep, span, total, opacity, amplitude, range, mode, passes,
 		passNum,
+		posShift,
 		dataShape: this.textureShape,
 		dataLength: this.textureLength
 	}

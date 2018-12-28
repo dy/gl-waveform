@@ -77,6 +77,12 @@ vec3 stats (float offset) {
 
 	float t0 = 0., t1 = 0.;
 
+	// partial sample steps require precision
+	// FIXME: maybe that's not the best solution
+	if (mod(sampleStep, 1.) != 0. && sample0l.w != -1. && sample1r.w != -1.) {
+		t0 = offset0 - offset0l, t1 = offset1 - offset1l;
+	}
+
 	if (sample0l.w == -1.) {
 		// return vec3(0,0,-1);
 		// sample0l.y = 0.;

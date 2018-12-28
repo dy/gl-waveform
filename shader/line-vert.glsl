@@ -8,7 +8,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples;
-uniform float opacity, thickness, pxStep, sampleStep, total, translate;
+uniform float opacity, thickness, pxStep, sampleStep, total, translate, posShift;
 uniform vec4 viewport, color;
 uniform vec2 amplitude, range;
 uniform float passNum, passId, passOffset;
@@ -76,8 +76,6 @@ void main () {
 	// sdev = normThickness / 2.;
 	sdev = 0.;
 
-	// compensate snapping for low scale levels
-	float posShift = 0.;//id + (translater - offset - translate) / sampleStep;
 
 	vec2 position = vec2(
 		pxStep * (id + .5) / (viewport.z),
@@ -115,9 +113,13 @@ void main () {
 
 	position += sign * join * .5 * thickness / viewport.zw;
 
+	// compensate snapped sampleStep to enable smooth zoom
+	position.x += posShift / viewport.z;
+
 	// shift position by the clip offset
 	// FIXME: move to uniform
 	position.x += passId * pxStep * samples.length / sampleStep / viewport.z;
+
 
 	gl_Position = vec4(position * 2. - 1., 0, 1);
 }

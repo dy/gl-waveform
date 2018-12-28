@@ -16,8 +16,6 @@ uniform vec2 amplitude;
 varying vec4 fragColor;
 varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
 
-const vec3 NaN = vec3(0,0,-1);
-
 // returns sample picked from the texture
 vec4 picki (Samples samples, float offset) {
 	// translate is here in order to remove float32 error (at the latest stage)
@@ -54,44 +52,45 @@ vec4 picki (Samples samples, float offset) {
 
 // returns {avg, sdev, isNaN}
 vec3 stats (float offset) {
+	float sampleStep = sampleStep;
+
 	float offset0 = offset - sampleStep * .5;
 	float offset1 = offset + sampleStep * .5;
 	float offset0l = floor(offset0);
 	float offset1l = floor(offset1);
-	// float offset0r = ceil(offset0);
-	// float offset1r = ceil(offset1);
+	float offset0r = ceil(offset0);
+	float offset1r = ceil(offset1);
 
 	vec4 sample = picki(samples, offset);
-	if (sample.w == -1.) return NaN;
+	// if (sample.w == -1.) return vec3(0,0,-1);
 
 	// head picks half the first sample
 	vec4 sample0l = picki(samples, offset0l);
 	vec4 sample1l = picki(samples, offset1l);
-
-	bool isStart = sample0l.w == -1.;
-	if (isStart) {
-		sample0l = sample;
-	}
+	vec4 sample0r = picki(samples, offset0r);
+	vec4 sample1r = picki(samples, offset1r);
 
 	vec4 sample0lf = picki(fractions, offset0l);
 	vec4 sample1lf = picki(fractions, offset1l);
-	// vec4 sample0r = picki(samples, offset0r);
-	// vec4 sample1r = picki(samples, offset1r);
-	// vec4 sample0rf = picki(fractions, offset0r);
-	// vec4 sample1rf = picki(fractions, offset1r);
+	vec4 sample0rf = picki(fractions, offset0r);
+	vec4 sample1rf = picki(fractions, offset1r);
 
-	// float t0 = offset0 - offset0l;
-	// float t1 = offset1 - offset1l;
+	float t0 = 0., t1 = 0.;
+
+	if (sample0l.w == -1.) {
+		// return vec3(0,0,-1);
+		// sample0l.y = 0.;
+	}
 
 	float avg = (
 		+ sample1l.y
 		- sample0l.y
 		+ sample1lf.y
 		- sample0lf.y
-		// + t1 * (sample1r.y - sample1l.y)
-		// - t0 * (sample0r.y - sample0l.y)
-		// + t1 * (sample1rf.y - sample1lf.y)
-		// - t0 * (sample0rf.y - sample0lf.y)
+		+ t1 * (sample1r.y - sample1l.y)
+		- t0 * (sample0r.y - sample0l.y)
+		+ t1 * (sample1rf.y - sample1lf.y)
+		- t0 * (sample0rf.y - sample0lf.y)
 	);
 	avg /= sampleStep;
 
@@ -100,10 +99,10 @@ vec3 stats (float offset) {
 		- sample0l.z
 		+ sample1lf.z
 		- sample0lf.z
-		// + t1 * (sample1r.z - sample1l.z)
-		// - t0 * (sample0r.z - sample0l.z)
-		// + t1 * (sample1rf.z - sample1lf.z)
-		// - t0 * (sample0rf.z - sample0lf.z)
+		+ t1 * (sample1r.z - sample1l.z)
+		- t0 * (sample0r.z - sample0l.z)
+		+ t1 * (sample1rf.z - sample1lf.z)
+		- t0 * (sample0rf.z - sample0lf.z)
 	);
 	mx2 /= sampleStep;
 
@@ -114,7 +113,7 @@ vec3 stats (float offset) {
 
 	sdev = sqrt(variance);
 
-	return vec3(avg, sdev, min(sample0l.w, sample1l.w));
+	return vec3(avg, sdev, min(sample0r.w, sample1l.w));
 }
 
 
@@ -134,7 +133,7 @@ void main() {
 	vec3 statsCurr = stats(offset);
 
 	// ignore NaN amplitudes
-	if (statsCurr == NaN) return;
+	if (statsCurr.z == -1.) return;
 
 	vec3 statsPrev = stats(offset - sampleStep);
 	vec3 statsNext = stats(offset + sampleStep);
@@ -177,10 +176,10 @@ void main() {
 
 	vec2 join;
 
-	if (statsPrev == NaN) {
+	if (statsPrev.z == -1.) {
 		join = normalRight;
 	}
-	else if (statsNext == NaN) {
+	else if (statsNext.z == -1.) {
 		join = normalLeft;
 	}
 	// sdev less than projected to vertical shows simple line

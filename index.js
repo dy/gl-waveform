@@ -254,7 +254,7 @@ Waveform.prototype.createShader = function (o) {
 		height: 1,
 		channels: this.textureChannels,
 		type: 'float',
-		data: new Float32Array([NaN, NaN, NaN, -1])
+		data: new Float32Array([NaN, 0, 0, -1])
 	})
 	NaNTexture.sum = 0
 	NaNTexture.sum2 = 0
@@ -287,7 +287,7 @@ Object.defineProperties(Waveform.prototype, {
 
 	color: {
 		get: function () {
-			if (!this.dirty) return this.drawOptions.color
+			if (!this.dirty && this.drawOptions) return this.drawOptions.color
 
 			return this._color || [0, 0, 0, 255]
 		},
@@ -354,6 +354,8 @@ Object.defineProperties(Waveform.prototype, {
 			return [0, this.total]
 		},
 		set: function (range) {
+			if (!range) return this._range = null
+
 			if (range.length) {
 				// support vintage 4-value range
 				if (range.length === 4) {
@@ -500,9 +502,13 @@ Waveform.prototype.calc = function () {
 	// init sampleStep as sample interval to fit the data range into viewport
 	let sampleStep = pxStep * span / viewport[2]
 
+	// remove float64 residual
+	sampleStep = f32.float(sampleStep)
+
 	// snap sample step to 2^n grid: still smooth, but reduces float32 error
-	// FIXME: make sampleStep round detection based on the span
-	sampleStep = Math.ceil(sampleStep * 16) / 16
+	// FIXME: make sampleStep snap step detection based on the span
+	// round is better than ceil: ceil generates jittering
+	sampleStep = Math.round(sampleStep * 16) / 16
 
 	// recalc pxStep to adjust changed sampleStep, to fit initial the range
 	pxStep = viewport[2] * sampleStep / span
@@ -525,28 +531,11 @@ Waveform.prototype.calc = function () {
 
 	let mode = this.mode
 
-	// let count = Math.max(2,
-	// 	Math.min(
-	// 		// number of visible texture sampling points
-	// 		// 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
-
-	// 		// number of available data points
-	// 		2 * Math.floor(total - Math.max(translate / sampleStep, 0)),
-
-	// 		// number of visible vertices on the screen
-	// 		2 * Math.ceil(viewport[2] / pxStep) + 4,
-
-	// 		// number of ids available
-	// 		this.maxSampleCount
-	// 	) * VERTEX_REPEAT
-	// )
-
 	// detect passes number needed to render full waveform
 	let passNum = Math.ceil(Math.floor(span * 1000) / 1000 / this.textureLength)
 	let passes = Array(passNum)
 	let firstTextureId = Math.round(range[0] / this.textureLength)
-	let samplesPerPass = this.textureLength / sampleStep
-	let clipWidth = samplesPerPass * pxStep
+	let clipWidth = Math.min(this.textureLength / sampleStep * pxStep, viewport[2])
 
 	for (let i = 0; i < passNum; i++) {
 		let textureId = firstTextureId + i;
@@ -568,6 +557,14 @@ Waveform.prototype.calc = function () {
 		let passOffset = Math.round(range[0] / this.textureLength) * this.textureLength
 		let translate = Math.round(range[0]) - passOffset
 
+		let samplesNumber = Math.min(
+			// number of visible points
+			Math.ceil(clipWidth / pxStep),
+
+			// max number of samples per pass
+			Math.ceil(this.textureLength / sampleStep)
+		)
+
 		passes[i] = {
 			passId: i,
 			textureId: textureId,
@@ -577,12 +574,11 @@ Waveform.prototype.calc = function () {
 			// translate depends on pass
 			translate: translate,
 
-			// FIXME: reduce count number for the tail
+			// FIXME: reduce 3 to 2 or less
 			// number of vertices to fill the clip width, including l/r overlay
-			count: 4 + 4 * samplesPerPass * 3 + 4,
+			count: Math.min(4 + 4 * samplesNumber * 3 + 4, this.maxSampleCount),
 
-			// FIXME: first texture has redundant offsets
-			offset: 0,//!textureId ? 2. * Math.max(-2. * Math.floor(range[0] / sampleStep), 0) : 0,
+			offset: 0,
 
 			samples: this.textures[textureId] || this.NaNTexture,
 			fractions: this.textures2[textureId] || this.blankTexture,
@@ -964,7 +960,7 @@ Waveform.prototype.destroy = function () {
 
 
 // style
-Waveform.prototype.color = new Uint8Array([0,0,0,255])
+Waveform.prototype.color
 Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.mode = null

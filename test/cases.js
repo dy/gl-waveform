@@ -97,7 +97,7 @@ t('empty data chunks are not being displayed', async t => {
 t.only('smooth position compensation', async t => {
 	let wf = createWaveform(gl)
 
-	wf.push(oscillate.tri(200, {f: 300}))
+	wf.push(oscillate.tri(2e6, {f: 300}))
 	wf.update({
 		width: 5
 	})

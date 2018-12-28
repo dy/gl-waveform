@@ -627,26 +627,29 @@ Waveform.prototype.render = function () {
 
 	// multipass renders different textures to adjacent clip areas
 	o.passes.forEach((pass) => {
-		if (!pass) return
-
 		// o ← {count, offset, clip, texture, shift}
 		extend(o, pass)
+
+		// in order to avoid glitch switching range/line mode on rezoom
+		// we always render every range with transparent color
+		let color = o.color
 
 		// range case
 		if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
 			this.shader.drawRanges.call(this, o)
-			console.log('range')
+
+			o.color = [0,0,0,0]
+			this.shader.drawLine.call(this, o)
+			o.color = color
 		}
 
 		// line case
 		else {
-			// this.shader.drawLine.call(this, extend({}, o, {
-			// 	color: [255, 0, 0, 255],
-			// 	primitive: 'points'
-			// }))
-
 			this.shader.drawLine.call(this, o)
-			console.log('line')
+
+			o.color = [0,0,0,0]
+			this.shader.drawRanges.call(this, o)
+			o.color = color
 		}
 	})
 

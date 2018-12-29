@@ -14,7 +14,8 @@ uniform vec4 viewport, color;
 uniform vec2 amplitude;
 
 varying vec4 fragColor;
-varying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;
+varying float avgMin, avgMax, sdevMin, sdevMax;
+varying float normThickness;
 
 // returns sample picked from the texture
 vec4 picki (Samples samples, float offset) {
@@ -80,7 +81,7 @@ vec3 stats (float offset) {
 	// partial sample steps require precision
 	// FIXME: maybe that's not the best solution
 	if (mod(sampleStep, 1.) != 0. && sample0l.w != -1. && sample1r.w != -1.) {
-		t0 = offset0 - offset0l, t1 = offset1 - offset1l;
+		// t0 = offset0 - offset0l, t1 = offset1 - offset1l;
 	}
 
 	if (sample0l.w == -1.) {
@@ -98,7 +99,7 @@ vec3 stats (float offset) {
 		+ t1 * (sample1rf.y - sample1lf.y)
 		- t0 * (sample0rf.y - sample0lf.y)
 	);
-	avg /= sampleStep;
+	avg /= (offset1l - offset0l);
 
 	float mx2 = (
 		+ sample1l.z
@@ -110,21 +111,21 @@ vec3 stats (float offset) {
 		+ t1 * (sample1rf.z - sample1lf.z)
 		- t0 * (sample0rf.z - sample0lf.z)
 	);
-	mx2 /= sampleStep;
+	mx2 /= (offset1l - offset0l);
 
 	float m2 = avg * avg;
 
 	// σ(x)² = M(x²) - M(x)²
 	float variance = abs(mx2 - m2);
 
-	sdev = sqrt(variance);
+	float sdev = sqrt(variance);
 
 	return vec3(avg, sdev, min(sample0r.w, sample1l.w));
 }
 
 
 void main() {
-	gl_PointSize = 1.5;
+	gl_PointSize = 3.5;
 	if (color.a == 0.) return;
 
 	normThickness = thickness / viewport.w;
@@ -145,13 +146,13 @@ void main() {
 	vec3 statsPrev = stats(offset - sampleStep);
 	vec3 statsNext = stats(offset + sampleStep);
 
-	avgCurr = statsCurr.x;
-	avgPrev = statsPrev.x;
-	avgNext = statsNext.x;
+	float avgCurr = statsCurr.x;
+	float avgPrev = statsPrev.x;
+	float avgNext = statsNext.x;
 
-	float sdev = statsCurr.y;
-
-	sdev /= abs(amplitude.y - amplitude.x);
+	float sdevCurr = statsCurr.y / abs(amplitude.y - amplitude.x);
+	float sdevPrev = statsPrev.y / abs(amplitude.y - amplitude.x);
+	float sdevNext = statsNext.y / abs(amplitude.y - amplitude.x);
 
 	avgCurr = deamp(avgCurr, amplitude);
 	avgNext = deamp(avgNext, amplitude);
@@ -179,7 +180,7 @@ void main() {
 	float minVertLen = min(vertLeftLen, vertRightLen);
 
 	// 2σ covers 68% of a line. 4σ covers 95% of line
-	float vertSdev = 2. * sdev / normThickness;
+	float vertSdev = 2. * sdevCurr * viewport.w / thickness;
 
 	vec2 join;
 
@@ -210,6 +211,8 @@ void main() {
 	// figure out closest to current min/max
 	avgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);
 	avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
+	sdevMin = min(sdevCurr, side < 0. ? sdevPrev : sdevNext);
+	sdevMax = max(sdevCurr, side < 0. ? sdevPrev : sdevNext);
 
 	position += sign * join * .5 * thickness / viewport.zw;
 

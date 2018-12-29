@@ -82,11 +82,24 @@ var offset = /*#__PURE__*/Object.freeze({
 
 });
 
+/** @module negative-index */
+var isNeg = require('negative-zero');
+
+module.exports = function negIdx(idx, length) {
+  return idx == null ? 0 : isNeg(idx) ? length : idx <= -length ? 0 : idx < 0 ? length + idx % length : Math.min(length, idx);
+};
+
+var negativeIndex = /*#__PURE__*/Object.freeze({
+
+});
+
 function getCjsExportFromNamespace (n) {
 	return n && n.default || n;
 }
 
 var elOffset = getCjsExportFromNamespace(offset);
+
+var nidx = getCjsExportFromNamespace(negativeIndex);
 
 var pick = require('pick-by-alias');
 
@@ -123,6 +136,7 @@ var isBrowser = require('is-browser');
 var idle = require('on-idle');
 
 var MAX_ARGUMENTS = 1024; // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
+// FIXME: shring 4th NaN channel by putting it to one of fract channels
 
 var shaderCache = new WeakMap();
 
@@ -135,23 +149,25 @@ function Waveform(o) {
   // ampFract has util values: -1 for NaN amplitude
 
   this.textures = [];
-  this.textures2 = [];
-  this.textureLength = this.textureShape[0] * this.textureShape[1]; // pointer to the first/last x values, detected from the first data
+  this.textures2 = []; // pointer to the first/last x values, detected from the first data
   // used for organizing data gaps
 
   this.lastY;
-  this.minY = Infinity, this.maxY = -Infinity; // find a good name for runtime draw state
+  this.minY = Infinity, this.maxY = -Infinity;
+  this.total = 0; // find a good name for runtime draw state
 
-  this.drawOptions = {}; // needs recalc
-
-  this.needsRecalc = true;
+  this.drawOptions = {};
   this.shader = this.createShader(o);
   this.gl = this.shader.gl;
   this.regl = this.shader.regl;
-  this.canvas = this.gl.canvas; // tick processes accumulated samples to push in the next render frame
+  this.canvas = this.gl.canvas;
+  this.blankTexture = this.shader.blankTexture;
+  this.NaNTexture = this.shader.NaNTexture; // tick processes accumulated samples to push in the next render frame
   // to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
 
-  this.pushQueue = []; // FIXME: add beter recognition
+  this.pushQueue = []; // needs flush and recalc
+
+  this.dirty = true; // FIXME: add beter recognition
   // if (o.pick != null) this.storeData = !!o.pick
   // if (o.fade != null) this.fade = !!o.fade
 
@@ -199,9 +215,12 @@ Waveform.prototype.createShader = function (o) {
     usage: 'static',
     type: 'int16',
     data: function (N) {
-      var x = Array();
+      var x = Array(); // prepend -1 and -2 ids at the head
+      // to over-render for multipass overlay
 
-      for (var i = 0; i < N; i++) {
+      x.push(-2, 1, 1, -2, -1, 1);
+
+      for (var i = -1; i < N; i++) {
         // id, sign, side, id, sign, side
         x.push(i, 1, -1, i, -1, -1);
         x.push(i, 1, 1, i, -1, 1);
@@ -216,63 +235,52 @@ Waveform.prototype.createShader = function (o) {
     },
     offset: regl.prop('offset'),
     count: regl.prop('count'),
-    frag: glsl(["// fragment shader with fading based on distance from average\n\nprecision highp float;\n#define GLSLIFY 1\n\nuniform vec4 viewport;\nuniform float thickness;\nuniform vec2 amp;\n\nvarying vec4 fragColor;\nvarying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;\n\nconst float TAU = 6.283185307179586;\n\nfloat pdf (float x, float mean, float variance) {\n\tif (variance == 0.) return x == mean ? 9999. : 0.;\n\telse return exp(-.5 * pow(x - mean, 2.) / variance) / sqrt(TAU * variance);\n}\n\nvoid main() {\n\tfloat halfThickness = normThickness * .5;\n\n\tfloat x = (gl_FragCoord.x - viewport.x) / viewport.z;\n\tfloat y = (gl_FragCoord.y - viewport.y) / viewport.w;\n\n\t// pdfMax makes sure pdf is normalized - has 1. value at the max\n\tfloat pdfMax = pdf(0., 0., sdev * sdev  );\n\n\tfloat dist = 1.;\n\n\t// local max\n\tif (y > avgMax + halfThickness) {\n\t\tdist = min(y - avgMin, avgMax - y);\n\t\tdist = pdf(dist, 0., sdev * sdev  ) / pdfMax;\n\t}\n\t// local min\n\telse if (y < avgMin - halfThickness) {\n\t\tdist = min(y - avgMin, avgMax - y);\n\t\tdist = pdf(dist, 0., sdev * sdev  ) / pdfMax;\n\t}\n\n\tif (dist == 0.) { discard; return; }\n\n\tgl_FragColor = fragColor;\n\tgl_FragColor.a *= dist;\n}\n"]),
+    frag: glsl(["// fragment shader with fading based on distance from average\n\nprecision highp float;\n#define GLSLIFY 1\n\nuniform vec4 viewport;\nuniform float thickness;\n\nvarying vec4 fragColor;\nvarying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;\n\nconst float TAU = 6.283185307179586;\n\nfloat pdf (float x, float mean, float variance) {\n\tif (variance == 0.) return x == mean ? 9999. : 0.;\n\telse return exp(-.5 * pow(x - mean, 2.) / variance) / sqrt(TAU * variance);\n}\n\nvoid main() {\n\tfloat halfThickness = normThickness * .5;\n\n\tfloat x = (gl_FragCoord.x - viewport.x) / viewport.z;\n\tfloat y = (gl_FragCoord.y - viewport.y) / viewport.w;\n\n\t// pdfMax makes sure pdf is normalized - has 1. value at the max\n\tfloat pdfMax = pdf(0., 0., sdev * sdev  );\n\n\tfloat dist = 1.;\n\n\t// local max\n\tif (y > avgMax + halfThickness) {\n\t\tdist = min(y - avgMin, avgMax - y);\n\t\tdist = pdf(dist, 0., sdev * sdev  ) / pdfMax;\n\t}\n\t// local min\n\telse if (y < avgMin - halfThickness) {\n\t\tdist = min(y - avgMin, avgMax - y);\n\t\tdist = pdf(dist, 0., sdev * sdev  ) / pdfMax;\n\t}\n\n\t// gl_FragColor = vec4(0,0,0,1);\n\t// return;\n\tif (dist == 0.) { discard; return; }\n\n\tgl_FragColor = fragColor;\n\tgl_FragColor.a *= dist;\n\n}\n"]),
+    // frag: glsl('./shader/fill-frag.glsl'),
     uniforms: {
-      // we provide only 2 textures
-      // in order to display texture join smoothly
-      // but min zoom level is limited so
-      // that only 2 textures can fit the screen
-      // zoom levels higher than that give artifacts
-      'samples.data[0]': function samplesData0(c, p) {
-        return this.textures[p.currTexture] || this.shader.blankTexture;
-      },
-      'samples.data[1]': function samplesData1(c, p) {
-        return this.textures[p.currTexture + 1] || this.shader.blankTexture;
-      },
-      // data0 texture sums
+      'samples.id': regl.prop('textureId'),
+      'samples.data': regl.prop('samples'),
+      'samples.prev': regl.prop('prevSamples'),
+      'samples.next': regl.prop('nextSamples'),
+      'samples.shape': regl.prop('dataShape'),
+      'samples.length': regl.prop('dataLength'),
       'samples.sum': function samplesSum(c, p) {
-        return this.textures[p.currTexture] ? this.textures[p.currTexture].sum : 0;
+        return p.samples.sum;
       },
       'samples.sum2': function samplesSum2(c, p) {
-        return this.textures[p.currTexture] ? this.textures[p.currTexture].sum2 : 0;
+        return p.samples.sum2;
       },
-      'samples.shape': this.textureShape,
-      'samples.length': this.textureLength,
-      // samples-compatible struct with fractions
-      'fractions.data[0]': function fractionsData0(c, p) {
-        return this.textures2[p.currTexture] || this.shader.blankTexture;
+      'samples.prevSum': function samplesPrevSum(c, p) {
+        return p.prevSamples.sum;
       },
-      'fractions.data[1]': function fractionsData1(c, p) {
-        return this.textures2[p.currTexture + 1] || this.shader.blankTexture;
+      'samples.prevSum2': function samplesPrevSum2(c, p) {
+        return p.prevSamples.sum2;
       },
+      // float32 sample fractions for precision
+      'fractions.id': regl.prop('textureId'),
+      'fractions.data': regl.prop('fractions'),
+      'fractions.prev': regl.prop('prevFractions'),
+      'fractions.next': regl.prop('nextFractions'),
+      'fractions.shape': regl.prop('dataShape'),
+      'fractions.length': regl.prop('dataLength'),
       'fractions.sum': 0,
       'fractions.sum2': 0,
-      'fractions.shape': this.textureShape,
-      'fractions.length': this.textureLength,
-      // number of samples per viewport
-      span: regl.prop('span'),
+      'fractions.prevSum': 0,
+      'fractions.prevSum2': 0,
+      passNum: regl.prop('passNum'),
+      passId: regl.prop('passId'),
+      passOffset: regl.prop('passOffset'),
       // total number of samples
       total: regl.prop('total'),
+      range: regl.prop('range'),
       // number of pixels between vertices
       pxStep: regl.prop('pxStep'),
-      // number of pixels per sample step
-      pxPerSample: regl.prop('pxPerSample'),
+      posShift: regl.prop('posShift'),
       // number of samples between vertices
       sampleStep: regl.prop('sampleStep'),
       translate: regl.prop('translate'),
-      // circular translate by textureData
-      translater: regl.prop('translater'),
-      // translate rounded to sampleSteps
-      translatei: regl.prop('translatei'),
-      // rotated translatei
-      translateri: regl.prop('translateri'),
-      translateriFract: regl.prop('translateriFract'),
-      // translate in terms of sample steps
-      translates: regl.prop('translates'),
-      // number of sample steps
-      totals: regl.prop('totals'),
       // min/max amplitude
-      amp: regl.prop('amplitude'),
+      amplitude: regl.prop('amplitude'),
       viewport: regl.prop('viewport'),
       opacity: regl.prop('opacity'),
       color: regl.prop('color'),
@@ -311,13 +319,19 @@ Waveform.prototype.createShader = function (o) {
     },
     depth: {
       // FIXME: disable for the case of null folding
-      enable: true
+      enable: false
     },
     scissor: {
       enable: true,
       box: function box(c, _ref) {
-        var viewport = _ref.viewport;
-        return {
+        var clip = _ref.clip,
+            viewport = _ref.viewport;
+        return clip ? {
+          x: clip[0],
+          y: clip[1],
+          width: clip[2],
+          height: clip[3]
+        } : {
           x: viewport[0],
           y: viewport[1],
           width: viewport[2],
@@ -337,10 +351,10 @@ Waveform.prototype.createShader = function (o) {
     stencil: false
   };
   var drawRanges = regl(extend({
-    vert: glsl(["// output range-average samples line with sdev weighting\n\nprecision highp float;\n#define GLSLIFY 1\n\nstruct Samples {\n\tsampler2D data[2];\n\tvec2 shape;\n\tfloat length;\n\tfloat sum;\n\tfloat sum2;\n};\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\n// bring sample value to 0..1 from amplitude range\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\n// pick texture sample linearly interpolated:\n// default webgl interpolation is more broken\n\n// pick integer offset\nvec4 picki (Samples samples_0, float offset_0, float baseOffset_0, float translate_0) {\n\toffset_0 = max(offset_0, 0.);\n\n\t// translate is here in order to remove float32 error (at the latest stage)\n\toffset_0 += translate_0;\n\tbaseOffset_0 += translate_0;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset_0, samples_0.shape.x)) + .5,\n\t\tfloor(offset_0 / samples_0.shape.x) + .5\n\t) / samples_0.shape;\n\n\tvec4 sample;\n\n\t// use last sample for textures past 2nd\n\t// TODO: remove when multipass rendering is implemented\n\tif (uv.y > 2.) {\n\t\tsample = texture2D(samples_0.data[1], vec2(1, 1));\n\t\tsample.x = 0.;\n\t}\n\telse if (uv.y > 1.) {\n\t\tuv.y = uv.y - 1.;\n\n\t\tsample = texture2D(samples_0.data[1], uv);\n\n\t\t// if right sample is from the next texture - align it to left texture\n\t\tif (offset_0 >= samples_0.shape.x * samples_0.shape.y &&\n\t\t\tbaseOffset_0 < samples_0.shape.x * samples_0.shape.y) {\n\t\t\tsample.y += samples_0.sum;\n\t\t\tsample.z += samples_0.sum2;\n\t\t}\n\t}\n\telse {\n\t\tsample = texture2D(samples_0.data[0], uv);\n\t}\n\n\treturn sample;\n}\n\n// shift is passed separately for higher float32 precision of offset\n// export pickLinear for the case of emulating texture linear interpolation\nvec4 pick (Samples samples_0, float offset_0, float baseOffset_0, float translate_0) {\n\tfloat offsetLeft = floor(offset_0);\n\tfloat offsetRight = ceil(offset_0);\n\tfloat t = offset_0 - offsetLeft;\n\tvec4 left = picki(samples_0, offsetLeft, baseOffset_0, translate_0);\n\n\tif (t == 0. || offsetLeft == offsetRight) {\n\t\treturn left;\n\t}\n\telse {\n\t\tvec4 right = picki(samples_0, offsetRight, baseOffset_0, translate_0);\n\n\t\treturn lerp(left, right, t);\n\t}\n}\n\nattribute float id, sign, side;\n\nuniform Samples samples, fractions;\nuniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, translateri, translateriFract, translater, translatei, translates;\nuniform vec4 viewport, color;\nuniform vec2 amp;\n\nvarying vec4 fragColor;\nvarying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;\n\nvoid main() {\n\tgl_PointSize = 1.5;\n\n\tnormThickness = thickness / viewport.w;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tfloat offset = id * sampleStep + translateriFract;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;\n\n\tbool isPrevStart = id == 1.;\n\tbool isStart = id <= 0.;//-translates;\n\tbool isEnd = id >= floor(totals - translates - 1.);\n\n\tfloat baseOffset = offset - sampleStep * 2.;\n\tfloat offset0 = offset - sampleStep;\n\tfloat offset1 = offset;\n\tif (isEnd) offset = total - 1.;\n\n\t// DEBUG: mark adjacent texture with different color\n\t// if (translate + (id + 1.) * sampleStep > 8192. * 2.) {\n\t// \tfragColor.x *= .5;\n\t// }\n\n\t// if right sample is from the next texture - align it to left texture\n\t// if (offset1 + translate >= (512. * 512.)) {\n\t// \tfragColor = vec4(0,1,1,1);\n\t// }\n\t// if (isEnd) fragColor = vec4(0,0,1,1);\n\t// if (isStart) fragColor = vec4(0,0,1,1);\n\n\t// calc average of curr..next sampling points\n\t// vec4 sample0 = isStart ? vec4(0) : pick(samples, offset0, baseOffset, translateri);\n\tvec4 sample0 = pick(samples, offset0, baseOffset, translateri);\n\tvec4 sample1 = pick(samples, offset1, baseOffset, translateri);\n\tvec4 samplePrev = pick(samples, baseOffset, baseOffset, translateri);\n\tvec4 sampleNext = pick(samples, offset + sampleStep, baseOffset, translateri);\n\n\t// avgCurr = isStart ? sample1.x : (sample1.y - sample0.y) / sampleStep;\n\tavgPrev = baseOffset < 0. ? sample0.x : (sample0.y - samplePrev.y) / sampleStep;\n\tavgNext = (sampleNext.y - sample1.y) / sampleStep;\n\n\t// error proof variance calculation\n\tfloat offset0l = floor(offset0);\n\tfloat offset1l = floor(offset1);\n\tfloat t0 = offset0 - offset0l;\n\tfloat t1 = offset1 - offset1l;\n\tfloat offset0r = offset0l + 1.;\n\tfloat offset1r = offset1l + 1.;\n\n\t// ALERT: this formula took 9 days\n\t// the order of operations is important to provide precision\n\t// that comprises linear interpolation and range calculation\n\t// x - amplitude, y - sum, z - sum2, w - x offset\n\tvec4 sample0l = pick(samples, offset0l, baseOffset, translateri);\n\tvec4 sample0r = pick(samples, offset0r, baseOffset, translateri);\n\tvec4 sample1r = pick(samples, offset1r, baseOffset, translateri);\n\tvec4 sample1l = pick(samples, offset1l, baseOffset, translateri);\n\tvec4 sample1lf = pick(fractions, offset1l, baseOffset, translateri);\n\tvec4 sample0lf = pick(fractions, offset0l, baseOffset, translateri);\n\tvec4 sample1rf = pick(fractions, offset1r, baseOffset, translateri);\n\tvec4 sample0rf = pick(fractions, offset0r, baseOffset, translateri);\n\n\tif (isStart) {\n\t\tavgCurr = sample1.x;\n\t}\n\telse if (isPrevStart) {\n\t\t\tavgCurr = (sample1.y - sample0.y) / sampleStep;\n\t\t}\n\telse {\n\t\tavgCurr = (\n\t\t\t+ sample1l.y\n\t\t\t- sample0l.y\n\t\t\t+ sample1lf.y\n\t\t\t- sample0lf.y\n\t\t\t+ t1 * (sample1r.y - sample1l.y)\n\t\t\t- t0 * (sample0r.y - sample0l.y)\n\t\t\t+ t1 * (sample1rf.y - sample1lf.y)\n\t\t\t- t0 * (sample0rf.y - sample0lf.y)\n\t\t) / sampleStep;\n\t}\n\n\tfloat mx2 = (\n\t\t+ sample1l.z\n\t\t- sample0l.z\n\t\t+ sample1lf.z\n\t\t- sample0lf.z\n\t\t+ t1 * (sample1r.z - sample1l.z)\n\t\t- t0 * (sample0r.z - sample0l.z)\n\t\t+ t1 * (sample1rf.z - sample1lf.z)\n\t\t- t0 * (sample0rf.z - sample0lf.z)\n\t)  / sampleStep;\n\tfloat m2 = avgCurr * avgCurr;\n\n\t// σ(x)² = M(x²) - M(x)²\n\tfloat variance = abs(mx2 - m2);\n\n\tsdev = sqrt(variance);\n\tsdev /= abs(amp.y - amp.x);\n\n\tavgCurr = reamp(avgCurr, amp);\n\tavgNext = reamp(avgNext, amp);\n\tavgPrev = reamp(avgPrev, amp);\n\n\t// compensate for sampling rounding\n\tvec2 position = vec2(\n\t\t(pxStep * (id - posShift) ) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tfloat x = pxStep / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 bisec = normalize(normalLeft + normalRight);\n\tvec2 vert = vec2(0, 1);\n\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\tfloat vertRightLen = abs(1. / dot(normalRight, vert));\n\tfloat vertLeftLen = abs(1. / dot(normalLeft, vert));\n\tfloat maxVertLen = max(vertLeftLen, vertRightLen);\n\tfloat minVertLen = min(vertLeftLen, vertRightLen);\n\n\t// 2σ covers 68% of a line. 4σ covers 95% of line\n\tfloat vertSdev = 2. * sdev / normThickness;\n\n\tvec2 join;\n\n\tif (isStart || isPrevStart) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd) {\n\t\tjoin = normalLeft;\n\t}\n\t// sdev less than projected to vertical shows simple line\n\t// FIXME: sdev should be compensated by curve bend\n\telse if (vertSdev < maxVertLen) {\n\t\t// sdev more than normal but less than vertical threshold\n\t\t// rotates join towards vertical\n\t\tif (vertSdev > minVertLen) {\n\t\t\tfloat t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);\n\t\t\tjoin = lerp(bisec * bisecLen, vert * maxVertLen, t);\n\t\t}\n\t\telse {\n\t\t\tjoin = bisec * bisecLen;\n\t\t}\n\t}\n\t// sdev more than projected to vertical modifies only y coord\n\telse {\n\t\tjoin = vert * vertSdev;\n\t}\n\n\t// figure out closest to current min/max\n\tavgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);\n\tavgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
+    vert: glsl(["// output range-average samples line with sdev weighting\n\nprecision highp float;\n#define GLSLIFY 1\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\n// bring sample value to 0..1 from amplitude range\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nstruct Samples {\n\tfloat id;\n\tsampler2D data;\n\tsampler2D prev;\n\tsampler2D next;\n\tvec2 shape;\n\tfloat length;\n\tfloat sum, prevSum, sum2, prevSum2;\n};\n\nattribute float id, sign, side;\n\nuniform Samples samples, fractions;\nuniform float opacity, thickness, pxStep, sampleStep, total, translate, passNum, passId;\nuniform vec4 viewport, color;\nuniform vec2 amplitude;\n\nvarying vec4 fragColor;\nvarying float avgCurr, avgNext, avgPrev, avgMin, avgMax, sdev, normThickness;\n\n// returns sample picked from the texture\nvec4 picki (Samples samples, float offset) {\n\t// translate is here in order to remove float32 error (at the latest stage)\n\toffset += translate;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset, samples.shape.x)) + .5,\n\t\tfloor(offset / samples.shape.x) + .5\n\t) / samples.shape;\n\n\tvec4 sample;\n\n\t// prev texture\n\tif (uv.y < 0.) {\n\t\tuv.y += 1.;\n\t\tsample = texture2D(samples.prev, uv);\n\t\tsample.y -= samples.prevSum;\n\t\tsample.z -= samples.prevSum2;\n\t}\n\t// next texture\n\telse if (uv.y > 1.) {\n\t\tuv.y -= 1.;\n\t\tsample = texture2D(samples.next, uv);\n\t\tsample.y += samples.sum;\n\t\tsample.z += samples.sum2;\n\t}\n\t// curr texture\n\telse {\n\t\tsample = texture2D(samples.data, uv);\n\t}\n\n\treturn sample;\n}\n\n// returns {avg, sdev, isNaN}\nvec3 stats (float offset) {\n\tfloat sampleStep = sampleStep;\n\n\tfloat offset0 = offset - sampleStep * .5;\n\tfloat offset1 = offset + sampleStep * .5;\n\tfloat offset0l = floor(offset0);\n\tfloat offset1l = floor(offset1);\n\tfloat offset0r = ceil(offset0);\n\tfloat offset1r = ceil(offset1);\n\n\tvec4 sample = picki(samples, offset);\n\t// if (sample.w == -1.) return vec3(0,0,-1);\n\n\t// head picks half the first sample\n\tvec4 sample0l = picki(samples, offset0l);\n\tvec4 sample1l = picki(samples, offset1l);\n\tvec4 sample0r = picki(samples, offset0r);\n\tvec4 sample1r = picki(samples, offset1r);\n\n\tvec4 sample0lf = picki(fractions, offset0l);\n\tvec4 sample1lf = picki(fractions, offset1l);\n\tvec4 sample0rf = picki(fractions, offset0r);\n\tvec4 sample1rf = picki(fractions, offset1r);\n\n\tfloat t0 = 0., t1 = 0.;\n\n\t// partial sample steps require precision\n\t// FIXME: maybe that's not the best solution\n\tif (mod(sampleStep, 1.) != 0. && sample0l.w != -1. && sample1r.w != -1.) {\n\t\tt0 = offset0 - offset0l, t1 = offset1 - offset1l;\n\t}\n\n\tif (sample0l.w == -1.) {\n\t\t// return vec3(0,0,-1);\n\t\t// sample0l.y = 0.;\n\t}\n\n\tfloat avg = (\n\t\t+ sample1l.y\n\t\t- sample0l.y\n\t\t+ sample1lf.y\n\t\t- sample0lf.y\n\t\t+ t1 * (sample1r.y - sample1l.y)\n\t\t- t0 * (sample0r.y - sample0l.y)\n\t\t+ t1 * (sample1rf.y - sample1lf.y)\n\t\t- t0 * (sample0rf.y - sample0lf.y)\n\t);\n\tavg /= sampleStep;\n\n\tfloat mx2 = (\n\t\t+ sample1l.z\n\t\t- sample0l.z\n\t\t+ sample1lf.z\n\t\t- sample0lf.z\n\t\t+ t1 * (sample1r.z - sample1l.z)\n\t\t- t0 * (sample0r.z - sample0l.z)\n\t\t+ t1 * (sample1rf.z - sample1lf.z)\n\t\t- t0 * (sample0rf.z - sample0lf.z)\n\t);\n\tmx2 /= sampleStep;\n\n\tfloat m2 = avg * avg;\n\n\t// σ(x)² = M(x²) - M(x)²\n\tfloat variance = abs(mx2 - m2);\n\n\tsdev = sqrt(variance);\n\n\treturn vec3(avg, sdev, min(sample0r.w, sample1l.w));\n}\n\nvoid main() {\n\tgl_PointSize = 1.5;\n\tif (color.a == 0.) return;\n\n\tnormThickness = thickness / viewport.w;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tfloat offset = id * sampleStep;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = 0.;\n\n\tvec3 statsCurr = stats(offset);\n\n\t// ignore NaN amplitudes\n\tif (statsCurr.z == -1.) return;\n\n\tvec3 statsPrev = stats(offset - sampleStep);\n\tvec3 statsNext = stats(offset + sampleStep);\n\n\tavgCurr = statsCurr.x;\n\tavgPrev = statsPrev.x;\n\tavgNext = statsNext.x;\n\n\tfloat sdev = statsCurr.y;\n\n\tsdev /= abs(amplitude.y - amplitude.x);\n\n\tavgCurr = reamp(avgCurr, amplitude);\n\tavgNext = reamp(avgNext, amplitude);\n\tavgPrev = reamp(avgPrev, amplitude);\n\n\t// compensate for sampling rounding\n\tvec2 position = vec2(\n\t\t(pxStep * (id + .5)) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), pxStep / viewport.w\n\t));\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), pxStep / viewport.w\n\t));\n\n\tvec2 bisec = normalize(normalLeft + normalRight);\n\tvec2 vert = vec2(0, 1);\n\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\tfloat vertRightLen = abs(1. / dot(normalRight, vert));\n\tfloat vertLeftLen = abs(1. / dot(normalLeft, vert));\n\tfloat maxVertLen = max(vertLeftLen, vertRightLen);\n\tfloat minVertLen = min(vertLeftLen, vertRightLen);\n\n\t// 2σ covers 68% of a line. 4σ covers 95% of line\n\tfloat vertSdev = 2. * sdev / normThickness;\n\n\tvec2 join;\n\n\tif (statsPrev.z == -1.) {\n\t\tjoin = normalRight;\n\t}\n\telse if (statsNext.z == -1.) {\n\t\tjoin = normalLeft;\n\t}\n\t// sdev less than projected to vertical shows simple line\n\t// FIXME: sdev should be compensated by curve bend\n\telse if (vertSdev < maxVertLen) {\n\t\t// sdev more than normal but less than vertical threshold\n\t\t// rotates join towards vertical\n\t\tif (vertSdev > minVertLen) {\n\t\t\tfloat t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);\n\t\t\tjoin = lerp(bisec * bisecLen, vert * maxVertLen, t);\n\t\t}\n\t\telse {\n\t\t\tjoin = bisec * bisecLen;\n\t\t}\n\t}\n\t// sdev more than projected to vertical modifies only y coord\n\telse {\n\t\tjoin = vert * vertSdev;\n\t}\n\n\t// figure out closest to current min/max\n\tavgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);\n\tavgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\n\t// shift position by the clip offset\n\tposition.x += passId * pxStep * samples.length / sampleStep / viewport.z;\n\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
   }, shaderOptions));
   var drawLine = regl(extend({
-    vert: glsl(["// direct sample output, connected by line, to the contrary to range\n\nprecision highp float;\n#define GLSLIFY 1\n\n// pick texture sample linearly interpolated:\n// default webgl interpolation is more broken\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\nstruct Samples {\n\tsampler2D data[2];\n\tvec2 shape;\n\tfloat length;\n\tfloat sum;\n\tfloat sum2;\n};\n\n// pick integer offset\nvec4 picki (Samples samples_0, float offset_0, float baseOffset, float translate_0) {\n\toffset_0 = max(offset_0, 0.);\n\n\t// translate is here in order to remove float32 error (at the latest stage)\n\toffset_0 += translate_0;\n\tbaseOffset += translate_0;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset_0, samples_0.shape.x)) + .5,\n\t\tfloor(offset_0 / samples_0.shape.x) + .5\n\t) / samples_0.shape;\n\n\tvec4 sample;\n\n\t// use last sample for textures past 2nd\n\t// TODO: remove when multipass rendering is implemented\n\tif (uv.y > 2.) {\n\t\tsample = texture2D(samples_0.data[1], vec2(1, 1));\n\t\tsample.x = 0.;\n\t}\n\telse if (uv.y > 1.) {\n\t\tuv.y = uv.y - 1.;\n\n\t\tsample = texture2D(samples_0.data[1], uv);\n\n\t\t// if right sample is from the next texture - align it to left texture\n\t\tif (offset_0 >= samples_0.shape.x * samples_0.shape.y &&\n\t\t\tbaseOffset < samples_0.shape.x * samples_0.shape.y) {\n\t\t\tsample.y += samples_0.sum;\n\t\t\tsample.z += samples_0.sum2;\n\t\t}\n\t}\n\telse {\n\t\tsample = texture2D(samples_0.data[0], uv);\n\t}\n\n\treturn sample;\n}\n\n// shift is passed separately for higher float32 precision of offset\n// export pickLinear for the case of emulating texture linear interpolation\nvec4 pick (Samples samples_0, float offset_0, float baseOffset, float translate_0) {\n\tfloat offsetLeft = floor(offset_0);\n\tfloat offsetRight = ceil(offset_0);\n\tfloat t = offset_0 - offsetLeft;\n\tvec4 left = picki(samples_0, offsetLeft, baseOffset, translate_0);\n\n\tif (t == 0. || offsetLeft == offsetRight) {\n\t\treturn left;\n\t}\n\telse {\n\t\tvec4 right = picki(samples_0, offsetRight, baseOffset, translate_0);\n\n\t\treturn lerp(left, right, t);\n\t}\n}\n\n// bring sample value to 0..1 from amplitude range\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nattribute float id, sign, side;\n\nuniform Samples samples;\nuniform float opacity, thickness, pxStep, pxPerSample, sampleStep, total, totals, translate, dataLength, translateri, translater, translatei, translates;\nuniform vec4 viewport, color;\nuniform vec2 amp;\n\nvarying vec4 fragColor;\nvarying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;\n\nbool isNaN( float val ){\n  return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;\n}\n\nvoid main () {\n\tgl_PointSize = 4.5;\n\n\tnormThickness = thickness / viewport.w;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tfloat offset = id * sampleStep;\n\n\tbool isStart = id <= -translates;\n\tbool isEnd = id >= floor(totals - translates - 1.);\n\n\t// DEBUG: mark adjacent texture with different color\n\t// if (translate + (id) * sampleStep > 64. * 64.) {\n\t// \tfragColor.x *= .5;\n\t// }\n\t// if (isEnd) fragColor = vec4(0,0,1,1);\n\t// if (isStart) fragColor = vec4(0,0,1,1);\n\n\t// calc average of curr..next sampling points\n\tvec4 sampleCurr = pick(samples, offset, offset - sampleStep, translateri);\n\tvec4 sampleNext = pick(samples, offset + sampleStep, offset - sampleStep, translateri);\n\tvec4 samplePrev = pick(samples, offset - sampleStep, offset - sampleStep, translateri);\n\n\tavgCurr = reamp(sampleCurr.x, amp);\n\tavgNext = reamp(isNaN(sampleNext.x) ? sampleCurr.x : sampleNext.x, amp);\n\tavgPrev = reamp(isNaN(samplePrev.x) ? sampleCurr.x : samplePrev.x, amp);\n\n\t// fake sdev 2σ = thickness\n\t// sdev = normThickness / 2.;\n\tsdev = 0.;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = pxPerSample < 1. ? 0. : id + (translater - offset - translateri) / sampleStep;\n\n\tvec2 position = vec2(\n\t\tpxStep * (id - posShift) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tfloat x = (pxStep) / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 join;\n\tif (isStart || isNaN(samplePrev.x)) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd || isNaN(sampleNext.x)) {\n\t\tjoin = normalLeft;\n\t}\n\telse {\n\t\tvec2 bisec = normalLeft * .5 + normalRight * .5;\n\t\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\t\tjoin = bisec * bisecLen;\n\t}\n\n\t// FIXME: limit join by prev vertical\n\t// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;\n\t// join.x *= maxJoinX / join.x;\n\n\t// figure out closest to current min/max\n\tavgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);\n\tavgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
+    vert: glsl(["// direct sample output, connected by line, to the contrary to range\n\nprecision highp float;\n#define GLSLIFY 1\n\n// bring sample value to 0..1 from amplitude range\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nstruct Samples {\n\tfloat id;\n\tsampler2D data;\n\tsampler2D prev;\n\tsampler2D next;\n\tvec2 shape;\n\tfloat length;\n\tfloat sum, prevSum, sum2, prevSum2;\n};\n\nattribute float id, sign, side;\n\nuniform Samples samples;\nuniform float opacity, thickness, pxStep, sampleStep, total, translate, posShift;\nuniform vec4 viewport, color;\nuniform vec2 amplitude, range;\nuniform float passNum, passId, passOffset;\n\nvarying vec4 fragColor;\nvarying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;\n\nbool isNaN (vec4 sample) {\n\treturn sample.w == -1.;\n}\n\nvec4 stats (float offset) {\n\t// translate is here in order to remove float32 error (at the latest stage)\n\toffset += translate;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset, samples.shape.x)) + .5,\n\t\tfloor((offset) / samples.shape.x) + .5\n\t) / samples.shape;\n\n\tvec4 sample;\n\n\t// prev texture\n\tif (uv.y < 0.) {\n\t\tuv.y += 1.;\n\t\tsample = texture2D(samples.prev, uv);\n\t}\n\t// next texture\n\telse if (uv.y > 1.) {\n\t\tuv.y -= 1.;\n\t\tsample = texture2D(samples.next, uv);\n\t}\n\t// curr texture\n\telse {\n\t\tsample = texture2D(samples.data, uv);\n\t}\n\n\treturn sample;\n}\n\nvoid main () {\n\tgl_PointSize = 4.5;\n\tif (color.a == 0.) return;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tnormThickness = thickness / viewport.w;\n\n\tfloat offset = id * sampleStep;\n\n\t// calc average of curr..next sampling points\n\tvec4 sampleCurr = stats(offset);\n\tif (isNaN(sampleCurr)) return;\n\n\tvec4 sampleNext = stats(offset + sampleStep);\n\tvec4 samplePrev = stats(offset - sampleStep);\n\n\tbool isStart = isNaN(samplePrev);\n\tbool isEnd = isNaN(sampleNext);\n\n\tavgCurr = reamp(sampleCurr.x, amplitude);\n\tavgNext = reamp(isEnd ? sampleCurr.x : sampleNext.x, amplitude);\n\tavgPrev = reamp(isStart ? sampleCurr.x : samplePrev.x, amplitude);\n\n\t// fake sdev 2σ = thickness\n\t// sdev = normThickness / 2.;\n\tsdev = 0.;\n\n\tvec2 position = vec2(\n\t\tpxStep * (id + .5) / (viewport.z),\n\t\tavgCurr\n\t);\n\n\tfloat x = (pxStep) / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 join;\n\tif (isStart || isStart) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd || isEnd) {\n\t\tjoin = normalLeft;\n\t}\n\telse {\n\t\tvec2 bisec = normalLeft * .5 + normalRight * .5;\n\t\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\t\tjoin = bisec * bisecLen;\n\t}\n\n\t// FIXME: limit join by prev vertical\n\t// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;\n\t// join.x *= maxJoinX / join.x;\n\n\t// figure out closest to current min/max\n\tavgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);\n\tavgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\n\t// compensate snapped sampleStep to enable smooth zoom\n\tposition.x += posShift / viewport.z;\n\n\t// shift position by the clip offset\n\t// FIXME: move to uniform\n\tposition.x += passId * pxStep * samples.length / sampleStep / viewport.z;\n\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
   }, shaderOptions)); // let drawPick = regl(extend({
   // 	frag: glsl('./shader/pick-frag.glsl')
   // }))
@@ -351,11 +365,23 @@ Waveform.prototype.createShader = function (o) {
     channels: this.textureChannels,
     type: 'float'
   });
+  blankTexture.sum = 0;
+  blankTexture.sum2 = 0;
+  var NaNTexture = regl.texture({
+    width: 1,
+    height: 1,
+    channels: this.textureChannels,
+    type: 'float',
+    data: new Float32Array([NaN, 0, 0, -1])
+  });
+  NaNTexture.sum = 0;
+  NaNTexture.sum2 = 0;
   shader = {
     drawRanges: drawRanges,
     drawLine: drawLine,
     regl: regl,
     idBuffer: idBuffer,
+    NaNTexture: NaNTexture,
     blankTexture: blankTexture,
     gl: gl
   };
@@ -364,22 +390,11 @@ Waveform.prototype.createShader = function (o) {
 };
 
 Object.defineProperties(Waveform.prototype, {
-  total: {
-    get: function get() {
-      if (!this.needsRecalc) return this.drawOptions.total; // returns existing and planned samples
-
-      return (this._total || 0) + this.pushQueue.length;
-    },
-    set: function set(t) {
-      this._total = t;
-      this.pushQueue.length = 0;
-    }
-  },
   viewport: {
     get: function get() {
-      if (!this.needsRecalc) return this.drawOptions.viewport;
+      if (!this.dirty) return this.drawOptions.viewport;
       var viewport;
-      if (!this._viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight];else viewport = [this.viewport.x, this.viewport.y, this.viewport.width, this.viewport.height]; // invert viewport if necessary
+      if (!this._viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight];else viewport = [this._viewport.x, this._viewport.y, this._viewport.width, this._viewport.height]; // invert viewport if necessary
 
       if (!this.flip) {
         viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3];
@@ -393,7 +408,7 @@ Object.defineProperties(Waveform.prototype, {
   },
   color: {
     get: function get() {
-      if (!this.needsRecalc) return this.drawOptions.color;
+      if (!this.dirty && this.drawOptions) return this.drawOptions.color;
       return this._color || [0, 0, 0, 255];
     },
     // flatten colors to a single uint8 array
@@ -426,7 +441,7 @@ Object.defineProperties(Waveform.prototype, {
   },
   amplitude: {
     get: function get() {
-      if (!this.needsRecalc) return this.drawOptions.amplitude;
+      if (!this.dirty) return this.drawOptions.amplitude;
       return this._amplitude || [this.minY, this.maxY];
     },
     set: function set(amplitude) {
@@ -441,10 +456,21 @@ Object.defineProperties(Waveform.prototype, {
   },
   range: {
     get: function get() {
-      if (!this.needsRecalc) return this.drawOptions.range;
-      return this._range || [0, this.total - 1];
+      if (!this.dirty) return this.drawOptions.range;
+
+      if (this._range != null) {
+        if (typeof this._range === 'number') {
+          return [nidx(this._range), this.total];
+        }
+
+        return this._range;
+      }
+
+      return [0, this.total];
     },
     set: function set(range) {
+      if (!range) return this._range = null;
+
       if (range.length) {
         // support vintage 4-value range
         if (range.length === 4) {
@@ -454,8 +480,10 @@ Object.defineProperties(Waveform.prototype, {
           this._range = [range[0], range[1]];
         }
       } else if (typeof range === 'number') {
-        this._range = [-range, -0];
+        this._range = range;
       }
+
+      this.dirty = true;
     }
   }
 }); // update visual state
@@ -465,7 +493,7 @@ Waveform.prototype.update = function (o) {
   if (o.length != null) o = {
     data: o
   };
-  this.needsRecalc = true;
+  this.dirty = true;
   o = pick(o, {
     data: 'data value values sample samples',
     push: 'add append push insert concat',
@@ -478,10 +506,18 @@ Waveform.prototype.update = function (o) {
     viewport: 'clip vp viewport viewBox viewbox viewPort area',
     opacity: 'opacity alpha transparency visible visibility opaque',
     flip: 'flip iviewport invertViewport inverseViewport',
-    mode: 'mode'
+    mode: 'mode',
+    shape: 'shape textureShape'
   }); // forcing rendering mode is mostly used for debugging purposes
 
-  if (o.mode !== undefined) this.mode = o.mode; // parse line style
+  if (o.mode !== undefined) this.mode = o.mode;
+
+  if (o.shape !== undefined) {
+    if (this.textures.length) throw Error('Cannot set texture shape because textures are initialized already');
+    this.textureShape = o.shape;
+    this.textureLength = this.textureShape[0] * this.textureShape[1];
+  } // parse line style
+
 
   if (o.line) {
     if (typeof o.line === 'string') {
@@ -547,11 +583,165 @@ Waveform.prototype.update = function (o) {
   }
 
   return this;
+}; // calculate draw options
+
+
+Waveform.prototype.calc = function () {
+  if (!this.dirty) return this.drawOptions;
+  this.flush();
+  var total = this.total,
+      opacity = this.opacity,
+      amplitude = this.amplitude,
+      viewport = this.viewport,
+      range = this.range;
+  var color = this.color;
+  var thickness = this.thickness; // calc runtime props
+
+  var span = Math.abs(range[1] - range[0]) || 1; // init pxStep as max number of stops on the screen to cover the range
+
+  var pxStep = Math.max( // width / span = how many pixels per sample to fit the range
+  viewport[2] / span, // pxStep affects jittering on panning, .5 is good value
+  this.pxStep || .5 //Math.pow(thickness, .1) * .1
+  ); // init sampleStep as sample interval to fit the data range into viewport
+
+  var sampleStep = pxStep * span / viewport[2]; // remove float64 residual
+
+  sampleStep = f32.float(sampleStep); // snap sample step to 2^n grid: still smooth, but reduces float32 error
+  // FIXME: make sampleStep snap step detection based on the span
+  // round is better than ceil: ceil generates jittering
+
+  sampleStep = Math.round(sampleStep * 1) / 1; // recalc pxStep to adjust changed sampleStep, to fit initial the range
+
+  pxStep = viewport[2] * sampleStep / span; // FIXME: ↑ pxStep is close to 0.5, but can vary here somewhat
+  // pxStep = Math.ceil(pxStep * 16) / 16
+
+  var pxPerSample = pxStep / sampleStep; // translate is calculated so to meet conditions:
+  // - sampling always starts at 0 sample of 0 texture
+  // - panning never breaks that rule
+  // - changing sampling step never breaks that rule
+  // - to reduce error for big translate, it is rotated by textureLength
+  // - panning is always perceived smooth
+  // translate snapped to samplesteps makes sure 0 sample is picked pefrectly
+  // let translate =  Math.floor(range[0] / sampleStep) * sampleStep
+  // let translate = Math.floor((-range[0] % (this.textureLength * 3)) / sampleStep) * sampleStep
+  // if (translate < 0) translate += this.textureLength
+  // compensate snapping for low scale levels
+
+  var posShift = 0.;
+
+  if (pxPerSample > 1) {
+    posShift = (Math.round(range[0]) - range[0]) * pxPerSample;
+  }
+
+  var mode = this.mode; // detect passes number needed to render full waveform
+
+  var passNum = Math.ceil(Math.floor(span * 1000) / 1000 / this.textureLength);
+  var passes = Array(passNum);
+  var firstTextureId = Math.round(range[0] / this.textureLength);
+  var clipWidth = Math.min(this.textureLength / sampleStep * pxStep, viewport[2]);
+
+  for (var i = 0; i < passNum; i++) {
+    var textureId = firstTextureId + i; // ignore negative textures
+
+    if (textureId < -1) continue;
+    if (textureId > this.textures.length) continue;
+    var clipLeft = Math.round(i * clipWidth);
+    var clipRight = Math.round((i + 1) * clipWidth);
+    var clip = [clipLeft + viewport[0], viewport[1], // clipWidth here may fluctuate due to rounding
+    clipRight - clipLeft, viewport[3]]; // offset within the pass
+
+    var passOffset = Math.round(range[0] / this.textureLength) * this.textureLength;
+    var translate = Math.round(range[0]) - passOffset;
+    var samplesNumber = Math.min( // number of visible points
+    Math.ceil(clipWidth / pxStep), // max number of samples per pass
+    Math.ceil(this.textureLength / sampleStep));
+    passes[i] = {
+      passId: i,
+      textureId: textureId,
+      clip: clip,
+      passOffset: passOffset,
+      // translate depends on pass
+      translate: translate,
+      // FIXME: reduce 3 to 2 or less
+      // number of vertices to fill the clip width, including l/r overlay
+      count: Math.min(4 + 4 * samplesNumber * 3 + 4, this.maxSampleCount),
+      offset: 0,
+      samples: this.textures[textureId] || this.NaNTexture,
+      fractions: this.textures2[textureId] || this.blankTexture,
+      prevSamples: this.textures[textureId - 1] || this.NaNTexture,
+      nextSamples: this.textures[textureId + 1] || this.NaNTexture,
+      prevFractions: this.textures2[textureId - 1] || this.blankTexture,
+      nextFractions: this.textures2[textureId + 1] || this.blankTexture,
+      // position shift to compensate sampleStep snapping
+      shift: 0
+    };
+  } // use more complicated range draw only for sample intervals
+  // note that rangeDraw gives sdev error for high values dataLength
+
+
+  this.drawOptions = {
+    thickness: thickness,
+    color: color,
+    pxStep: pxStep,
+    pxPerSample: pxPerSample,
+    viewport: viewport,
+    sampleStep: sampleStep,
+    span: span,
+    total: total,
+    opacity: opacity,
+    amplitude: amplitude,
+    range: range,
+    mode: mode,
+    passes: passes,
+    passNum: passNum,
+    posShift: posShift,
+    dataShape: this.textureShape,
+    dataLength: this.textureLength
+  };
+  this.dirty = false;
+  return this.drawOptions;
+}; // draw frame according to state
+
+
+Waveform.prototype.render = function () {
+  var _this = this;
+
+  this.flush();
+  if (this.total < 2) return this;
+  var o = this.calc(); // multipass renders different textures to adjacent clip areas
+
+  o.passes.forEach(function (pass) {
+    // o ← {count, offset, clip, texture, shift}
+    extend(o, pass); // in order to avoid glitch switching range/line mode on rezoom
+    // we always render every range with transparent color
+
+    var color = o.color; // range case
+
+    if (o.pxPerSample <= 1. || o.mode === 'range' && o.mode != 'line') {
+      _this.shader.drawRanges.call(_this, o);
+
+      o.color = [0, 0, 0, 0];
+
+      _this.shader.drawLine.call(_this, o);
+
+      o.color = color;
+    } // line case
+    else {
+        _this.shader.drawLine.call(_this, o);
+
+        o.color = [0, 0, 0, 0];
+
+        _this.shader.drawRanges.call(_this, o);
+
+        o.color = color;
+      }
+  });
+  return this;
 }; // append samples, will be put into texture at the next frame or idle
 
 
 Waveform.prototype.push = function () {
-  var _this = this;
+  var _this2 = this;
 
   for (var _len = arguments.length, samples = new Array(_len), _key = 0; _key < _len; _key++) {
     samples[_key] = arguments[_key];
@@ -571,31 +761,42 @@ Waveform.prototype.push = function () {
     } else this.pushQueue.push(samples[i]);
   }
 
-  this.needsRecalc = true;
-  idle(function () {
-    _this.calc();
+  if (this.dirty && this.dirty.call) this.dirty();
+  this.dirty = idle(function () {
+    _this2.flush();
   });
+  return this;
+}; // drain pushQueue
+
+
+Waveform.prototype.flush = function () {
+  // cancel planned callback
+  if (this.dirty && this.dirty.call) this.dirty();
+
+  if (this.pushQueue.length) {
+    var arr = this.pushQueue;
+    this.set(arr, this.total);
+    this.pushQueue.length = 0;
+  }
+
   return this;
 }; // write samples into texture
 
 
 Waveform.prototype.set = function (samples) {
   var at = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
-  if (!samples || !samples.length) return this; // draing queue, if possible overlap
+  if (!samples || !samples.length) return this; // draing queue, if possible overlap with total
 
-  if (samples !== this.pushQueue && at + samples.length > this.total) {
-    if (this.pushQueue.length) {
-      this.set(this.pushQueue, this.total - this.pushQueue.length);
-      this.pushQueue.length = 0;
-    }
+  if (at + samples.length > this.total + this.pushQueue.length) {
+    this.flush();
   } // future fill: provide NaN data
 
 
   if (at > this.total) {
-    this.set(Array(at - this.total), this.total - this.pushQueue.length);
+    this.set(Array(at - this.total), this.total);
   }
 
-  this.needsRecalc = true; // carefully handle array
+  this.dirty = true; // carefully handle array
 
   if (Array.isArray(samples)) {
     var floatSamples = pool.mallocFloat64(samples.length);
@@ -616,6 +817,13 @@ Waveform.prototype.set = function (samples) {
   for (var _i2 = 0; _i2 < samples.length; _i2++) {
     if (this.minY > samples[_i2]) this.minY = samples[_i2];
     if (this.maxY < samples[_i2]) this.maxY = samples[_i2];
+  } // detect textureShape based on limits
+  // in order to reset sum2 more frequently to reduce error
+
+
+  if (!this.textureShape) {
+    this.textureShape = [512, 512];
+    this.textureLength = this.textureShape[0] * this.textureShape[1];
   }
 
   var _this$textureShape = _slicedToArray(this.textureShape, 2),
@@ -634,22 +842,29 @@ Waveform.prototype.set = function (samples) {
   var txtFract = this.textures2[id];
 
   if (!txt) {
+    var txtData = pool.mallocFloat64(txtLen * ch); // fill txt data with NaNs for proper start/end/gap detection
+
+    for (var _i3 = 0; _i3 < txtData.length; _i3 += ch) {
+      txtData[_i3 + 3] = -1;
+    }
+
     txt = this.textures[id] = this.regl.texture({
       width: this.textureShape[0],
       height: this.textureShape[1],
-      channels: this.textureChannels,
+      channels: ch,
       type: 'float',
       min: 'nearest',
       mag: 'nearest',
       // min: 'linear',
       // mag: 'linear',
-      wrap: ['clamp', 'clamp']
+      wrap: ['clamp', 'clamp'],
+      data: f32.float(txtData)
     });
     this.lastY = txt.sum = txt.sum2 = 0;
     txtFract = this.textures2[id] = this.regl.texture({
       width: this.textureShape[0],
       height: this.textureShape[1],
-      channels: this.textureChannels,
+      channels: ch,
       type: 'float',
       min: 'nearest',
       mag: 'nearest',
@@ -657,18 +872,22 @@ Waveform.prototype.set = function (samples) {
       // mag: 'linear',
       wrap: ['clamp', 'clamp']
     });
+    txt.data = txtData;
   } // calc sum, sum2 and form data for the samples
 
 
   var dataLen = Math.min(tillEndOfTxt, samples.length);
-  var data = pool.mallocFloat64(dataLen * ch);
+  var data = txt.data.subarray(offset * ch, offset * ch + dataLen * ch); //pool.mallocFloat64(dataLen * ch)
 
-  for (var _i3 = 0, l = dataLen; _i3 < l; _i3++) {
+  for (var _i4 = 0, l = dataLen; _i4 < l; _i4++) {
     // put NaN samples as indicators of blank samples
-    if (!isNaN(samples[_i3])) {
-      data[_i3 * ch] = this.lastY = samples[_i3];
+    if (!isNaN(samples[_i4])) {
+      data[_i4 * ch] = this.lastY = samples[_i4];
+      data[_i4 * ch + 3] = 0;
     } else {
-      data[_i3 * ch] = NaN;
+      data[_i4 * ch] = NaN; // write NaN values as a definite flag
+
+      data[_i4 * ch + 3] = -1;
     }
 
     txt.sum += this.lastY;
@@ -676,12 +895,12 @@ Waveform.prototype.set = function (samples) {
     // also that is hard to guess correct rotation limit, that can change at any new data
     // so we just keep precise secondary texture and hope the sum is not huge enough to reset at the next texture
 
-    data[_i3 * ch + 1] = txt.sum;
-    data[_i3 * ch + 2] = txt.sum2;
+    data[_i4 * ch + 1] = txt.sum;
+    data[_i4 * ch + 2] = txt.sum2;
   } // increase total by the number of new samples
 
 
-  if (this.total - this.pushQueue.length - at < dataLen) this.total += dataLen - (this.total - at); // fullfill last unfinished row
+  if (this.total - at < dataLen) this.total += dataLen - (this.total - at); // fullfill last unfinished row
 
   var firstRowWidth = 0;
 
@@ -726,7 +945,7 @@ Waveform.prototype.set = function (samples) {
 
 
   if (tillEndOfTxt < samples.length) {
-    this.push(samples.subarray(tillEndOfTxt));
+    this.set(samples.subarray(tillEndOfTxt), this.total);
     pool.freeFloat64(samples);
     pool.freeFloat64(data);
     return this;
@@ -737,9 +956,9 @@ Waveform.prototype.set = function (samples) {
     var f32data = pool.mallocFloat32(data.length);
     var f32fract = pool.mallocFloat32(data.length);
 
-    for (var _i4 = 0; _i4 < data.length; _i4++) {
-      f32data[_i4] = data[_i4];
-      f32fract[_i4] = data[_i4] - f32data[_i4];
+    for (var _i5 = 0; _i5 < data.length; _i5++) {
+      f32data[_i5] = data[_i5];
+      f32fract[_i5] = data[_i5] - f32data[_i5];
     } // for (let i = 0; i < data.length; i+=4) {
     // 	if (isNaN(data[i])) f32fract[i] = -1
     // }
@@ -758,113 +977,6 @@ Waveform.prototype.set = function (samples) {
     pool.freeFloat32(f32data);
     pool.freeFloat32(f32fract);
   }
-
-  return this;
-}; // calculate draw options
-
-
-Waveform.prototype.calc = function () {
-  if (!this.needsRecalc) return this.drawOptions; // apply samples changes, if any
-
-  if (this.pushQueue.length) {
-    this.set(this.pushQueue);
-    this.pushQueue.length = 0;
-  }
-
-  var total = this.total,
-      opacity = this.opacity,
-      amplitude = this.amplitude,
-      viewport = this.viewport,
-      range = this.range;
-  var color = this.color;
-  var thickness = this.thickness; // calc runtime props
-
-  var span = range[1] - range[0] || 1;
-  var dataLength = this.textureLength;
-  var pxStep = Math.max( // width / span makes step correspond to texture samples
-  viewport[2] / Math.abs(span), // pxStep affects jittering on panning, .5 is good value
-  this.pxStep || Math.pow(thickness, .1) * .1);
-  var sampleStep = pxStep * span / viewport[2];
-  var pxPerSample = pxStep / sampleStep; // translate is calculated so to meet conditions:
-  // - sampling always starts at 0 sample of 0 texture
-  // - panning never breaks that rule
-  // - changing sampling step never breaks that rule
-  // - to reduce error for big translate, it is rotated by textureLength
-  // - panning is always perceived smooth
-
-  var translate = range[0];
-  var translater = translate % dataLength;
-  var translates = Math.floor(translate / sampleStep);
-  var translatei = translates * sampleStep;
-  var translateri = Math.floor(translatei % dataLength);
-  var translateriFract = translatei % dataLength - translateri; // correct translater to always be under translateri
-  // for correct posShift in shader
-
-  if (translater < translateri) translater += dataLength; // NOTE: this code took ~3 days
-  // please beware of circular texture join cases and low scales
-  // .1 / sampleStep is error compensation
-
-  var totals = Math.floor(this.total / sampleStep + .1 / sampleStep);
-  var currTexture = Math.floor(translatei / dataLength);
-  if (translateri < 0) currTexture += 1;
-  var VERTEX_REPEAT = 2.; // limit not existing in texture points
-
-  var offset = 2. * Math.max(-translates * VERTEX_REPEAT, 0);
-  var count = Math.max(2, Math.min( // number of visible texture sampling points
-  // 2. * Math.floor((dataLength * Math.max(0, (2 + Math.min(currTexture, 0))) - (translate % dataLength)) / sampleStep),
-  // number of available data points
-  2 * Math.floor(totals - Math.max(translates, 0)), // number of visible vertices on the screen
-  2 * Math.ceil(viewport[2] / pxStep) + 4, // number of ids available
-  this.maxSampleCount) * VERTEX_REPEAT);
-  var mode = this.mode; // use more complicated range draw only for sample intervals
-  // note that rangeDraw gives sdev error for high values dataLength
-
-  this.drawOptions = {
-    offset: offset,
-    count: count,
-    thickness: thickness,
-    color: color,
-    pxStep: pxStep,
-    pxPerSample: pxPerSample,
-    viewport: viewport,
-    translate: translate,
-    translater: translater,
-    totals: totals,
-    translatei: translatei,
-    translateri: translateri,
-    translateriFract: translateriFract,
-    translates: translates,
-    currTexture: currTexture,
-    sampleStep: sampleStep,
-    span: span,
-    total: total,
-    opacity: opacity,
-    amplitude: amplitude,
-    range: range,
-    mode: mode
-  };
-  this.needsRecalc = false;
-  return this.drawOptions;
-}; // draw frame according to state
-
-
-Waveform.prototype.render = function () {
-  if (this.total < 2) return this;
-  var o = this.calc(); // range case
-
-  if (o.pxPerSample <= 1. || o.mode === 'range' && o.mode != 'line') {
-    this.shader.drawRanges.call(this, o);
-  } // line case
-  else {
-      this.shader.drawLine.call(this, o); // this.shader.drawLine.call(this, extend(o, {
-      // 	primitive: 'line strip',
-      // 	color: [0,0,255,255]
-      // }))
-      // this.shader.drawLine.call(this, extend(o, {
-      // 	primitive: 'points',
-      // 	color: [0,0,0,255]
-      // }))
-    }
 
   return this;
 }; // get data at a point
@@ -945,7 +1057,7 @@ Waveform.prototype.destroy = function () {
 }; // style
 
 
-Waveform.prototype.color = new Uint8Array([0, 0, 0, 255]);
+Waveform.prototype.color;
 Waveform.prototype.opacity = 1;
 Waveform.prototype.thickness = 1;
 Waveform.prototype.mode = null; // Waveform.prototype.fade = true
@@ -956,8 +1068,9 @@ Waveform.prototype.flip = false; // Texture size affects
 // - zoom level: only 2 textures per screen are available, so zoom is limited
 // - max number of textures
 
-Waveform.prototype.textureShape = [512, 512];
-Waveform.prototype.textureChannels = 3;
+Waveform.prototype.textureShape;
+Waveform.prototype.textureLength;
+Waveform.prototype.textureChannels = 4;
 Waveform.prototype.maxSampleCount = 8192 * 2;
 Waveform.prototype.storeData = true;
 

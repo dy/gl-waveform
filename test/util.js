@@ -2,9 +2,10 @@
 
 let panzoom = require('pan-zoom')
 const isBrowser = require('is-browser')
+const raf = require('raf')
 
 module.exports = {
-	timeout, interactive, drawGrid
+	timeout, interactive, drawGrid, frame
 }
 
 function timeout (n) {
@@ -59,4 +60,8 @@ function drawGrid (wf, n) {
 	}
 	ctx.closePath()
 	ctx.stroke()
+}
+
+function frame () {
+  return new Promise(resolve => raf(() => resolve()));
 }

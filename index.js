@@ -398,7 +398,8 @@ Waveform.prototype.update = function (o) {
 		opacity: 'opacity alpha transparency visible visibility opaque',
 		flip: 'flip iviewport invertViewport inverseViewport',
 		mode: 'mode',
-		shape: 'shape textureShape'
+		shape: 'shape textureShape',
+		sampleStep: 'sampleStep'
 	})
 
 	// forcing rendering mode is mostly used for debugging purposes
@@ -477,6 +478,9 @@ Waveform.prototype.update = function (o) {
 		this.push(o.push)
 	}
 
+	// rather debugging-purpose param, not supposed to be used
+	if (o.sampleStep) this.sampleStep = o.sampleStep
+
 	return this
 }
 
@@ -512,6 +516,8 @@ Waveform.prototype.calc = function () {
 	// FIXME: make sampleStep snap step detection based on the span
 	// round is better than ceil: ceil generates jittering
 	sampleStep = Math.round(sampleStep * 1) / 1
+
+	if (this.sampleStep) sampleStep = this.sampleStep
 
 	// recalc pxStep to adjust changed sampleStep, to fit initial the range
 	pxStep = viewport[2] * sampleStep / span
@@ -641,6 +647,11 @@ Waveform.prototype.render = function () {
 			o.color = [0,0,0,0]
 			this.shader.drawLine.call(this, o)
 			o.color = color
+
+			// this.shader.drawRanges.call(this, extend({}, o, {
+			// 	color: [255,0,0,255],
+			// 	primitive: 'points'
+			// }))
 		}
 
 		// line case

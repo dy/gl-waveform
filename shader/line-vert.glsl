@@ -14,7 +14,8 @@ uniform vec2 amplitude, range;
 uniform float passNum, passId, passOffset;
 
 varying vec4 fragColor;
-varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;
+varying float avgMin, avgMax, sdevMin, sdevMax;
+varying float normThickness;
 
 bool isNaN (vec4 sample) {
 	return sample.w == -1.;
@@ -70,13 +71,13 @@ void main () {
 	bool isStart = isNaN(samplePrev);
 	bool isEnd = isNaN(sampleNext);
 
-	avgCurr = deamp(sampleCurr.x, amplitude);
-	avgNext = deamp(isEnd ? sampleCurr.x : sampleNext.x, amplitude);
-	avgPrev = deamp(isStart ? sampleCurr.x : samplePrev.x, amplitude);
+	float avgCurr = deamp(sampleCurr.x, amplitude);
+	float avgNext = deamp(isEnd ? sampleCurr.x : sampleNext.x, amplitude);
+	float avgPrev = deamp(isStart ? sampleCurr.x : samplePrev.x, amplitude);
 
 	// fake sdev 2σ = thickness
 	// sdev = normThickness / 2.;
-	sdev = 0.;
+	float sdev = 0.;
 
 
 	vec2 position = vec2(
@@ -112,6 +113,7 @@ void main () {
 	// figure out closest to current min/max
 	avgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);
 	avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
+	sdevMin = sdevMax = sdev;
 
 	position += sign * join * .5 * thickness / viewport.zw;
 

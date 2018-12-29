@@ -3,7 +3,7 @@
 const t = require('tape')
 const createWaveform = require('../index')
 // const createWaveform = require('../')
-const gl = require('gl')(400, 300)
+const gl = require('gl')(400, 300, {preserveDrawingBuffer: false})
 const eq = require('image-equal')
 const isBrowser = require('is-browser')
 const img = require('image-pixels')
@@ -11,7 +11,7 @@ const oscillate = require('audio-oscillator')
 const show = require('image-output')
 const seed = require('seed-random')
 const almost = require('almost-equal')
-const { interactive, timeout } = require('./util')
+const { interactive, timeout, frame } = require('./util')
 
 
 t('calibrate automatic values/range', async t => {
@@ -135,6 +135,9 @@ t.skip('hanging tail in range mode', async t => {
 
 	t.end()
 })
+
+t('pick: should properly pick in line mode')
+t('pick: should cumulatively pick in range mode')
 
 t.skip('xy noises case', async t => {
 	// TODO: enable time data structure
@@ -453,7 +456,7 @@ t.skip('line/range mode is switched properly')
 
 t.skip('2σ thickness scheme')
 
-t('fade out', async t => {
+t('fade: line wave', async t => {
 	let wf = createWaveform(gl)
 
 	wf.update({data: [1,1,1,1,1,1,1,1,1,1,1,-.1,1.1,0,1,.1,.9,.2,.8,.3,.7,.4,.6,0,0,0,0], amp: [-1, 2], width: 20, color: 'blue'})
@@ -467,7 +470,7 @@ t('fade out', async t => {
 	t.end()
 })
 
-t('fade crease', async t => {
+t('fade: line crease', async t => {
 	let wf = createWaveform(gl)
 
 	let data = []
@@ -489,6 +492,41 @@ t('fade crease', async t => {
 	t.ok(eq(wf, await img(`./test/fixture/fade-crease.png`), .32) )
 
 	wf.clear()
+
+	t.end()
+})
+
+t.only('fade: range mode spikes', async t => {
+	let wf = createWaveform(gl)
+	wf.push(oscillate.sine(1e3, 100))
+	// wf.push([-2,1,1,1,1,1,1,1,0,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
+	wf.amplitude = [-3, 3]
+	wf.mode = 'range'
+	wf.thickness = 2
+	wf.update({sampleStep: 2.25})
+	wf.render()
+
+	document.body.appendChild(wf.canvas)
+	interactive(wf, c => {
+		console.log(wf.range)
+	})
+
+	t.end()
+})
+
+t('float sample step does not create noise', async t => {
+	let wf = createWaveform(gl)
+	wf.push(oscillate.sine(1e3, 100))
+	wf.amplitude = [-3, 3]
+	wf.mode = 'range'
+	wf.thickness = 2
+	wf.update({sampleStep: 2.25})
+	wf.render()
+
+	t.ok(eq(await img`./test/fixture/float-sample-step.png`, wf), 'float sample step')
+
+	// document.body.appendChild(wf.canvas)
+	// interactive(wf)
 
 	t.end()
 })

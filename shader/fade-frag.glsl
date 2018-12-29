@@ -6,7 +6,8 @@ uniform vec4 viewport;
 uniform float thickness;
 
 varying vec4 fragColor;
-varying float avgCurr, avgPrev, avgNext, avgMin, avgMax, sdev, normThickness;
+varying float normThickness;
+varying float avgMin, avgMax, sdevMin, sdevMax;
 
 const float TAU = 6.283185307179586;
 
@@ -21,27 +22,31 @@ void main() {
 	float x = (gl_FragCoord.x - viewport.x) / viewport.z;
 	float y = (gl_FragCoord.y - viewport.y) / viewport.w;
 
-	// pdfMax makes sure pdf is normalized - has 1. value at the max
-	float pdfMax = pdf(0., 0., sdev * sdev  );
+	gl_FragColor = fragColor;
 
 	float dist = 1.;
 
+	// limit outside by sdevMin
+	// limit inside by sdevMax
+	// pdfCoef makes sure pdf is normalized - has 1. value at the max
 	// local max
 	if (y > avgMax + halfThickness) {
 		dist = min(y - avgMin, avgMax - y);
-		dist = pdf(dist, 0., sdev * sdev  ) / pdfMax;
+		float sdev = sdevMax * .5 + sdevMin * .5;
+		float pdfCoef = pdf(0., 0., sdev * sdev );
+		dist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;
+		gl_FragColor.a *= dist;
 	}
 	// local min
-	else if (y < avgMin - halfThickness) {
+	else if(y < avgMin - halfThickness) {
 		dist = min(y - avgMin, avgMax - y);
-		dist = pdf(dist, 0., sdev * sdev  ) / pdfMax;
+		float sdev = sdevMax * .5 + sdevMin * .5;
+		float pdfCoef = pdf(0., 0., sdev * sdev );
+		dist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;
+		gl_FragColor.a *= dist;
 	}
 
-	// gl_FragColor = vec4(0,0,0,1);
-	// return;
 	if (dist == 0.) { discard; return; }
 
-	gl_FragColor = fragColor;
-	gl_FragColor.a *= dist;
-
+	// gl_FragColor.a *= dist;
 }

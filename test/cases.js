@@ -227,35 +227,13 @@ t('>1 values does not create float32 noise', async t => {
 	t.end()
 })
 
-t.skip('big values do not get accumulated', async t => {
+t.only('large zoom out should not be cut abruptly', async t => {
 	var f32 = require('to-float32')
 
 	// var createWaveform = require('./debug')
 	var wf = createWaveform(gl)
 
-	console.time(1)
-	let arr = []
-	for (let i = 0; i < 50000; i++) {
-		arr.push(1027)
-	}
-	for (let i = 0; i < 50000; i++) {
-		arr.push(1007)
-	}
-	for (let i = 0; i < 50000; i++) {
-		arr.push(1017)
-	}
-	for (let i = 0; i < 50000; i++) {
-		arr.push(1147)
-	}
-	for (let i = 0; i < 500000; i++) {
-		arr.push(1011)
-	}
-	// for (let i = 0; i < 50000; i++) {
-	// 	arr.push(1170)
-	// }
-	for (let i = 0; i < 100000; i++) {
-		arr.push(1011)
-	}
+	let arr = oscillate.sin(1e6, 1000)
 	wf.push(arr)
 
 	document.body.appendChild(wf.canvas)
@@ -263,7 +241,65 @@ t.skip('big values do not get accumulated', async t => {
 		console.log(wf.range)
 	})
 
-	wf.update({amplitude: [1005, 1171], width: 1})
+	wf.update({width: 1})
+	wf.render()
+
+	t.end()
+})
+
+t('zoom in does not throw errors', async t => {
+	var wf = createWaveform(gl)
+
+	let arr = oscillate.sin(1e6, 1000)
+	wf.push(arr)
+
+	// document.body.appendChild(wf.canvas)
+	// interactive(wf, x => {
+	// 	console.log(wf.range)
+	// })
+
+	wf.update({width: 1})
+	wf.range = [531136, 532735]
+	wf.render()
+
+	t.end()
+})
+
+t.skip('big values do not get accumulated', async t => {
+	// var createWaveform = require('./debug')
+	var wf = createWaveform(gl)
+
+	// let arr = []
+	// for (let i = 0; i < 50000; i++) {
+	// 	arr.push(1027)
+	// }
+	// for (let i = 0; i < 50000; i++) {
+	// 	arr.push(1007)
+	// }
+	// for (let i = 0; i < 50000; i++) {
+	// 	arr.push(1017)
+	// }
+	// for (let i = 0; i < 50000; i++) {
+	// 	arr.push(1147)
+	// }
+	// for (let i = 0; i < 500000; i++) {
+	// 	arr.push(1011)
+	// }
+	// // for (let i = 0; i < 50000; i++) {
+	// // 	arr.push(1170)
+	// // }
+	// for (let i = 0; i < 100000; i++) {
+	// 	arr.push(1011)
+	// }
+	let arr = oscillate.sin(1e6, 1000)
+	wf.push(arr)
+
+	document.body.appendChild(wf.canvas)
+	interactive(wf, x => {
+		console.log(wf.range)
+	})
+
+	wf.update({width: 1})
 	wf.render()
 
 	// second-texture start is ok

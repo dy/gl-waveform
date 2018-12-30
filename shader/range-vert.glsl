@@ -89,6 +89,8 @@ vec3 stats (float offset) {
 		// sample0l.y = 0.;
 	}
 
+	float n = (offset1l - offset0l);
+
 	float avg = (
 		+ sample1l.y
 		- sample0l.y
@@ -99,7 +101,7 @@ vec3 stats (float offset) {
 		// + t1 * (sample1rf.y - sample1lf.y)
 		// - t0 * (sample0rf.y - sample0lf.y)
 	);
-	avg /= (offset1l - offset0l);
+	avg /= n;
 
 	float mx2 = (
 		+ sample1l.z
@@ -111,14 +113,37 @@ vec3 stats (float offset) {
 		// + t1 * (sample1rf.z - sample1lf.z)
 		// - t0 * (sample0rf.z - sample0lf.z)
 	);
-	mx2 /= (offset1l - offset0l);
+	mx2 /= n;
 
-	float m2 = avg * avg;
 
 	// σ(x)² = M(x²) - M(x)²
+	float m2 = avg * avg;
 	float variance = abs(mx2 - m2);
-
 	float sdev = sqrt(variance);
+
+	// float sdev = sqrt(abs(
+	// 	(
+	// 	+ sample1l.z
+	// 	- sample0l.z
+	// 	+ sample1lf.z
+	// 	- sample0lf.z
+	// 	) / n
+
+	// 	- ((
+	// 		+ sample1l.y
+	// 		- sample0l.y
+	// 		+ sample1lf.y
+	// 		- sample0lf.y
+	// 	) / n)
+	// 	*
+	// 	((
+	// 		+ sample1l.y
+	// 		- sample0l.y
+	// 		+ sample1lf.y
+	// 		- sample0lf.y
+	// 	) / n)
+	// ));
+
 
 	return vec3(avg, sdev, min(sample0r.w, sample1l.w));
 }
@@ -160,6 +185,8 @@ void main() {
 	float sdevNext = statsNext.y / abs(amplitude.y - amplitude.x);
 	float sdevNext2 = statsNext2.y / abs(amplitude.y - amplitude.x);
 
+	float sdev = sdevCurr;
+
 	avgCurr = deamp(avgCurr, amplitude);
 	avgNext = deamp(avgNext, amplitude);
 	avgNext2 = deamp(avgNext2, amplitude);
@@ -188,7 +215,7 @@ void main() {
 	float minVertLen = min(vertLeftLen, vertRightLen);
 
 	// 2σ covers 68% of a line. 4σ covers 95% of line
-	float vertSdev = 2. * sdevCurr * viewport.w / thickness;
+	float vertSdev = 2. * sdev * viewport.w / thickness;
 
 	vec2 join;
 

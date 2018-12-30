@@ -515,7 +515,7 @@ Waveform.prototype.calc = function () {
 	// snap sample step to 2^n grid: still smooth, but reduces float32 error
 	// FIXME: make sampleStep snap step detection based on the span
 	// round is better than ceil: ceil generates jittering
-	sampleStep = Math.round(sampleStep * 1) / 1
+	sampleStep = Math.max(Math.round(sampleStep * .25) / .25, 1)
 
 	if (this.sampleStep) sampleStep = this.sampleStep
 

@@ -7,7 +7,7 @@ uniform float thickness;
 
 varying vec4 fragColor;
 varying float normThickness;
-varying float avgMin, avgMax, sdevMin, sdevMax;
+varying float avgLeft, avgRight, sdevLeft, sdevRight, avgPrevRight, avgNextLeft, sdevPrevRight, sdevNextLeft;
 
 const float TAU = 6.283185307179586;
 
@@ -24,29 +24,66 @@ void main() {
 
 	gl_FragColor = fragColor;
 
-	float dist = 1.;
-
-	// limit outside by sdevMin
-	// limit inside by sdevMax
+	// fading code - not so actual due to nice sharp clipping
 	// pdfCoef makes sure pdf is normalized - has 1. value at the max
-	// local max
-	if (y > avgMax + halfThickness) {
-		dist = min(y - avgMin, avgMax - y);
-		float sdev = sdevMax * .5 + sdevMin * .5;
-		float pdfCoef = pdf(0., 0., sdev * sdev );
-		dist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;
-		gl_FragColor.a *= dist;
+	// float dist = abs(y - avgLeft);
+	// float sdev = sdevRight;
+	// float pdfCoef = pdf(0., 0., sdev * sdev );
+	// dist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;
+	// gl_FragColor.a *= dist;
+
+	if (y > avgRight + halfThickness) {
+		if (avgRight > avgLeft) {
+			// local max
+			if (avgRight > avgNextLeft) {
+				gl_FragColor.a = 0.;
+			}
+			// sdev can make y go over the
+			else if (sdevRight > 0. && y > avgNextLeft + halfThickness) {
+				gl_FragColor.a = 0.;
+			}
+		}
 	}
-	// local min
-	else if(y < avgMin - halfThickness) {
-		dist = min(y - avgMin, avgMax - y);
-		float sdev = sdevMax * .5 + sdevMin * .5;
-		float pdfCoef = pdf(0., 0., sdev * sdev );
-		dist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;
-		gl_FragColor.a *= dist;
+	if (y > avgLeft + halfThickness) {
+		// local max
+		if (avgLeft > avgRight) {
+			// local max
+			if (avgLeft > avgPrevRight) {
+				gl_FragColor.a = 0.;
+			}
+			// sdev can make y go over the
+			else if (sdevLeft > 0. && y > avgPrevRight + halfThickness) {
+				gl_FragColor.a = 0.;
+			}
+		}
+	}
+	if (y < avgRight - halfThickness) {
+		if (avgRight < avgLeft) {
+			// local min
+			if (avgRight < avgNextLeft) {
+				gl_FragColor.a = 0.;
+			}
+			// sdev can make y go over the
+			else if (sdevRight > 0. && y < avgNextLeft - halfThickness) {
+				gl_FragColor.a = 0.;
+			}
+		}
+	}
+	if (y < avgLeft - halfThickness) {
+		// local min
+		if (avgLeft < avgRight) {
+			// local min
+			if (avgLeft < avgPrevRight) {
+				gl_FragColor.a = 0.;
+			}
+			// sdev can make y go over the
+			else if (sdevLeft > 0. && y < avgPrevRight - halfThickness) {
+				gl_FragColor.a = 0.;
+			}
+		}
 	}
 
-	if (dist == 0.) { discard; return; }
+	// if (dist == 0.) { discard; return; }
 
 	// gl_FragColor.a *= dist;
 }

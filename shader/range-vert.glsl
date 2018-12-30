@@ -14,7 +14,7 @@ uniform vec4 viewport, color;
 uniform vec2 amplitude;
 
 varying vec4 fragColor;
-varying float avgMin, avgMax, sdevMin, sdevMax;
+varying float avgLeft, avgRight, sdevLeft, sdevRight, avgPrevRight, avgNextLeft, sdevPrevRight, sdevNextLeft;
 varying float normThickness;
 
 // returns sample picked from the texture
@@ -79,10 +79,10 @@ vec3 stats (float offset) {
 	float t0 = 0., t1 = 0.;
 
 	// partial sample steps require precision
-	// FIXME: maybe that's not the best solution
-	if (mod(sampleStep, 1.) != 0. && sample0l.w != -1. && sample1r.w != -1.) {
-		// t0 = offset0 - offset0l, t1 = offset1 - offset1l;
-	}
+	// WARN: we removed lerp in order to ↑ precision
+	// if (mod(sampleStep, 1.) != 0. && sample0l.w != -1. && sample1r.w != -1.) {
+	// 	t0 = offset0 - offset0l, t1 = offset1 - offset1l;
+	// }
 
 	if (sample0l.w == -1.) {
 		// return vec3(0,0,-1);
@@ -94,10 +94,10 @@ vec3 stats (float offset) {
 		- sample0l.y
 		+ sample1lf.y
 		- sample0lf.y
-		+ t1 * (sample1r.y - sample1l.y)
-		- t0 * (sample0r.y - sample0l.y)
-		+ t1 * (sample1rf.y - sample1lf.y)
-		- t0 * (sample0rf.y - sample0lf.y)
+		// + t1 * (sample1r.y - sample1l.y)
+		// - t0 * (sample0r.y - sample0l.y)
+		// + t1 * (sample1rf.y - sample1lf.y)
+		// - t0 * (sample0rf.y - sample0lf.y)
 	);
 	avg /= (offset1l - offset0l);
 
@@ -106,10 +106,10 @@ vec3 stats (float offset) {
 		- sample0l.z
 		+ sample1lf.z
 		- sample0lf.z
-		+ t1 * (sample1r.z - sample1l.z)
-		- t0 * (sample0r.z - sample0l.z)
-		+ t1 * (sample1rf.z - sample1lf.z)
-		- t0 * (sample0rf.z - sample0lf.z)
+		// + t1 * (sample1r.z - sample1l.z)
+		// - t0 * (sample0r.z - sample0l.z)
+		// + t1 * (sample1rf.z - sample1lf.z)
+		// - t0 * (sample0rf.z - sample0lf.z)
 	);
 	mx2 /= (offset1l - offset0l);
 
@@ -144,19 +144,27 @@ void main() {
 	if (statsCurr.z == -1.) return;
 
 	vec3 statsPrev = stats(offset - sampleStep);
+	vec3 statsPrev2 = stats(offset - 2. * sampleStep);
 	vec3 statsNext = stats(offset + sampleStep);
+	vec3 statsNext2 = stats(offset + 2. * sampleStep);
 
 	float avgCurr = statsCurr.x;
 	float avgPrev = statsPrev.x;
+	float avgPrev2 = statsPrev2.z != -1. ? statsPrev2.x : avgPrev;
 	float avgNext = statsNext.x;
+	float avgNext2 = statsNext2.z != -1. ? statsNext2.x : avgNext;
 
 	float sdevCurr = statsCurr.y / abs(amplitude.y - amplitude.x);
 	float sdevPrev = statsPrev.y / abs(amplitude.y - amplitude.x);
+	float sdevPrev2 = statsPrev2.y / abs(amplitude.y - amplitude.x);
 	float sdevNext = statsNext.y / abs(amplitude.y - amplitude.x);
+	float sdevNext2 = statsNext2.y / abs(amplitude.y - amplitude.x);
 
 	avgCurr = deamp(avgCurr, amplitude);
 	avgNext = deamp(avgNext, amplitude);
+	avgNext2 = deamp(avgNext2, amplitude);
 	avgPrev = deamp(avgPrev, amplitude);
+	avgPrev2 = deamp(avgPrev2, amplitude);
 
 	// compensate for sampling rounding
 	vec2 position = vec2(
@@ -209,10 +217,16 @@ void main() {
 	}
 
 	// figure out closest to current min/max
-	avgMin = min(avgCurr, side < 0. ? avgPrev : avgNext);
-	avgMax = max(avgCurr, side < 0. ? avgPrev : avgNext);
-	sdevMin = min(sdevCurr, side < 0. ? sdevPrev : sdevNext);
-	sdevMax = max(sdevCurr, side < 0. ? sdevPrev : sdevNext);
+	avgRight = side < 0. ? avgCurr : avgNext;
+	avgLeft = side < 0. ? avgPrev : avgCurr;
+	sdevRight = side < 0. ? sdevCurr : sdevNext;
+	sdevLeft = side < 0. ? sdevPrev : sdevCurr;
+	avgPrevRight = side < 0. ? avgPrev2 : avgPrev;
+	avgNextLeft = side < 0. ? avgNext : avgNext2;
+	sdevPrevRight = side < 0. ? sdevPrev2 : sdevPrev;
+	sdevNextLeft = side < 0. ? sdevNext : sdevNext2;
+
+	// if (sdevCurr >= .5) fragColor  = vec4(0,1,0,1);
 
 	position += sign * join * .5 * thickness / viewport.zw;
 

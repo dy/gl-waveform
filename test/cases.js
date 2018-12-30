@@ -496,20 +496,31 @@ t('fade: line crease', async t => {
 	t.end()
 })
 
-t.only('fade: range mode spikes', async t => {
+t('fade: range mode spikes', async t => {
 	let wf = createWaveform(gl)
-	wf.push(oscillate.sine(1e3, 100))
+	wf.push(oscillate.saw(50, 2000))
 	// wf.push([-2,1,1,1,1,1,1,1,0,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
 	wf.amplitude = [-3, 3]
 	wf.mode = 'range'
-	wf.thickness = 2
+	wf.thickness = 4
+	wf.range = [14.05780085876491, 57.756163444773726]
 	wf.update({sampleStep: 2.25})
 	wf.render()
 
-	document.body.appendChild(wf.canvas)
-	interactive(wf, c => {
-		console.log(wf.range)
-	})
+	t.ok(eq(await img`./test/fixture/fade-spikes.png`, wf), 'thin')
+
+	wf.clear()
+	wf.thickness = 40
+	wf.range = [-919.603204148984, 787.2986415263316]
+	wf.render()
+	t.ok(eq(await img`./test/fixture/fade-spikes-2.png`, wf), 'thick')
+
+	// document.body.appendChild(wf.canvas)
+	// interactive(wf, c => {
+	// 	console.log(wf.range)
+	// })
+
+	wf.clear()
 
 	t.end()
 })
@@ -527,6 +538,8 @@ t('float sample step does not create noise', async t => {
 
 	// document.body.appendChild(wf.canvas)
 	// interactive(wf)
+
+	wf.clear()
 
 	t.end()
 })
@@ -551,7 +564,7 @@ t('line fade', async t => {
 	wf.render()
 
 	// show(wf, document)
-	t.ok(eq(wf, await img(`./test/fixture/line-fade.png`), .17) )
+	t.ok(eq(wf, await img(`./test/fixture/line-fade.png`), .6) )
 
 	wf.clear()
 

@@ -106,12 +106,12 @@ Waveform.prototype.createShader = function (o) {
 	}
 
 	//    id    0     1
-	//   side  ←→    ←→
-	//         **    **
-	//        /||   /||   ...     ↑
+	//  side -1 +1 -1 +1
+	//         **    **          +1
+	//        /||   /||   ...
 	//    .../ ||  / ||  /       sign
-	//         || /  || /         ↓
-	//         **    **
+	//         || /  || /
+	//         **    **          -1
 	let idBuffer = regl.buffer({
 		usage: 'static',
 		type: 'int16',

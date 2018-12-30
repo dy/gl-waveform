@@ -14,7 +14,7 @@ uniform vec2 amplitude, range;
 uniform float passNum, passId, passOffset;
 
 varying vec4 fragColor;
-varying float avgLeft, avgRight, avgPrevRight, avgNextLeft, sdevLeft, sdevRight, sdevPrevRight, sdevNextLeft;
+varying vec3 statsLeft, statsRight, statsPrevRight, statsNextLeft;
 varying float normThickness;
 
 bool isNaN (vec4 sample) {
@@ -115,12 +115,16 @@ void main () {
 	// join.x *= maxJoinX / join.x;
 
 	// figure out closest to current min/max
-	avgRight = side < 0. ? avgCurr : avgNext;
-	avgLeft = side < 0. ? avgPrev : avgCurr;
-	avgPrevRight = side < 0. ? avgPrev2 : avgPrev;
-	avgNextLeft = side < 0. ? avgNext : avgNext2;
-	sdevLeft = sdevPrevRight = 0.;
-	sdevRight = sdevNextLeft = 0.;
+	vec3 statsCurr = vec3(avgCurr, 0, sampleCurr.z);
+	vec3 statsPrev = vec3(avgPrev, 0, samplePrev.z);
+	vec3 statsNext = vec3(avgNext, 0, sampleNext.z);
+	vec3 statsNext2 = vec3(avgNext2, 0, sampleNext2.z);
+	vec3 statsPrev2 = vec3(avgPrev2, 0, samplePrev2.z);
+
+	statsRight = side < 0. ? statsCurr : statsNext;
+	statsLeft = side < 0. ? statsPrev : statsCurr;
+	statsPrevRight = side < 0. ? statsPrev2 : statsPrev;
+	statsNextLeft = side < 0. ? statsNext : statsNext2;
 
 	position += sign * join * .5 * thickness / viewport.zw;
 

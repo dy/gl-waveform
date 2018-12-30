@@ -227,26 +227,6 @@ t('>1 values does not create float32 noise', async t => {
 	t.end()
 })
 
-t.skip('large zoom out should not be cut abruptly', async t => {
-	var f32 = require('to-float32')
-
-	// var createWaveform = require('./debug')
-	var wf = createWaveform(gl)
-
-	let arr = oscillate.sin(1e6, 1000)
-	wf.push(arr)
-
-	document.body.appendChild(wf.canvas)
-	interactive(wf, x => {
-		console.log(wf.range)
-	})
-
-	wf.update({width: 1})
-	wf.render()
-
-	t.end()
-})
-
 t('zoom in does not throw errors', async t => {
 	var wf = createWaveform(gl)
 
@@ -558,12 +538,34 @@ t('fade: range mode spikes', async t => {
 	wf.thickness = 40
 	wf.range = [-919.603204148984, 787.2986415263316]
 	wf.render()
-	t.ok(eq(await img`./test/fixture/fade-spikes-2.png`, wf, document), 'thick')
+	t.ok(eq(await img`./test/fixture/fade-spikes-2.png`, wf), 'thick')
+	wf.clear()
 
 	// document.body.appendChild(wf.canvas)
 	// interactive(wf, c => {
 	// 	console.log(wf.range)
 	// })
+
+
+	t.end()
+})
+
+t('fade: large zoom out should not be cut abruptly', async t => {
+	var f32 = require('to-float32')
+
+	// var createWaveform = require('./debug')
+	var wf = createWaveform(gl)
+
+	let arr = oscillate.sin(1e6, 1000)
+	wf.push(arr)
+
+	// document.body.appendChild(wf.canvas)
+	// interactive(wf, x => {
+	// 	console.log(wf.range)
+	// })
+
+	wf.update({width: 1})
+	wf.render()
 
 	wf.clear()
 
@@ -724,7 +726,7 @@ t.skip('gl-waveform-test: single value sequence', async t => {
 	// wf.update({range: [69290, 69290.3]})
 	wf.render()
 
-	show(wf, document)
+	// show(wf, document)
 	// t.ok(eq(wf, await img`./test/fixture/average-step.png` , .2), 'avg step is ok')
 
 	// wf.clear()

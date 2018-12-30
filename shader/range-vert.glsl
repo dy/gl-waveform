@@ -14,7 +14,7 @@ uniform vec4 viewport, color;
 uniform vec2 amplitude;
 
 varying vec4 fragColor;
-varying float avgLeft, avgRight, sdevLeft, sdevRight, avgPrevRight, avgNextLeft, sdevPrevRight, sdevNextLeft;
+varying vec3 statsLeft, statsRight, statsPrevRight, statsNextLeft;
 varying float normThickness;
 
 // returns sample picked from the texture
@@ -243,15 +243,17 @@ void main() {
 		join = vert * vertSdev;
 	}
 
-	// figure out closest to current min/max
-	avgRight = side < 0. ? avgCurr : avgNext;
-	avgLeft = side < 0. ? avgPrev : avgCurr;
-	sdevRight = side < 0. ? sdevCurr : sdevNext;
-	sdevLeft = side < 0. ? sdevPrev : sdevCurr;
-	avgPrevRight = side < 0. ? avgPrev2 : avgPrev;
-	avgNextLeft = side < 0. ? avgNext : avgNext2;
-	sdevPrevRight = side < 0. ? sdevPrev2 : sdevPrev;
-	sdevNextLeft = side < 0. ? sdevNext : sdevNext2;
+
+	// figure out segment varyings
+	statsCurr = vec3(avgCurr, sdevCurr, statsCurr.z);
+	statsPrev = vec3(avgPrev, sdevPrev, statsPrev.z);
+	statsNext = vec3(avgNext, sdevNext, statsNext.z);
+	statsNext2 = vec3(avgNext2, sdevNext2, statsNext2.z);
+	statsPrev2 = vec3(avgPrev2, sdevPrev2, statsPrev2.z);
+	statsRight = side < 0. ? statsCurr : statsNext;
+	statsLeft = side < 0. ? statsPrev : statsCurr;
+	statsPrevRight = side < 0. ? statsPrev2 : statsPrev;
+	statsNextLeft = side < 0. ? statsNext : statsNext2;
 
 	// if (sdevCurr >= .5) fragColor  = vec4(0,1,0,1);
 

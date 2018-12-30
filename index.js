@@ -515,7 +515,7 @@ Waveform.prototype.calc = function () {
 	// snap sample step to 2^n grid: still smooth, but reduces float32 error
 	// FIXME: make sampleStep snap step detection based on the span
 	// round is better than ceil: ceil generates jittering
-	sampleStep = Math.max(Math.round(sampleStep * .25) / .25, 1)
+	sampleStep = Math.max(Math.round(sampleStep), 1)
 
 	if (this.sampleStep) sampleStep = this.sampleStep
 
@@ -769,6 +769,9 @@ Waveform.prototype.set = function (samples, at=0) {
 
 		// fill txt data with NaNs for proper start/end/gap detection
 		for (let i = 0; i < txtData.length; i+=ch) {
+			txtData[i + 0] =
+			txtData[i + 1] =
+			txtData[i + 2] = 0
 			txtData[i + 3] = -1
 		}
 
@@ -803,7 +806,7 @@ Waveform.prototype.set = function (samples, at=0) {
 
 	// calc sum, sum2 and form data for the samples
 	let dataLen = Math.min(tillEndOfTxt, samples.length)
-	let data = txt.data.subarray(offset * ch, offset * ch + dataLen * ch) //pool.mallocFloat64(dataLen * ch)
+	let data = txt.data.subarray(offset * ch, offset * ch + dataLen * ch)
 	for (let i = 0, l = dataLen; i < l; i++) {
 		// put NaN samples as indicators of blank samples
 		if (!isNaN(samples[i])) {
@@ -1000,8 +1003,6 @@ Waveform.prototype.textureShape
 Waveform.prototype.textureLength
 Waveform.prototype.textureChannels = 4
 Waveform.prototype.maxSampleCount = 8192 * 2
-
-Waveform.prototype.storeData = true
 
 
 function isRegl (o) {

@@ -227,7 +227,7 @@ t('>1 values does not create float32 noise', async t => {
 	t.end()
 })
 
-t.only('large zoom out should not be cut abruptly', async t => {
+t.skip('large zoom out should not be cut abruptly', async t => {
 	var f32 = require('to-float32')
 
 	// var createWaveform = require('./debug')
@@ -261,6 +261,8 @@ t('zoom in does not throw errors', async t => {
 	wf.update({width: 1})
 	wf.range = [531136, 532735]
 	wf.render()
+
+	wf.clear()
 
 	t.end()
 })
@@ -533,23 +535,30 @@ t('fade: line crease', async t => {
 })
 
 t('fade: range mode spikes', async t => {
+	// this setup causes float64 pool pollution, so we emulate it here
+	var wf0 = createWaveform(gl)
+	wf0.update({textureShape: [512, 512]})
+	let arr = oscillate.sin(512*512+1, 1000)
+	wf0.set(arr, 0)
+
+
 	let wf = createWaveform(gl)
 	wf.push(oscillate.saw(50, 2000))
-	// wf.push([-2,1,1,1,1,1,1,1,0,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
 	wf.amplitude = [-3, 3]
 	wf.mode = 'range'
+
 	wf.thickness = 4
 	wf.range = [14.05780085876491, 57.756163444773726]
 	wf.update({sampleStep: 2.25})
+
 	wf.render()
-
 	t.ok(eq(await img`./test/fixture/fade-spikes.png`, wf), 'thin')
-
 	wf.clear()
+
 	wf.thickness = 40
 	wf.range = [-919.603204148984, 787.2986415263316]
 	wf.render()
-	t.ok(eq(await img`./test/fixture/fade-spikes-2.png`, wf), 'thick')
+	t.ok(eq(await img`./test/fixture/fade-spikes-2.png`, wf, document), 'thick')
 
 	// document.body.appendChild(wf.canvas)
 	// interactive(wf, c => {

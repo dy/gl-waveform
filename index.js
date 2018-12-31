@@ -2,13 +2,13 @@
 
 let Waveform = require('../index')
 let extend = require('object-assign')
-let osc = require('periodic-function')
 let panzoom = require('pan-zoom')
 let createFPS = require('fps-indicator')
 let ControlKit = require('controlkit')
 let raf = require('raf')
 let now = require('performance-now')
 let sz = require('prettysize')
+let osc = require('audio-oscillator')
 
 
 document.body.innerHTML = `
@@ -19,15 +19,13 @@ document.body.innerHTML = `
 		}
 		body {
 			font-family: Roboto, Helvetica, Arial, sans-serif;
-			color: #F6F6F6;
+			color: #060606;
 			margin: 0;
 			height: 100vh;
-			background: radial-gradient(80vw at 33% 0%, rgba(250, 250, 255, 0.13) 0%, rgba(255, 255, 255, 0) 100%), #4f5252;
+			background: radial-gradient(80vw at 33% 0%, rgba(176, 176, 199, 0.1) 0%, rgba(212, 179, 178, 0.1) 100%), white;
 		}
 		.container {
 			overflow: hidden;
-			max-width: 1024px;
-			min-width: 320px;
 			display: block;
 			position: absolute;
 			top: 0;
@@ -35,21 +33,21 @@ document.body.innerHTML = `
 			bottom: 0;
 			right: 0;
 			margin: auto auto;
-			height: 80vh;
-			width: 80vw;
-			padding-right: 280px;
+			height: 100vh;
+			width: 100vw;
 
+			/*
 			background: radial-gradient(660.00px at 50% 102.92%, rgba(157, 173, 167, 0.465) 0%, rgba(139, 157, 170, 0.035) 100%), #3A3939;
-			/* paper */
 			box-shadow: 0px 8px 28px rgba(52, 57, 62, 0.5), 0px 1px 10px rgba(43, 42, 42, 0.17);
 			border-radius: 6px;
+			*/
+			background: #f6f6f6;
 		}
 		.canvas {
-			width: calc(100% - 280px - 2.4rem);
+			width: 100%;
 			height: 60%;
 			position: absolute;
 			top: 9rem;
-			left: 2.4rem;
 		}
 		.header {
 			position: absolute;
@@ -63,17 +61,14 @@ document.body.innerHTML = `
 			font-size: 1.2rem;
 			font-weight: 500;
 		}
-		.nav {
-			padding-top: .8rem;
-		}
 		a {
-			color: #d0d0d0;
+			color: #303030;
 			text-decoration: none;
 			font-size: .8rem;
-			font-weight: 200;
+			font-weight: 300;
 		}
 		a:hover {
-			color: #f0f0f0;
+			color: #303030;
 		}
 		.nav a {
 			line-height: 1.25rem;
@@ -84,12 +79,12 @@ document.body.innerHTML = `
 		}
 		.nav a.active {
 			font-weight: 500;
-			color: #f0f0f0;
+			color: #303030;
 		}
 		.nav a.active:before {
-			content: '';
+			content: none;
 			width: .16rem;
-			background: #808080;
+			background: #303030;
 			height: 1.2rem;
 			margin-top: .2rem;
 			left: 0;
@@ -98,18 +93,16 @@ document.body.innerHTML = `
 		.panel {
 		}
 		.fps-indicator {
-
 		}
 		.fps-text {
 			font-size: .8rem;
 			margin-left: .2rem;
-			color: #d0d0d0;
-			font-weight: 200;
+			font-weight: 300;
 		}
 		.footer {
 			letter-spacing: .02ex;
-			color: #d0d0d0;
-			font-weight: 200;
+			color: #303030;
+			font-weight: 300;
 			font-size: .8rem;
 			position: absolute;
 			bottom: 1.6rem;
@@ -117,7 +110,7 @@ document.body.innerHTML = `
 			left: 2.4rem;
 		}
 		.footer a {
-			color: #f0f0f0;
+			color: #303030;
 			font-weight: 500;
 		}
 		.small-caps {
@@ -125,46 +118,28 @@ document.body.innerHTML = `
 			letter-spacing: .1ex;
 		}
 		.footer a:hover {
-			color: white;
+			color: red;
+		}
+		.container #controlKit .panel {
+			border-radius: 0;
 		}
 	</style>
 
 	<section class="container">
-		<header class="header">
-			<h1>A/gl-waveform</h1>
-			<nav class="nav">
-				<a href="#about">About</a>
-				<a class="active" href="#examples">example</a>
-				<a href="#github">Github</a>
-			</nav>
+		<!--<header class="header">
+			<h1>gl-waveform</h1>
 		</header>
+		-->
 		<canvas class="canvas" id="traces"></canvas>
 		<canvas class="canvas" id="pick"></canvas>
+		<!--
 		<footer class="footer">Created by <a class="small-caps" href="https://github.com/dy">DY</a>
 			for <a href="https://github.com/audiojs">audiojs</a> and fine folks.</footer>
+				-->
 	</section>
 `
-createFPS({container: '.container', position: 'bottom-right', style: 'position: absolute; padding: 0 2.4rem 1.6rem 2.4rem'})
+createFPS({position: 'bottom-left', style: 'position: absolute;'})
 
-
-// generate data function
-let count = {}
-function oscillate (l, type) {
-	if (!count[type]) count[type] = 0
-	let arr = Array()
-	if (type === 'noise') {
-		for (let i = 0; i < l; i++) {
-			arr[i] = Math.random() * 2 - 1
-		}
-	}
-	else {
-		for (let i = 0; i < l; i++) {
-			arr[i] = (osc[type] || osc[config.source])((i + count[type]) / 50)
-		}
-	}
-	count[type] += l
-	return arr
-}
 
 
 // basic trace/panel config
@@ -255,19 +230,18 @@ document.addEventListener('mousemove', e => {
 	ctx2d.clearRect(0, 0, w, h)
 
 	waveforms.forEach(wf => {
-		// let wf = waveforms[1]
-		let o = wf.pick(e)
-		if (!o) return
+		// let o = wf.pick(e)
+		// if (!o) return
 
-		let {average, offset, y, x, sdev} = o
+		// let {average, offset, y, x, sdev} = o
 
-		if (average == null) return
+		// if (average == null) return
 
-		ctx2d.fillStyle = 'rgba(255,0,0,.5)'
-		ctx2d.fillRect(x - 3, y - 3, 6, 6)
+		// ctx2d.fillStyle = 'rgba(255,0,0,.5)'
+		// ctx2d.fillRect(x - 3, y - 3, 6, 6)
 
-		ctx2d.fillStyle = 'rgba(255,255,255,1)'
-		ctx2d.fillText(average.toFixed(2), x + 10, y + 3)
+		// ctx2d.fillStyle = 'rgba(0,0,0,1)'
+		// ctx2d.fillText(average.toFixed(2), x + 10, y + 3)
 	})
 })
 
@@ -365,15 +339,16 @@ var container = document.querySelector('.container').appendChild(
 
 // setup dynamic data generating/rendering routine
 let moved = false, frame
+let data = [[], [], []]
 
 function tick() {
-	let srctype = ['sine', 'sawtooth', 'noise']
+	let srctype = ['sin', 'saw', 'tri']
 
 	let start = now()
 	waveforms.forEach((waveform, i) => {
-		let data = oscillate(config.size, srctype[i])
+		data[i] = osc[srctype[i]](config.size, data[i])
 		// waveform.push([.6,.8,.8,.8, .5,.5,.5,.5, -.5,-.5,-.5,-.5])
-		waveform.push(data)
+		waveform.push(data[i])
 	})
 	let end = now()
 	config.time = end - start
@@ -381,12 +356,12 @@ function tick() {
 	// recalc range to show tail
 	if (!moved) {
 		waveforms.forEach(waveform => {
-			let range = waveform.range.slice()
-			let span = range[1] - range[0]
-			range[0] = waveform.total - span
-			range[1] = waveform.total
+		// 	let range = waveform.range.slice()
+		// 	let span = range[1] - range[0]
+		// 	range[0] = waveform.total - span
+		// 	range[1] = waveform.total
 
-			waveform.update({ range })
+			waveform.update({ range: -config.size })
 		})
 	}
 
@@ -423,7 +398,6 @@ panzoom(ctx2d.canvas, e => {
 		let ry = e.y / h
 
 		let xrange = range[1] - range[0]
-
 		if (e.dz) {
 			let dz = e.dz / w
 			range[0] -= rx * xrange * dz

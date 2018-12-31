@@ -27,6 +27,7 @@
   "dependencies": {
     "controlkit": "^0.1.9",
     "gl-waveform": "^4.1.1",
+    "htm": "^1.0.1",
     "object-assign": "^4.1.1",
     "pan-zoom": "^3.3.0",
     "performance-now": "^2.1.0",

@@ -161,11 +161,14 @@ void main() {
 	float avgNext = statsNext.x;
 	float avgNext2 = statsNext2.z != -1. ? statsNext2.x : avgNext;
 
-	float sdevCurr = statsCurr.y / abs(amplitude.y - amplitude.x);
-	float sdevPrev = statsPrev.y / abs(amplitude.y - amplitude.x);
-	float sdevPrev2 = statsPrev2.y / abs(amplitude.y - amplitude.x);
-	float sdevNext = statsNext.y / abs(amplitude.y - amplitude.x);
-	float sdevNext2 = statsNext2.y / abs(amplitude.y - amplitude.x);
+	float ampRange = abs(
+		+ amplitude.y - amplitude.x
+	);
+	float sdevCurr = statsCurr.y / ampRange;
+	float sdevPrev = statsPrev.y / ampRange;
+	float sdevPrev2 = statsPrev2.y / ampRange;
+	float sdevNext = statsNext.y / ampRange;
+	float sdevNext2 = statsNext2.y / ampRange;
 
 	float sdev = sdevCurr;
 

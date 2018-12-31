@@ -348,7 +348,7 @@ Object.defineProperties(Waveform.prototype, {
 			if (this._range != null) {
 				if (typeof this._range === 'number') {
 					return [
-						nidx(this._range), this.total
+						nidx(this._range, this.total), this.total
 					]
 				}
 

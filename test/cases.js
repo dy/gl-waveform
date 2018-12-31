@@ -86,7 +86,7 @@ t('empty data chunks are not being displayed', async t => {
 	// interactive(wf)
 	// document.body.appendChild(wf.canvas)
 
-	t.ok(eq(wf, await img('./test/fixture/empty.png'), .5, true))
+	t.ok(eq(wf, await img('./test/fixture/empty.png'), true, .5))
 
 	wf.clear()
 

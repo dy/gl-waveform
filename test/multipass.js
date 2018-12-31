@@ -1,8 +1,8 @@
 'use strict'
 
 const t = require('tape')
-const createWaveform = require('../index')
-// const createWaveform = require('../')
+// const createWaveform = require('../index')
+const createWaveform = require('is-travis') ? require('../') : require('../index')
 const gl = require('gl')(400, 300)
 const eq = require('image-equal')
 const isBrowser = require('is-browser')

@@ -1,8 +1,8 @@
 'use strict'
 
 const t = require('tape')
-const createWaveform = require('../index')
-// const createWaveform = require('../')
+// const createWaveform = require('../index')
+const createWaveform = require('is-travis') ? require('../') : require('../index')
 const gl = require('gl')(400, 300, {preserveDrawingBuffer: false})
 const eq = require('image-equal')
 const isBrowser = require('is-browser')
@@ -269,7 +269,7 @@ t.skip('texture overflow precision small scale', async t => {
 	t.end()
 })
 
-t.only('texture overflow precision large scale', async t => {
+t.skip('texture overflow precision large scale', async t => {
 	let wf = createWaveform(gl)
 
 	let arr = []

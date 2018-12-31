@@ -86,7 +86,7 @@ t('empty data chunks are not being displayed', async t => {
 	// interactive(wf)
 	// document.body.appendChild(wf.canvas)
 
-	t.ok(eq(wf, await img('./test/fixture/empty.png'), .4))
+	t.ok(eq(wf, await img('./test/fixture/empty.png'), .5, true))
 
 	wf.clear()
 
@@ -216,7 +216,7 @@ t('>1 values does not create float32 noise', async t => {
 	wf.render()
 
 	// show(wf.canvas, document)
-	t.ok(eq(wf, await img('./test/fixture/additive-noises.png'), .35))
+	t.ok(eq(wf, await img('./test/fixture/additive-noises.png'), true, .5))
 
 	// TODO: test line mode
 	// TODO: test negative noise
@@ -482,7 +482,7 @@ t('fade: line wave', async t => {
 	wf.render()
 
 	// show(wf, document)
-	t.ok(eq(wf, await img(`./test/fixture/fade.png`), .4) )
+	t.ok(eq(wf, await img(`./test/fixture/fade.png`), true, .4) )
 
 	wf.clear()
 
@@ -675,12 +675,14 @@ t('set data at specific offset', async t => {
 	wf.clear()
 
 	// discard color (weird case)
-	let wf2 = createWaveform()
-	t.deepEqual(wf2.color, [0,0,0,255])
+	if (global.document) {
+		let wf2 = createWaveform()
+		t.deepEqual(wf2.color, [0,0,0,255])
 
-	t.notOk(createWaveform._color)
-	t.notOk(createWaveform._range)
-	t.notOk(createWaveform._amplitude)
+		t.notOk(createWaveform._color)
+		t.notOk(createWaveform._range)
+		t.notOk(createWaveform._amplitude)
+	}
 
 	t.end()
 })
@@ -795,7 +797,7 @@ t.skip('gl-waveform-test: noise ', t => {
 })
 
 t.skip('multipass rendering for large zoom levels', t => {
-	let wf = createWaveform()
+	let wf = createWaveform(gl)
 
 	interactive(wf)
 

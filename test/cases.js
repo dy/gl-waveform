@@ -86,7 +86,7 @@ t('empty data chunks are not being displayed', async t => {
 	// interactive(wf)
 	// document.body.appendChild(wf.canvas)
 
-	t.ok(eq(wf, await img('./test/fixture/empty.png'), true, .5))
+	t.ok(eq(wf, await img('./test/fixture/empty.png'), '0.ong', .5))
 
 	wf.clear()
 
@@ -216,7 +216,7 @@ t('>1 values does not create float32 noise', async t => {
 	wf.render()
 
 	// show(wf.canvas, document)
-	t.ok(eq(wf, await img('./test/fixture/additive-noises.png'), true, .5))
+	t.ok(eq(wf, await img('./test/fixture/additive-noises.png'), '1.png', .5))
 
 	// TODO: test line mode
 	// TODO: test negative noise

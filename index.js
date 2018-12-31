@@ -147,10 +147,10 @@ Waveform.prototype.createShader = function (o) {
 			'samples.next': regl.prop('nextSamples'),
 			'samples.shape': regl.prop('dataShape'),
 			'samples.length': regl.prop('dataLength'),
-			'samples.sum': (c, p) => p.samples.sum,
-			'samples.sum2': (c, p) => p.samples.sum2,
-			'samples.prevSum': (c, p) => p.prevSamples.sum,
-			'samples.prevSum2': (c, p) => p.prevSamples.sum2,
+			'samples.sum': (c, p) => f32.float(p.samples.sum),
+			'samples.sum2': (c, p) => f32.float(p.samples.sum2),
+			'samples.prevSum': (c, p) => f32.float(p.prevSamples.sum),
+			'samples.prevSum2': (c, p) => f32.float(p.prevSamples.sum2),
 
 			// float32 sample fractions for precision
 			'fractions.id': regl.prop('textureId'),
@@ -159,10 +159,10 @@ Waveform.prototype.createShader = function (o) {
 			'fractions.next': regl.prop('nextFractions'),
 			'fractions.shape': regl.prop('dataShape'),
 			'fractions.length': regl.prop('dataLength'),
-			'fractions.sum': 0,
-			'fractions.sum2': 0,
-			'fractions.prevSum': 0,
-			'fractions.prevSum2': 0,
+			'fractions.sum': (c, p) => f32.fract(p.samples.sum),
+			'fractions.sum2': (c, p) => f32.fract(p.samples.sum2),
+			'fractions.prevSum': (c, p) => f32.fract(p.prevSamples.sum),
+			'fractions.prevSum2': (c, p) => f32.fract(p.prevSamples.sum2),
 
 			passNum: regl.prop('passNum'),
 			passId: regl.prop('passId'),
@@ -889,10 +889,12 @@ Waveform.prototype.set = function (samples, at=0) {
 	function writeTexture (x, y, w, h, data) {
 		let f32data = pool.mallocFloat32(data.length)
 		let f32fract = pool.mallocFloat32(data.length)
+
 		for (let i = 0; i < data.length; i++) {
 			f32data[i] = data[i]
 			f32fract[i] = data[i] - f32data[i]
 		}
+
 		// for (let i = 0; i < data.length; i+=4) {
 		// 	if (isNaN(data[i])) f32fract[i] = -1
 		// }

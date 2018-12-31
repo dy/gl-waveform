@@ -247,44 +247,42 @@ t('zoom in does not throw errors', async t => {
 	t.end()
 })
 
-t.skip('big values do not get accumulated', async t => {
-	// var createWaveform = require('./debug')
+t.skip('texture overflow precision', async t => {
 	var wf = createWaveform(gl)
+	// wf.update({textureShape: [4, 4]})
+	// wf.mode = 'range'
 
 	// let arr = []
-	// for (let i = 0; i < 50000; i++) {
-	// 	arr.push(1027)
+	// for (let i = 0; i < 64; i++) {
+	// 	arr.push(1.0015)
 	// }
-	// for (let i = 0; i < 50000; i++) {
-	// 	arr.push(1007)
-	// }
-	// for (let i = 0; i < 50000; i++) {
-	// 	arr.push(1017)
-	// }
-	// for (let i = 0; i < 50000; i++) {
-	// 	arr.push(1147)
-	// }
-	// for (let i = 0; i < 500000; i++) {
-	// 	arr.push(1011)
-	// }
-	// // for (let i = 0; i < 50000; i++) {
-	// // 	arr.push(1170)
-	// // }
-	// for (let i = 0; i < 100000; i++) {
-	// 	arr.push(1011)
-	// }
-	let arr = oscillate.sin(1e6, 1000)
-	wf.push(arr)
+	// wf.push(arr)
+	// wf.range =  [39.5, 64]
+
+
+	// wf.update({width: 2, amplitude: [1.0010, 1.0020]})
+	// wf.render()
+
+	// t.ok(eq(await img`./test/fixture/precision1.png`, wf), 'small')
+
+
+	let arr = []
+	for (let i = 0; i < 480000; i++) {
+		arr.push(1111)
+	}
+	for (let i = 480000; i < 640000; i++) {
+		arr.push(1199)
+	}
+	wf.set(arr, 0)
+	wf.range =  [395000, 640000]
+
+	wf.update({width: 2, amplitude: [1100, 1200]})
+	wf.render()
 
 	document.body.appendChild(wf.canvas)
 	interactive(wf, x => {
 		console.log(wf.range)
 	})
-
-	wf.update({width: 1})
-	wf.render()
-
-	// second-texture start is ok
 
 	t.end()
 })

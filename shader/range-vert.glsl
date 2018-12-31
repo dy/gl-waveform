@@ -17,6 +17,8 @@ varying vec4 fragColor;
 varying vec3 statsLeft, statsRight, statsPrevRight, statsNextLeft;
 varying float normThickness;
 
+const float FLT_EPSILON = 1.19209290e-7;
+
 // returns sample picked from the texture
 vec4 picki (Samples samples, float offset) {
 	// translate is here in order to remove float32 error (at the latest stage)
@@ -115,35 +117,15 @@ vec3 stats (float offset) {
 	);
 	mx2 /= n;
 
-
 	// σ(x)² = M(x²) - M(x)²
 	float m2 = avg * avg;
 	float variance = abs(mx2 - m2);
+
+	// get float32 tolerance for the power of mx2/m2
+	// float tol = FLT_EPSILON * pow(2., ceil(9. + log2(max(mx2, m2))));
+
+	// float sdev = variance <= tol ? 0. : sqrt(variance);
 	float sdev = sqrt(variance);
-
-	// float sdev = sqrt(abs(
-	// 	(
-	// 	+ sample1l.z
-	// 	- sample0l.z
-	// 	+ sample1lf.z
-	// 	- sample0lf.z
-	// 	) / n
-
-	// 	- ((
-	// 		+ sample1l.y
-	// 		- sample0l.y
-	// 		+ sample1lf.y
-	// 		- sample0lf.y
-	// 	) / n)
-	// 	*
-	// 	((
-	// 		+ sample1l.y
-	// 		- sample0l.y
-	// 		+ sample1lf.y
-	// 		- sample0lf.y
-	// 	) / n)
-	// ));
-
 
 	return vec3(avg, sdev, min(sample0r.w, sample1l.w));
 }
@@ -243,7 +225,6 @@ void main() {
 		join = vert * vertSdev;
 	}
 
-
 	// figure out segment varyings
 	statsCurr = vec3(avgCurr, sdevCurr, statsCurr.z);
 	statsPrev = vec3(avgPrev, sdevPrev, statsPrev.z);
@@ -254,8 +235,6 @@ void main() {
 	statsLeft = side < 0. ? statsPrev : statsCurr;
 	statsPrevRight = side < 0. ? statsPrev2 : statsPrev;
 	statsNextLeft = side < 0. ? statsNext : statsNext2;
-
-	// if (sdevCurr >= .5) fragColor  = vec4(0,1,0,1);
 
 	position += sign * join * .5 * thickness / viewport.zw;
 

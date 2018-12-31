@@ -23,6 +23,7 @@ float fade(float y, vec3 stats) {
 	if (nan == -1.) return 0.;
 	float dist = abs(y - avg);
 	float pdfCoef = pdf(0., 0., sdev * sdev );
+	// pdfCoef makes sure pdf is normalized - has 1. value at the max
 	dist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;
 	return dist;
 }
@@ -43,14 +44,6 @@ void main() {
 	float sdevLeft = statsLeft.y;
 	float sdevNextLeft = statsNextLeft.y;
 	float sdevPrevRight = statsPrevRight.y;
-
-	// fading code - not so actual due to nice sharp clipping
-	// pdfCoef makes sure pdf is normalized - has 1. value at the max
-	// float dist = abs(y - avgLeft);
-	// float sdev = sdevRight;
-	// float pdfCoef = pdf(0., 0., sdev * sdev );
-	// dist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;
-	// gl_FragColor.a *= dist;
 
 	if (y > avgRight + halfThickness) {
 		if (avgRight > avgLeft) {

@@ -678,9 +678,9 @@ Waveform.prototype.render = function () {
 		if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
 			this.shader.drawRanges.call(this, o)
 
-			o.color = [0,0,0,0]
-			this.shader.drawLine.call(this, o)
-			o.color = color
+			// o.color = [0,0,0,0]
+			// this.shader.drawLine.call(this, o)
+			// o.color = color
 
 			// this.shader.drawRanges.call(this, extend({}, o, {
 			// 	color: [255,0,0,255],
@@ -692,9 +692,9 @@ Waveform.prototype.render = function () {
 		else {
 			this.shader.drawLine.call(this, o)
 
-			o.color = [0,0,0,0]
-			this.shader.drawRanges.call(this, o)
-			o.color = color
+			// o.color = [0,0,0,0]
+			// this.shader.drawRanges.call(this, o)
+			// o.color = color
 		}
 	})
 

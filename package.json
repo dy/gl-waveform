@@ -13,7 +13,8 @@
     "test-browser": "budo test -- -t glslify -p tsify",
     "prepublishOnly": "npm run build",
     "build": "rollup -c rollup.config.js",
-    "build-demo": "browserify demo/index.js | indexhtmlify | metadataify > demo/index.html"
+    "build-multi": "browserify example/multi.js | indexhtmlify | metadataify > example/multi.html",
+    "build-data": "browserify example/data.js | indexhtmlify | metadataify > example/data.html"
   },
   "repository": {
     "type": "git",

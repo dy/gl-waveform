@@ -3,7 +3,6 @@ import Waveform = require('../index')
 import raf = require('raf')
 import fps = require('fps-indicator')
 import pz = require('pan-zoom')
-import gcc = require('gif-capture-canvas')
 
 // fps({position: 'bottom-left', color: 'white'})
 
@@ -101,8 +100,3 @@ for (let i = 0; i < 2048*10 - 4; i++) {
 
 	raf(tick)
 })()
-
-
-
-// capture the canvas
-gcc.capture(masterWave.canvas);

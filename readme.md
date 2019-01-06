@@ -8,7 +8,7 @@ Display time-domain data with WebGL. Provides fair performance / quality among o
 * floating step compensation for non-regular sample sets.
 * unique render method of adjustable join-width via sample range sdev.
 
-[Demo](https://a-vis.github.io/gl-waveform).
+[Demo 1](https://a-vis.github.io/gl-waveform/example/data), [Demo 2](https://a-vis.github.io/gl-waveform/example/multi)
 
 ## Usage
 

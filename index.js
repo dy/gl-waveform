@@ -59,6 +59,11 @@ function Waveform (o) {
 		this.drawOptions = {}
 		this.isClone = true
 
+		this.update({
+			color: o.color,
+			thickness: o.thickness
+		})
+
 		return this
 	}
 
@@ -417,7 +422,7 @@ Waveform.prototype.update = function (o) {
 
 	o = pick(o, {
 		data: 'data value values sample samples',
-		push: 'add append push insert concat',
+		// push: 'add append push insert concat',
 		range: 'range dataRange dataBox dataBounds dataLimits',
 		amplitude: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
 		thickness: 'thickness width linewidth lineWidth line-width',

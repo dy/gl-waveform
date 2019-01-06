@@ -10,15 +10,10 @@
     "test": "node test",
     "lint": "eslint */*.js *.js --ignore-pattern test*",
     "demo": "budo demo -- --transform-key=test",
-    "test-browser": "budo test -- --transform-key=test",
+    "test-browser": "budo test -- -t glslify -p tsify",
     "prepublishOnly": "npm run build",
     "build": "rollup -c rollup.config.js",
     "build-demo": "browserify demo/index.js | indexhtmlify | metadataify > demo/index.html"
-  },
-  "browserify": {
-    "test": [
-      "glslify"
-    ]
   },
   "repository": {
     "type": "git",
@@ -44,6 +39,7 @@
     "gl-util": "^3.1.0",
     "is-plain-obj": "^1.1.0",
     "lerp": "^1.0.3",
+    "mirrorprop": "^1.0.1",
     "negative-index": "^1.0.3",
     "object-assign": "^4.1.1",
     "offset": "0.0.1",
@@ -84,6 +80,8 @@
     "rollup-plugin-browserify-transform": "^1.0.1",
     "rollup-plugin-commonjs": "^9.2.0",
     "rollup-plugin-node-resolve": "^3.4.0",
-    "seed-random": "^2.2.0"
+    "seed-random": "^2.2.0",
+    "tsify": "^4.0.1",
+    "typescript": "^3.2.2"
   }
 }

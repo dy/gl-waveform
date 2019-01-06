@@ -72,6 +72,8 @@ t.skip('calibrate step/end: thickness should not bend', async t => {
 	t.end()
 })
 
+t('Infinities array')
+
 t('empty data chunks are not being displayed', async t => {
 	var wf = createWaveform(gl)
 	wf.push([0,0,,0,0, 1,2,,4,5, 5,2.5,,-2.5,-5])

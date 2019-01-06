@@ -82,24 +82,11 @@ var offset = /*#__PURE__*/Object.freeze({
 
 });
 
-/** @module negative-index */
-var isNeg = require('negative-zero');
-
-module.exports = function negIdx(idx, length) {
-  return idx == null ? 0 : isNeg(idx) ? length : idx <= -length ? 0 : idx < 0 ? length + idx % length : Math.min(length, idx);
-};
-
-var negativeIndex = /*#__PURE__*/Object.freeze({
-
-});
-
 function getCjsExportFromNamespace (n) {
 	return n && n.default || n;
 }
 
 var elOffset = getCjsExportFromNamespace(offset);
-
-var nidx = getCjsExportFromNamespace(negativeIndex);
 
 var pick = require('pick-by-alias');
 
@@ -134,6 +121,8 @@ var lerp = require('lerp');
 var isBrowser = require('is-browser');
 
 var idle = require('on-idle');
+
+var nidx = require('negative-index');
 
 var MAX_ARGUMENTS = 1024; // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 // FIXME: shring 4th NaN channel by putting it to one of fract channels
@@ -468,7 +457,7 @@ Object.defineProperties(Waveform.prototype, {
 
       if (this._range != null) {
         if (typeof this._range === 'number') {
-          return [nidx(this._range), this.total];
+          return [nidx(this._range, this.total), this.total];
         }
 
         return this._range;

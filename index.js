@@ -32,6 +32,36 @@ let shaderCache = new WeakMap()
 function Waveform (o) {
 	if (!(this instanceof Waveform)) return new Waveform(o)
 
+	// create a view for existing waveform
+	if (o instanceof Waveform) {
+		mirrorProperty(this, 'textures', o)
+		mirrorProperty(this, 'textures2', o)
+		mirrorProperty(this, 'lastY', o)
+		mirrorProperty(this, 'minY', o)
+		mirrorProperty(this, 'maxY', o)
+		mirrorProperty(this, 'total', o)
+		mirrorProperty(this, 'shader', o)
+		mirrorProperty(this, 'gl', o)
+		mirrorProperty(this, 'regl', o)
+		mirrorProperty(this, 'canvas', o)
+		mirrorProperty(this, 'blankTexture', o)
+		mirrorProperty(this, 'NaNTexture', o)
+		mirrorProperty(this, 'pushQueue', o)
+		mirrorProperty(this, 'textureLength', o)
+		mirrorProperty(this, 'textureShape', o)
+
+		Object.defineProperty(this, 'dirty', {
+			get: () => this._dirty || o.dirty || o.drawOptions.total !== this.drawOptions.total,
+			set: v => this._dirty = v
+		})
+
+		this.dirty = true
+		this.drawOptions = {}
+		this.isClone = true
+
+		return this
+	}
+
 	// stack of textures with sample data
 	// for a single pass we provide 2 textures, covering the screen
 	// every new texture resets accumulated sum/sum2 values
@@ -61,8 +91,6 @@ function Waveform (o) {
 	// tick processes accumulated samples to push in the next render frame
 	// to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
 	this.pushQueue = []
-
-	// needs flush and recalc
 	this.dirty = true
 
 	// FIXME: add beter recognition
@@ -88,7 +116,7 @@ Waveform.prototype.createShader = function (o) {
 	// because it binds resize event to window
 	if (isObj(o) && !o.canvas && !o.gl && !o.regl) {
 		regl = createRegl({
-			extensions: 'oes_texture_float'
+			extensions: 'OES_texture_float'
 		})
 		gl = regl._gl
 
@@ -101,7 +129,7 @@ Waveform.prototype.createShader = function (o) {
 		if (shader) return shader
 
 		regl = createRegl({
-			gl, extensions: 'oes_texture_float'
+			gl, extensions: 'OES_texture_float'
 		})
 	}
 
@@ -290,7 +318,7 @@ Object.defineProperties(Waveform.prototype, {
 
 	color: {
 		get: function () {
-			if (!this.dirty && this.drawOptions) return this.drawOptions.color
+			if (!this.dirty) return this.drawOptions.color
 
 			return this._color || [0, 0, 0, 255]
 		},
@@ -382,6 +410,8 @@ Object.defineProperties(Waveform.prototype, {
 Waveform.prototype.update = function (o) {
 	if (!o) return this
 	if (o.length != null) o = {data: o}
+
+	else if (typeof o !== 'object') throw Error('Argument must be a data or valid object')
 
 	this.dirty = true
 
@@ -617,7 +647,6 @@ Waveform.prototype.calc = function () {
 		dataShape: this.textureShape,
 		dataLength: this.textureLength
 	}
-
 	this.dirty = false
 
 	return this.drawOptions
@@ -684,8 +713,10 @@ Waveform.prototype.push = function (...samples) {
 		else this.pushQueue.push(samples[i])
 	}
 
-	if (this.dirty && this.dirty.call) this.dirty()
-	this.dirty = idle(() => {
+	if (this.cancelFlush) this.cancelFlush(), this.cancelFlush = null
+	this.dirty = true
+	this.cancelFlush = idle(() => {
+		this.cancelFlush = null
 		this.flush()
 	})
 
@@ -695,7 +726,7 @@ Waveform.prototype.push = function (...samples) {
 // drain pushQueue
 Waveform.prototype.flush = function () {
 	// cancel planned callback
-	if (this.dirty && this.dirty.call) this.dirty()
+	if (this.cancelFlush) this.cancelFlush(), this.cancelFlush = null
 	if (this.pushQueue.length) {
 		let arr = this.pushQueue
 		this.set(arr, this.total)
@@ -895,10 +926,6 @@ Waveform.prototype.set = function (samples, at=0) {
 			f32fract[i] = data[i] - f32data[i]
 		}
 
-		// for (let i = 0; i < data.length; i+=4) {
-		// 	if (isNaN(data[i])) f32fract[i] = -1
-		// }
-
 		txt.subimage({
 			width: w,
 			height: h,
@@ -988,7 +1015,7 @@ Waveform.prototype.destroy = function () {
 
 
 // style
-Waveform.prototype.color
+// Waveform.prototype.color
 Waveform.prototype.opacity = 1
 Waveform.prototype.thickness = 1
 Waveform.prototype.mode = null
@@ -1026,5 +1053,11 @@ function toPx(str) {
 	return unit[0] * px(unit[1])
 }
 
+function mirrorProperty(a, name, b) {
+	Object.defineProperty(a, name, {
+		get: () => b[name],
+		set: (v) => b[name] = v
+	})
+}
 
 module.exports = Waveform

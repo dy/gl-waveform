@@ -22,6 +22,7 @@ export default {
         'object-assign',
         'weak-map',
         'regl',
+        'negative-index',
         'on-idle',
         'parse-rect',
         'gl-util/context',

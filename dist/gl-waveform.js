@@ -121,7 +121,6 @@ var CONTEXT_RESTORED_EVENT = 'webglcontextrestored';
 var DYN_PROP = 1;
 var DYN_CONTEXT = 2;
 var DYN_STATE = 3;
-console.log(213);
 
 function find(haystack, needle) {
   for (var i = 0; i < haystack.length; ++i) {
@@ -701,8 +700,7 @@ var idle = require('on-idle');
 
 var nidx = require('negative-index');
 
-var MAX_ARGUMENTS = 1024;
-console.log(createRegl); // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
+var MAX_ARGUMENTS = 1024; // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 // FIXME: shring 4th NaN channel by putting it to one of fract channels
 
 var shaderCache = new WeakMap();

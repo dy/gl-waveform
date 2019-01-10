@@ -1,5 +1,19 @@
 'use strict';
 
+function _typeof(obj) {
+  if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
+    _typeof = function (obj) {
+      return typeof obj;
+    };
+  } else {
+    _typeof = function (obj) {
+      return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+    };
+  }
+
+  return _typeof(obj);
+}
+
 function _slicedToArray(arr, i) {
   return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest();
 }
@@ -58,6 +72,569 @@ function _nonIterableRest() {
   throw new TypeError("Invalid attempt to destructure non-iterable instance");
 }
 
+var check = require('./lib/util/check');
+
+var extend = require('./lib/util/extend');
+
+var dynamic = require('./lib/dynamic');
+
+var raf = require('./lib/util/raf');
+
+var clock = require('./lib/util/clock');
+
+var createStringStore = require('./lib/strings');
+
+var initWebGL = require('./lib/webgl');
+
+var wrapExtensions = require('./lib/extension');
+
+var wrapLimits = require('./lib/limits');
+
+var wrapBuffers = require('./lib/buffer');
+
+var wrapElements = require('./lib/elements');
+
+var wrapTextures = require('./lib/texture');
+
+var wrapRenderbuffers = require('./lib/renderbuffer');
+
+var wrapFramebuffers = require('./lib/framebuffer');
+
+var wrapAttributes = require('./lib/attribute');
+
+var wrapShaders = require('./lib/shader');
+
+var wrapRead = require('./lib/read');
+
+var createCore = require('./lib/core');
+
+var createStats = require('./lib/stats');
+
+var createTimer = require('./lib/timer');
+
+var GL_COLOR_BUFFER_BIT = 16384;
+var GL_DEPTH_BUFFER_BIT = 256;
+var GL_STENCIL_BUFFER_BIT = 1024;
+var GL_ARRAY_BUFFER = 34962;
+var CONTEXT_LOST_EVENT = 'webglcontextlost';
+var CONTEXT_RESTORED_EVENT = 'webglcontextrestored';
+var DYN_PROP = 1;
+var DYN_CONTEXT = 2;
+var DYN_STATE = 3;
+console.log(213);
+
+function find(haystack, needle) {
+  for (var i = 0; i < haystack.length; ++i) {
+    if (haystack[i] === needle) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+module.exports = function wrapREGL(args) {
+  var config = initWebGL(args);
+
+  if (!config) {
+    return null;
+  }
+
+  var gl = config.gl;
+  var glAttributes = gl.getContextAttributes();
+  var contextLost = gl.isContextLost();
+  var extensionState = wrapExtensions(gl, config);
+
+  if (!extensionState) {
+    return null;
+  }
+
+  var stringStore = createStringStore();
+  var stats = createStats();
+  var extensions = extensionState.extensions;
+  var timer = createTimer(gl, extensions);
+  var START_TIME = clock();
+  var WIDTH = gl.drawingBufferWidth;
+  var HEIGHT = gl.drawingBufferHeight;
+  var contextState = {
+    tick: 0,
+    time: 0,
+    viewportWidth: WIDTH,
+    viewportHeight: HEIGHT,
+    framebufferWidth: WIDTH,
+    framebufferHeight: HEIGHT,
+    drawingBufferWidth: WIDTH,
+    drawingBufferHeight: HEIGHT,
+    pixelRatio: config.pixelRatio
+  };
+  var uniformState = {};
+  var drawState = {
+    elements: null,
+    primitive: 4,
+    // GL_TRIANGLES
+    count: -1,
+    offset: 0,
+    instances: -1
+  };
+  var limits = wrapLimits(gl, extensions);
+  var attributeState = wrapAttributes(gl, extensions, limits, stringStore);
+  var bufferState = wrapBuffers(gl, stats, config, attributeState);
+  var elementState = wrapElements(gl, extensions, bufferState, stats);
+  var shaderState = wrapShaders(gl, stringStore, stats, config);
+  var textureState = wrapTextures(gl, extensions, limits, function () {
+    core.procs.poll();
+  }, contextState, stats, config);
+  var renderbufferState = wrapRenderbuffers(gl, extensions, limits, stats, config);
+  var framebufferState = wrapFramebuffers(gl, extensions, limits, textureState, renderbufferState, stats);
+  var core = createCore(gl, stringStore, extensions, limits, bufferState, elementState, textureState, framebufferState, uniformState, attributeState, shaderState, drawState, contextState, timer, config);
+  var readPixels = wrapRead(gl, framebufferState, core.procs.poll, contextState, glAttributes, extensions, limits);
+  var nextState = core.next;
+  var canvas = gl.canvas;
+  var rafCallbacks = [];
+  var lossCallbacks = [];
+  var restoreCallbacks = [];
+  var destroyCallbacks = [config.onDestroy];
+  var activeRAF = null;
+
+  function handleRAF() {
+    if (rafCallbacks.length === 0) {
+      if (timer) {
+        timer.update();
+      }
+
+      activeRAF = null;
+      return;
+    } // schedule next animation frame
+
+
+    activeRAF = raf.next(handleRAF); // poll for changes
+
+    _poll(); // fire a callback for all pending rafs
+
+
+    for (var i = rafCallbacks.length - 1; i >= 0; --i) {
+      var cb = rafCallbacks[i];
+
+      if (cb) {
+        cb(contextState, null, 0);
+      }
+    } // flush all pending webgl calls
+
+
+    gl.flush(); // poll GPU timers *after* gl.flush so we don't delay command dispatch
+
+    if (timer) {
+      timer.update();
+    }
+  }
+
+  function startRAF() {
+    if (!activeRAF && rafCallbacks.length > 0) {
+      activeRAF = raf.next(handleRAF);
+    }
+  }
+
+  function stopRAF() {
+    if (activeRAF) {
+      raf.cancel(handleRAF);
+      activeRAF = null;
+    }
+  }
+
+  function handleContextLoss(event) {
+    event.preventDefault(); // set context lost flag
+
+    contextLost = true; // pause request animation frame
+
+    stopRAF(); // lose context
+
+    lossCallbacks.forEach(function (cb) {
+      cb();
+    });
+  }
+
+  function handleContextRestored(event) {
+    // clear error code
+    gl.getError(); // clear context lost flag
+
+    contextLost = false; // refresh state
+
+    extensionState.restore();
+    shaderState.restore();
+    bufferState.restore();
+    textureState.restore();
+    renderbufferState.restore();
+    framebufferState.restore();
+
+    if (timer) {
+      timer.restore();
+    } // refresh state
+
+
+    core.procs.refresh(); // restart RAF
+
+    startRAF(); // restore context
+
+    restoreCallbacks.forEach(function (cb) {
+      cb();
+    });
+  }
+
+  if (canvas) {
+    canvas.addEventListener(CONTEXT_LOST_EVENT, handleContextLoss, false);
+    canvas.addEventListener(CONTEXT_RESTORED_EVENT, handleContextRestored, false);
+  }
+
+  function destroy() {
+    rafCallbacks.length = 0;
+    stopRAF();
+
+    if (canvas) {
+      canvas.removeEventListener(CONTEXT_LOST_EVENT, handleContextLoss);
+      canvas.removeEventListener(CONTEXT_RESTORED_EVENT, handleContextRestored);
+    }
+
+    shaderState.clear();
+    framebufferState.clear();
+    renderbufferState.clear();
+    textureState.clear();
+    elementState.clear();
+    bufferState.clear();
+
+    if (timer) {
+      timer.clear();
+    }
+
+    destroyCallbacks.forEach(function (cb) {
+      cb();
+    });
+  }
+
+  function compileProcedure(options) {
+    check(!!options, 'invalid args to regl({...})');
+    check.type(options, 'object', 'invalid args to regl({...})');
+
+    function flattenNestedOptions(options) {
+      var result = extend({}, options);
+      delete result.uniforms;
+      delete result.attributes;
+      delete result.context;
+
+      if ('stencil' in result && result.stencil.op) {
+        result.stencil.opBack = result.stencil.opFront = result.stencil.op;
+        delete result.stencil.op;
+      }
+
+      function merge(name) {
+        if (name in result) {
+          var child = result[name];
+          delete result[name];
+          Object.keys(child).forEach(function (prop) {
+            result[name + '.' + prop] = child[prop];
+          });
+        }
+      }
+
+      merge('blend');
+      merge('depth');
+      merge('cull');
+      merge('stencil');
+      merge('polygonOffset');
+      merge('scissor');
+      merge('sample');
+      return result;
+    }
+
+    function separateDynamic(object) {
+      var staticItems = {};
+      var dynamicItems = {};
+      Object.keys(object).forEach(function (option) {
+        var value = object[option];
+
+        if (dynamic.isDynamic(value)) {
+          dynamicItems[option] = dynamic.unbox(value, option);
+        } else {
+          staticItems[option] = value;
+        }
+      });
+      return {
+        dynamic: dynamicItems,
+        static: staticItems
+      };
+    } // Treat context variables separate from other dynamic variables
+
+
+    var context = separateDynamic(options.context || {});
+    var uniforms = separateDynamic(options.uniforms || {});
+    var attributes = separateDynamic(options.attributes || {});
+    var opts = separateDynamic(flattenNestedOptions(options));
+    var stats = {
+      gpuTime: 0.0,
+      cpuTime: 0.0,
+      count: 0
+    };
+    var compiled = core.compile(opts, attributes, uniforms, context, stats);
+    var draw = compiled.draw;
+    var batch = compiled.batch;
+    var scope = compiled.scope; // FIXME: we should modify code generation for batch commands so this
+    // isn't necessary
+
+    var EMPTY_ARRAY = [];
+
+    function reserve(count) {
+      while (EMPTY_ARRAY.length < count) {
+        EMPTY_ARRAY.push(null);
+      }
+
+      return EMPTY_ARRAY;
+    }
+
+    function REGLCommand(args, body) {
+      var i;
+
+      if (contextLost) {
+        check.raise('context lost');
+      }
+
+      if (typeof args === 'function') {
+        return scope.call(this, null, args, 0);
+      } else if (typeof body === 'function') {
+        if (typeof args === 'number') {
+          for (i = 0; i < args; ++i) {
+            scope.call(this, null, body, i);
+          }
+
+          return;
+        } else if (Array.isArray(args)) {
+          for (i = 0; i < args.length; ++i) {
+            scope.call(this, args[i], body, i);
+          }
+
+          return;
+        } else {
+          return scope.call(this, args, body, 0);
+        }
+      } else if (typeof args === 'number') {
+        if (args > 0) {
+          return batch.call(this, reserve(args | 0), args | 0);
+        }
+      } else if (Array.isArray(args)) {
+        if (args.length) {
+          return batch.call(this, args, args.length);
+        }
+      } else {
+        return draw.call(this, args);
+      }
+    }
+
+    return extend(REGLCommand, {
+      stats: stats
+    });
+  }
+
+  var setFBO = framebufferState.setFBO = compileProcedure({
+    framebuffer: dynamic.define.call(null, DYN_PROP, 'framebuffer')
+  });
+
+  function clearImpl(_, options) {
+    var clearFlags = 0;
+    core.procs.poll();
+    var c = options.color;
+
+    if (c) {
+      gl.clearColor(+c[0] || 0, +c[1] || 0, +c[2] || 0, +c[3] || 0);
+      clearFlags |= GL_COLOR_BUFFER_BIT;
+    }
+
+    if ('depth' in options) {
+      gl.clearDepth(+options.depth);
+      clearFlags |= GL_DEPTH_BUFFER_BIT;
+    }
+
+    if ('stencil' in options) {
+      gl.clearStencil(options.stencil | 0);
+      clearFlags |= GL_STENCIL_BUFFER_BIT;
+    }
+
+    check(!!clearFlags, 'called regl.clear with no buffer specified');
+    gl.clear(clearFlags);
+  }
+
+  function clear(options) {
+    check(_typeof(options) === 'object' && options, 'regl.clear() takes an object as input');
+
+    if ('framebuffer' in options) {
+      if (options.framebuffer && options.framebuffer_reglType === 'framebufferCube') {
+        for (var i = 0; i < 6; ++i) {
+          setFBO(extend({
+            framebuffer: options.framebuffer.faces[i]
+          }, options), clearImpl);
+        }
+      } else {
+        setFBO(options, clearImpl);
+      }
+    } else {
+      clearImpl(null, options);
+    }
+  }
+
+  function frame(cb) {
+    check.type(cb, 'function', 'regl.frame() callback must be a function');
+    rafCallbacks.push(cb);
+
+    function cancel() {
+      // FIXME:  should we check something other than equals cb here?
+      // what if a user calls frame twice with the same callback...
+      //
+      var i = find(rafCallbacks, cb);
+      check(i >= 0, 'cannot cancel a frame twice');
+
+      function pendingCancel() {
+        var index = find(rafCallbacks, pendingCancel);
+        rafCallbacks[index] = rafCallbacks[rafCallbacks.length - 1];
+        rafCallbacks.length -= 1;
+
+        if (rafCallbacks.length <= 0) {
+          stopRAF();
+        }
+      }
+
+      rafCallbacks[i] = pendingCancel;
+    }
+
+    startRAF();
+    return {
+      cancel: cancel
+    };
+  } // poll viewport
+
+
+  function pollViewport() {
+    var viewport = nextState.viewport;
+    var scissorBox = nextState.scissor_box;
+    viewport[0] = viewport[1] = scissorBox[0] = scissorBox[1] = 0;
+    contextState.viewportWidth = contextState.framebufferWidth = contextState.drawingBufferWidth = viewport[2] = scissorBox[2] = gl.drawingBufferWidth;
+    contextState.viewportHeight = contextState.framebufferHeight = contextState.drawingBufferHeight = viewport[3] = scissorBox[3] = gl.drawingBufferHeight;
+  }
+
+  function _poll() {
+    contextState.tick += 1;
+    contextState.time = now();
+    pollViewport();
+    core.procs.poll();
+  }
+
+  function refresh() {
+    pollViewport();
+    core.procs.refresh();
+
+    if (timer) {
+      timer.update();
+    }
+  }
+
+  function now() {
+    return (clock() - START_TIME) / 1000.0;
+  }
+
+  refresh();
+
+  function addListener(event, callback) {
+    check.type(callback, 'function', 'listener callback must be a function');
+    var callbacks;
+
+    switch (event) {
+      case 'frame':
+        return frame(callback);
+
+      case 'lost':
+        callbacks = lossCallbacks;
+        break;
+
+      case 'restore':
+        callbacks = restoreCallbacks;
+        break;
+
+      case 'destroy':
+        callbacks = destroyCallbacks;
+        break;
+
+      default:
+        check.raise('invalid event, must be one of frame,lost,restore,destroy');
+    }
+
+    callbacks.push(callback);
+    return {
+      cancel: function cancel() {
+        for (var i = 0; i < callbacks.length; ++i) {
+          if (callbacks[i] === callback) {
+            callbacks[i] = callbacks[callbacks.length - 1];
+            callbacks.pop();
+            return;
+          }
+        }
+      }
+    };
+  }
+
+  var regl = extend(compileProcedure, {
+    // Clear current FBO
+    clear: clear,
+    // Short cuts for dynamic variables
+    prop: dynamic.define.bind(null, DYN_PROP),
+    context: dynamic.define.bind(null, DYN_CONTEXT),
+    this: dynamic.define.bind(null, DYN_STATE),
+    // executes an empty draw command
+    draw: compileProcedure({}),
+    // Resources
+    buffer: function buffer(options) {
+      return bufferState.create(options, GL_ARRAY_BUFFER, false, false);
+    },
+    elements: function elements(options) {
+      return elementState.create(options, false);
+    },
+    texture: textureState.create2D,
+    cube: textureState.createCube,
+    renderbuffer: renderbufferState.create,
+    framebuffer: framebufferState.create,
+    framebufferCube: framebufferState.createCube,
+    // Expose context attributes
+    attributes: glAttributes,
+    // Frame rendering
+    frame: frame,
+    on: addListener,
+    // System limits
+    limits: limits,
+    hasExtension: function hasExtension(name) {
+      return limits.extensions.indexOf(name.toLowerCase()) >= 0;
+    },
+    // Read pixels
+    read: readPixels,
+    // Destroy regl and all associated resources
+    destroy: destroy,
+    // Direct GL state manipulation
+    _gl: gl,
+    _refresh: refresh,
+    poll: function poll() {
+      _poll();
+
+      if (timer) {
+        timer.update();
+      }
+    },
+    // Current time
+    now: now,
+    // regl Statistics Information
+    stats: stats
+  });
+  config.onDone(null, regl);
+  return regl;
+};
+
+var regl = /*#__PURE__*/Object.freeze({
+
+});
+
 // http://stackoverflow.com/questions/442404/dynamically-retrieve-the-position-x-y-of-an-html-element
 module.exports = function (el) {
   if (el.getBoundingClientRect) {
@@ -86,15 +663,15 @@ function getCjsExportFromNamespace (n) {
 	return n && n.default || n;
 }
 
+var createRegl = getCjsExportFromNamespace(regl);
+
 var elOffset = getCjsExportFromNamespace(offset);
 
 var pick = require('pick-by-alias');
 
-var extend = require('object-assign');
+var extend$1 = require('object-assign');
 
 var WeakMap = require('weak-map');
-
-var createRegl = require('regl');
 
 var parseRect = require('parse-rect');
 
@@ -124,18 +701,56 @@ var idle = require('on-idle');
 
 var nidx = require('negative-index');
 
-var MAX_ARGUMENTS = 1024; // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
+var MAX_ARGUMENTS = 1024;
+console.log(createRegl); // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 // FIXME: shring 4th NaN channel by putting it to one of fract channels
 
 var shaderCache = new WeakMap();
 
 function Waveform(o) {
-  if (!(this instanceof Waveform)) return new Waveform(o); // stack of textures with sample data
+  var _this = this;
+
+  if (!(this instanceof Waveform)) return new Waveform(o); // create a view for existing waveform
+
+  if (o instanceof Waveform) {
+    mirrorProperty(this, 'textures', o);
+    mirrorProperty(this, 'textures2', o);
+    mirrorProperty(this, 'lastY', o);
+    mirrorProperty(this, 'minY', o);
+    mirrorProperty(this, 'maxY', o);
+    mirrorProperty(this, 'total', o);
+    mirrorProperty(this, 'shader', o);
+    mirrorProperty(this, 'gl', o);
+    mirrorProperty(this, 'regl', o);
+    mirrorProperty(this, 'canvas', o);
+    mirrorProperty(this, 'blankTexture', o);
+    mirrorProperty(this, 'NaNTexture', o);
+    mirrorProperty(this, 'pushQueue', o);
+    mirrorProperty(this, 'textureLength', o);
+    mirrorProperty(this, 'textureShape', o);
+    Object.defineProperty(this, 'dirty', {
+      get: function get() {
+        return _this._dirty || o.dirty || o.drawOptions.total !== _this.drawOptions.total;
+      },
+      set: function set(v) {
+        return _this._dirty = v;
+      }
+    });
+    this.dirty = true;
+    this.drawOptions = {};
+    this.isClone = true;
+    this.update({
+      color: o.color,
+      thickness: o.thickness
+    });
+    return this;
+  } // stack of textures with sample data
   // for a single pass we provide 2 textures, covering the screen
   // every new texture resets accumulated sum/sum2 values
   // textures store [amp, sum, sum2] values
   // textures2 store [ampFract, sumFract, sum2Fract, _] values
   // ampFract has util values: -1 for NaN amplitude
+
 
   this.textures = [];
   this.textures2 = []; // pointer to the first/last x values, detected from the first data
@@ -154,8 +769,7 @@ function Waveform(o) {
   this.NaNTexture = this.shader.NaNTexture; // tick processes accumulated samples to push in the next render frame
   // to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
 
-  this.pushQueue = []; // needs flush and recalc
-
+  this.pushQueue = [];
   this.dirty = true; // FIXME: add beter recognition
   // if (o.pick != null) this.storeData = !!o.pick
   // if (o.fade != null) this.fade = !!o.fade
@@ -178,7 +792,7 @@ Waveform.prototype.createShader = function (o) {
 
   if (isObj(o) && !o.canvas && !o.gl && !o.regl) {
     regl = createRegl({
-      extensions: 'oes_texture_float'
+      extensions: 'OES_texture_float'
     });
     gl = regl._gl;
     shader = shaderCache.get(gl);
@@ -189,7 +803,7 @@ Waveform.prototype.createShader = function (o) {
     if (shader) return shader;
     regl = createRegl({
       gl: gl,
-      extensions: 'oes_texture_float'
+      extensions: 'OES_texture_float'
     });
   } //    id    0     1
   //  side -1 +1 -1 +1
@@ -224,8 +838,8 @@ Waveform.prototype.createShader = function (o) {
     },
     offset: regl.prop('offset'),
     count: regl.prop('count'),
-    frag: glsl(["// fragment shader with fading based on distance from average\n\nprecision highp float;\n#define GLSLIFY 1\n\nuniform vec4 viewport;\nuniform float thickness;\n\nvarying vec4 fragColor;\nvarying float normThickness;\nvarying vec3 statsLeft, statsRight, statsPrevRight, statsNextLeft;\n\nconst float TAU = 6.283185307179586;\n\nfloat pdf (float x, float mean, float variance) {\n\tif (variance == 0.) return x == mean ? 9999. : 0.;\n\telse return exp(-.5 * pow(x - mean, 2.) / variance) / sqrt(TAU * variance);\n}\n\nfloat fade(float y, vec3 stats) {\n\tfloat avg = stats.x;\n\tfloat sdev = stats.y;\n\tfloat nan = stats.z;\n\tif (nan == -1.) return 0.;\n\tfloat dist = abs(y - avg);\n\tfloat pdfCoef = pdf(0., 0., sdev * sdev );\n\t// pdfCoef makes sure pdf is normalized - has 1. value at the max\n\tdist = pdf(dist, 0., sdev * sdev  ) / pdfCoef;\n\treturn dist;\n}\n\nvoid main() {\n\tfloat halfThickness = normThickness * .5;\n\n\tfloat x = (gl_FragCoord.x - viewport.x) / viewport.z;\n\tfloat y = (gl_FragCoord.y - viewport.y) / viewport.w;\n\n\tgl_FragColor = fragColor;\n\n\tfloat avgRight = statsRight.x;\n\tfloat avgLeft = statsLeft.x;\n\tfloat avgNextLeft = statsNextLeft.x;\n\tfloat avgPrevRight = statsPrevRight.x;\n\tfloat sdevRight = statsRight.y;\n\tfloat sdevLeft = statsLeft.y;\n\tfloat sdevNextLeft = statsNextLeft.y;\n\tfloat sdevPrevRight = statsPrevRight.y;\n\n\tif (y > avgRight + halfThickness) {\n\t\tif (avgRight > avgLeft) {\n\t\t\t// local max\n\t\t\tif (avgRight > avgNextLeft) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsRight);\n\t\t\t}\n\t\t\t// sdev can make y go over the\n\t\t\telse if (sdevRight > 0. && y > avgNextLeft + halfThickness) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsNextLeft);\n\t\t\t}\n\t\t}\n\t}\n\tif (y > avgLeft + halfThickness) {\n\t\t// local max\n\t\tif (avgLeft > avgRight) {\n\t\t\t// local max\n\t\t\tif (avgLeft > avgPrevRight) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsLeft);\n\t\t\t}\n\t\t\t// sdev can make y go over the\n\t\t\telse if (sdevLeft > 0. && y > avgPrevRight + halfThickness) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsPrevRight);\n\t\t\t}\n\t\t}\n\t}\n\tif (y < avgRight - halfThickness) {\n\t\tif (avgRight < avgLeft) {\n\t\t\t// local min\n\t\t\tif (avgRight < avgNextLeft) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsRight);\n\t\t\t}\n\t\t\t// sdev can make y go over the\n\t\t\telse if (sdevRight > 0. && y < avgNextLeft - halfThickness) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsNextLeft);\n\t\t\t}\n\t\t}\n\t}\n\tif (y < avgLeft - halfThickness) {\n\t\t// local min\n\t\tif (avgLeft < avgRight) {\n\t\t\t// local min\n\t\t\tif (avgLeft < avgPrevRight) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsLeft);\n\t\t\t}\n\t\t\t// sdev can make y go over the\n\t\t\telse if (sdevLeft > 0. && y < avgPrevRight - halfThickness) {\n\t\t\t\tgl_FragColor.a *= fade(y, statsPrevRight);\n\t\t\t}\n\t\t}\n\t}\n\n\t// if (dist == 0.) { discard; return; }\n\n\t// gl_FragColor.a *= dist;\n}\n"]),
-    // frag: glsl('./shader/fill-frag.glsl'),
+    // frag: glsl('./shader/fade-frag.glsl'),
+    frag: glsl(["precision highp float;\n#define GLSLIFY 1\nvarying vec4 fragColor;\nvoid main() {\n\tgl_FragColor = fragColor;\n}\n"]),
     uniforms: {
       'samples.id': regl.prop('textureId'),
       'samples.data': regl.prop('samples'),
@@ -347,10 +961,10 @@ Waveform.prototype.createShader = function (o) {
     },
     stencil: false
   };
-  var drawRanges = regl(extend({
+  var drawRanges = regl(extend$1({
     vert: glsl(["// output range-average samples line with sdev weighting\n\nprecision highp float;\n#define GLSLIFY 1\n\n// linear interpolation\nvec4 lerp(vec4 a, vec4 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\nvec2 lerp(vec2 a, vec2 b, float t) {\n\treturn t * b + (1. - t) * a;\n}\n\n// bring sample value to 0..1 from amplitude range\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nstruct Samples {\n\tfloat id;\n\tsampler2D data;\n\tsampler2D prev;\n\tsampler2D next;\n\tvec2 shape;\n\tfloat length;\n\tfloat sum, prevSum, sum2, prevSum2;\n};\n\nattribute float id, sign, side;\n\nuniform Samples samples, fractions;\nuniform float opacity, thickness, pxStep, sampleStep, total, translate, passNum, passId;\nuniform vec4 viewport, color;\nuniform vec2 amplitude;\n\nvarying vec4 fragColor;\nvarying vec3 statsLeft, statsRight, statsPrevRight, statsNextLeft;\nvarying float normThickness;\n\nconst float FLT_EPSILON = 1.19209290e-7;\n\n// returns sample picked from the texture\nvec4 picki (Samples samples, float offset) {\n\t// translate is here in order to remove float32 error (at the latest stage)\n\toffset += translate;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset, samples.shape.x)) + .5,\n\t\tfloor(offset / samples.shape.x) + .5\n\t) / samples.shape;\n\n\tvec4 sample;\n\n\t// prev texture\n\tif (uv.y < 0.) {\n\t\tuv.y += 1.;\n\t\tsample = texture2D(samples.prev, uv);\n\t\tsample.y -= samples.prevSum;\n\t\tsample.z -= samples.prevSum2;\n\t}\n\t// next texture\n\telse if (uv.y > 1.) {\n\t\tuv.y -= 1.;\n\t\tsample = texture2D(samples.next, uv);\n\t\tsample.y += samples.sum;\n\t\tsample.z += samples.sum2;\n\t}\n\t// curr texture\n\telse {\n\t\tsample = texture2D(samples.data, uv);\n\t}\n\n\treturn sample;\n}\n\n// returns {avg, sdev, isNaN}\nvec3 stats (float offset) {\n\tfloat sampleStep = sampleStep;\n\n\tfloat offset0 = offset - sampleStep * .5;\n\tfloat offset1 = offset + sampleStep * .5;\n\tfloat offset0l = floor(offset0);\n\tfloat offset1l = floor(offset1);\n\tfloat offset0r = ceil(offset0);\n\tfloat offset1r = ceil(offset1);\n\n\tvec4 sample = picki(samples, offset);\n\t// if (sample.w == -1.) return vec3(0,0,-1);\n\n\t// head picks half the first sample\n\tvec4 sample0l = picki(samples, offset0l);\n\tvec4 sample1l = picki(samples, offset1l);\n\tvec4 sample0r = picki(samples, offset0r);\n\tvec4 sample1r = picki(samples, offset1r);\n\n\tvec4 sample0lf = picki(fractions, offset0l);\n\tvec4 sample1lf = picki(fractions, offset1l);\n\tvec4 sample0rf = picki(fractions, offset0r);\n\tvec4 sample1rf = picki(fractions, offset1r);\n\n\tfloat t0 = 0., t1 = 0.;\n\n\t// partial sample steps require precision\n\t// WARN: we removed lerp in order to ↑ precision\n\t// if (mod(sampleStep, 1.) != 0. && sample0l.w != -1. && sample1r.w != -1.) {\n\t// \tt0 = offset0 - offset0l, t1 = offset1 - offset1l;\n\t// }\n\n\tif (sample0l.w == -1.) {\n\t\t// return vec3(0,0,-1);\n\t\t// sample0l.y = 0.;\n\t}\n\n\tfloat n = (offset1l - offset0l);\n\n\tfloat avg = (\n\t\t+ sample1l.y\n\t\t- sample0l.y\n\t\t+ sample1lf.y\n\t\t- sample0lf.y\n\t\t// + t1 * (sample1r.y - sample1l.y)\n\t\t// - t0 * (sample0r.y - sample0l.y)\n\t\t// + t1 * (sample1rf.y - sample1lf.y)\n\t\t// - t0 * (sample0rf.y - sample0lf.y)\n\t);\n\tavg /= n;\n\n\tfloat mx2 = (\n\t\t+ sample1l.z\n\t\t- sample0l.z\n\t\t+ sample1lf.z\n\t\t- sample0lf.z\n\t\t// + t1 * (sample1r.z - sample1l.z)\n\t\t// - t0 * (sample0r.z - sample0l.z)\n\t\t// + t1 * (sample1rf.z - sample1lf.z)\n\t\t// - t0 * (sample0rf.z - sample0lf.z)\n\t);\n\tmx2 /= n;\n\n\t// σ(x)² = M(x²) - M(x)²\n\tfloat m2 = avg * avg;\n\tfloat variance = abs(mx2 - m2);\n\n\t// get float32 tolerance for the power of mx2/m2\n\t// float tol = FLT_EPSILON * pow(2., ceil(9. + log2(max(mx2, m2))));\n\n\t// float sdev = variance <= tol ? 0. : sqrt(variance);\n\tfloat sdev = sqrt(variance);\n\n\treturn vec3(avg, sdev, min(sample0r.w, sample1l.w));\n}\n\nvoid main() {\n\tgl_PointSize = 3.5;\n\tif (color.a == 0.) return;\n\n\tnormThickness = thickness / viewport.w;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tfloat offset = id * sampleStep;\n\n\t// compensate snapping for low scale levels\n\tfloat posShift = 0.;\n\n\tvec3 statsCurr = stats(offset);\n\n\t// ignore NaN amplitudes\n\tif (statsCurr.z == -1.) return;\n\n\tvec3 statsPrev = stats(offset - sampleStep);\n\tvec3 statsPrev2 = stats(offset - 2. * sampleStep);\n\tvec3 statsNext = stats(offset + sampleStep);\n\tvec3 statsNext2 = stats(offset + 2. * sampleStep);\n\n\tfloat avgCurr = statsCurr.x;\n\tfloat avgPrev = statsPrev.x;\n\tfloat avgPrev2 = statsPrev2.z != -1. ? statsPrev2.x : avgPrev;\n\tfloat avgNext = statsNext.x;\n\tfloat avgNext2 = statsNext2.z != -1. ? statsNext2.x : avgNext;\n\n\tfloat ampRange = abs(\n\t\t+ amplitude.y - amplitude.x\n\t);\n\tfloat sdevCurr = statsCurr.y / ampRange;\n\tfloat sdevPrev = statsPrev.y / ampRange;\n\tfloat sdevPrev2 = statsPrev2.y / ampRange;\n\tfloat sdevNext = statsNext.y / ampRange;\n\tfloat sdevNext2 = statsNext2.y / ampRange;\n\n\tfloat sdev = sdevCurr;\n\n\tavgCurr = reamp(avgCurr, amplitude);\n\tavgNext = reamp(avgNext, amplitude);\n\tavgNext2 = reamp(avgNext2, amplitude);\n\tavgPrev = reamp(avgPrev, amplitude);\n\tavgPrev2 = reamp(avgPrev2, amplitude);\n\n\t// compensate for sampling rounding\n\tvec2 position = vec2(\n\t\t(pxStep * (id + .5)) / viewport.z,\n\t\tavgCurr\n\t);\n\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), pxStep / viewport.w\n\t));\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), pxStep / viewport.w\n\t));\n\n\tvec2 bisec = normalize(normalLeft + normalRight);\n\tvec2 vert = vec2(0, 1);\n\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\tfloat vertRightLen = abs(1. / dot(normalRight, vert));\n\tfloat vertLeftLen = abs(1. / dot(normalLeft, vert));\n\tfloat maxVertLen = max(vertLeftLen, vertRightLen);\n\tfloat minVertLen = min(vertLeftLen, vertRightLen);\n\n\t// 2σ covers 68% of a line. 4σ covers 95% of line\n\tfloat vertSdev = 2. * sdev * viewport.w / thickness;\n\n\tvec2 join;\n\n\tif (statsPrev.z == -1.) {\n\t\tjoin = normalRight;\n\t}\n\telse if (statsNext.z == -1.) {\n\t\tjoin = normalLeft;\n\t}\n\t// sdev less than projected to vertical shows simple line\n\t// FIXME: sdev should be compensated by curve bend\n\telse if (vertSdev < maxVertLen) {\n\t\t// sdev more than normal but less than vertical threshold\n\t\t// rotates join towards vertical\n\t\tif (vertSdev > minVertLen) {\n\t\t\tfloat t = (vertSdev - minVertLen) / (maxVertLen - minVertLen);\n\t\t\tjoin = lerp(bisec * bisecLen, vert * maxVertLen, t);\n\t\t}\n\t\telse {\n\t\t\tjoin = bisec * bisecLen;\n\t\t}\n\t}\n\t// sdev more than projected to vertical modifies only y coord\n\telse {\n\t\tjoin = vert * vertSdev;\n\t}\n\n\t// figure out segment varyings\n\tstatsCurr = vec3(avgCurr, sdevCurr, statsCurr.z);\n\tstatsPrev = vec3(avgPrev, sdevPrev, statsPrev.z);\n\tstatsNext = vec3(avgNext, sdevNext, statsNext.z);\n\tstatsNext2 = vec3(avgNext2, sdevNext2, statsNext2.z);\n\tstatsPrev2 = vec3(avgPrev2, sdevPrev2, statsPrev2.z);\n\tstatsRight = side < 0. ? statsCurr : statsNext;\n\tstatsLeft = side < 0. ? statsPrev : statsCurr;\n\tstatsPrevRight = side < 0. ? statsPrev2 : statsPrev;\n\tstatsNextLeft = side < 0. ? statsNext : statsNext2;\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\n\t// shift position by the clip offset\n\tposition.x += passId * pxStep * samples.length / sampleStep / viewport.z;\n\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
   }, shaderOptions));
-  var drawLine = regl(extend({
+  var drawLine = regl(extend$1({
     vert: glsl(["// direct sample output, connected by line, to the contrary to range\n\nprecision highp float;\n#define GLSLIFY 1\n\n// bring sample value to 0..1 from amplitude range\nfloat reamp(float v, vec2 amp) {\n\treturn (v - amp.x) / (amp.y - amp.x);\n}\n\nstruct Samples {\n\tfloat id;\n\tsampler2D data;\n\tsampler2D prev;\n\tsampler2D next;\n\tvec2 shape;\n\tfloat length;\n\tfloat sum, prevSum, sum2, prevSum2;\n};\n\nattribute float id, sign, side;\n\nuniform Samples samples;\nuniform float opacity, thickness, pxStep, sampleStep, total, translate, posShift;\nuniform vec4 viewport, color;\nuniform vec2 amplitude, range;\nuniform float passNum, passId, passOffset;\n\nvarying vec4 fragColor;\nvarying vec3 statsLeft, statsRight, statsPrevRight, statsNextLeft;\nvarying float normThickness;\n\nbool isNaN (vec4 sample) {\n\treturn sample.w == -1.;\n}\n\nvec4 stats (float offset) {\n\t// translate is here in order to remove float32 error (at the latest stage)\n\toffset += translate;\n\n\tvec2 uv = vec2(\n\t\tfloor(mod(offset, samples.shape.x)) + .5,\n\t\tfloor((offset) / samples.shape.x) + .5\n\t) / samples.shape;\n\n\tvec4 sample;\n\n\t// prev texture\n\tif (uv.y < 0.) {\n\t\tuv.y += 1.;\n\t\tsample = texture2D(samples.prev, uv);\n\t}\n\t// next texture\n\telse if (uv.y > 1.) {\n\t\tuv.y -= 1.;\n\t\tsample = texture2D(samples.next, uv);\n\t}\n\t// curr texture\n\telse {\n\t\tsample = texture2D(samples.data, uv);\n\t}\n\n\treturn sample;\n}\n\nvoid main () {\n\tgl_PointSize = 4.5;\n\tif (color.a == 0.) return;\n\n\tfragColor = color / 255.;\n\tfragColor.a *= opacity;\n\n\tnormThickness = thickness / viewport.w;\n\n\tfloat offset = id * sampleStep;\n\n\t// calc average of curr..next sampling points\n\tvec4 sampleCurr = stats(offset);\n\tif (isNaN(sampleCurr)) return;\n\n\tvec4 sampleNext = stats(offset + sampleStep);\n\tvec4 sampleNext2 = stats(offset + 2. * sampleStep);\n\tvec4 samplePrev = stats(offset - sampleStep);\n\tvec4 samplePrev2 = stats(offset - 2. * sampleStep);\n\n\tbool isStart = isNaN(samplePrev);\n\tbool isEnd = isNaN(sampleNext);\n\n\tfloat avgCurr = reamp(sampleCurr.x, amplitude);\n\tfloat avgNext = reamp(isEnd ? sampleCurr.x : sampleNext.x, amplitude);\n\tfloat avgNext2 = reamp(sampleNext2.x, amplitude);\n\tfloat avgPrev = reamp(isStart ? sampleCurr.x : samplePrev.x, amplitude);\n\tfloat avgPrev2 = reamp(samplePrev2.x, amplitude);\n\n\t// fake sdev 2σ = thickness\n\t// sdev = normThickness / 2.;\n\tfloat sdev = 0.;\n\n\tvec2 position = vec2(\n\t\tpxStep * (id + .5) / (viewport.z),\n\t\tavgCurr\n\t);\n\n\tfloat x = (pxStep) / viewport.z;\n\tvec2 normalLeft = normalize(vec2(\n\t\t-(avgCurr - avgPrev), x\n\t) / viewport.zw);\n\tvec2 normalRight = normalize(vec2(\n\t\t-(avgNext - avgCurr), x\n\t) / viewport.zw);\n\n\tvec2 join;\n\tif (isStart || isStart) {\n\t\tjoin = normalRight;\n\t}\n\telse if (isEnd || isEnd) {\n\t\tjoin = normalLeft;\n\t}\n\telse {\n\t\tvec2 bisec = normalLeft * .5 + normalRight * .5;\n\t\tfloat bisecLen = abs(1. / dot(normalLeft, bisec));\n\t\tjoin = bisec * bisecLen;\n\t}\n\n\t// FIXME: limit join by prev vertical\n\t// float maxJoinX = min(abs(join.x * thickness), 40.) / thickness;\n\t// join.x *= maxJoinX / join.x;\n\n\t// figure out closest to current min/max\n\tvec3 statsCurr = vec3(avgCurr, 0, sampleCurr.z);\n\tvec3 statsPrev = vec3(avgPrev, 0, samplePrev.z);\n\tvec3 statsNext = vec3(avgNext, 0, sampleNext.z);\n\tvec3 statsNext2 = vec3(avgNext2, 0, sampleNext2.z);\n\tvec3 statsPrev2 = vec3(avgPrev2, 0, samplePrev2.z);\n\n\tstatsRight = side < 0. ? statsCurr : statsNext;\n\tstatsLeft = side < 0. ? statsPrev : statsCurr;\n\tstatsPrevRight = side < 0. ? statsPrev2 : statsPrev;\n\tstatsNextLeft = side < 0. ? statsNext : statsNext2;\n\n\tposition += sign * join * .5 * thickness / viewport.zw;\n\n\t// compensate snapped sampleStep to enable smooth zoom\n\tposition.x += posShift / viewport.z;\n\n\t// shift position by the clip offset\n\t// FIXME: move to uniform\n\tposition.x += passId * pxStep * samples.length / sampleStep / viewport.z;\n\n\tgl_Position = vec4(position * 2. - 1., 0, 1);\n}\n"])
   }, shaderOptions)); // let drawPick = regl(extend({
   // 	frag: glsl('./shader/pick-frag.glsl')
@@ -405,7 +1019,7 @@ Object.defineProperties(Waveform.prototype, {
   },
   color: {
     get: function get() {
-      if (!this.dirty && this.drawOptions) return this.drawOptions.color;
+      if (!this.dirty) return this.drawOptions.color;
       return this._color || [0, 0, 0, 255];
     },
     // flatten colors to a single uint8 array
@@ -489,11 +1103,11 @@ Waveform.prototype.update = function (o) {
   if (!o) return this;
   if (o.length != null) o = {
     data: o
-  };
+  };else if (_typeof(o) !== 'object') throw Error('Argument must be a data or valid object');
   this.dirty = true;
   o = pick(o, {
     data: 'data value values sample samples',
-    push: 'add append push insert concat',
+    // push: 'add append push insert concat',
     range: 'range dataRange dataBox dataBounds dataLimits',
     amplitude: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
     thickness: 'thickness width linewidth lineWidth line-width',
@@ -705,7 +1319,7 @@ Waveform.prototype.calc = function () {
 
 
 Waveform.prototype.render = function () {
-  var _this = this;
+  var _this2 = this;
 
   this.flush();
   if (this.total < 2) return this;
@@ -713,31 +1327,26 @@ Waveform.prototype.render = function () {
 
   o.passes.forEach(function (pass) {
     // o ← {count, offset, clip, texture, shift}
-    extend(o, pass); // in order to avoid glitch switching range/line mode on rezoom
+    extend$1(o, pass); // in order to avoid glitch switching range/line mode on rezoom
     // we always render every range with transparent color
 
     var color = o.color; // range case
 
     if (o.pxPerSample <= 1. || o.mode === 'range' && o.mode != 'line') {
-      _this.shader.drawRanges.call(_this, o);
-
-      o.color = [0, 0, 0, 0];
-
-      _this.shader.drawLine.call(_this, o);
-
-      o.color = color; // this.shader.drawRanges.call(this, extend({}, o, {
+      _this2.shader.drawRanges.call(_this2, o); // o.color = [0,0,0,0]
+      // this.shader.drawLine.call(this, o)
+      // o.color = color
+      // this.shader.drawRanges.call(this, extend({}, o, {
       // 	color: [255,0,0,255],
       // 	primitive: 'points'
       // }))
+
     } // line case
     else {
-        _this.shader.drawLine.call(_this, o);
+        _this2.shader.drawLine.call(_this2, o); // o.color = [0,0,0,0]
+        // this.shader.drawRanges.call(this, o)
+        // o.color = color
 
-        o.color = [0, 0, 0, 0];
-
-        _this.shader.drawRanges.call(_this, o);
-
-        o.color = color;
       }
   });
   return this;
@@ -745,7 +1354,7 @@ Waveform.prototype.render = function () {
 
 
 Waveform.prototype.push = function () {
-  var _this2 = this;
+  var _this3 = this;
 
   for (var _len = arguments.length, samples = new Array(_len), _key = 0; _key < _len; _key++) {
     samples[_key] = arguments[_key];
@@ -765,9 +1374,12 @@ Waveform.prototype.push = function () {
     } else this.pushQueue.push(samples[i]);
   }
 
-  if (this.dirty && this.dirty.call) this.dirty();
-  this.dirty = idle(function () {
-    _this2.flush();
+  if (this.cancelFlush) this.cancelFlush(), this.cancelFlush = null;
+  this.dirty = true;
+  this.cancelFlush = idle(function () {
+    _this3.cancelFlush = null;
+
+    _this3.flush();
   });
   return this;
 }; // drain pushQueue
@@ -775,7 +1387,7 @@ Waveform.prototype.push = function () {
 
 Waveform.prototype.flush = function () {
   // cancel planned callback
-  if (this.dirty && this.dirty.call) this.dirty();
+  if (this.cancelFlush) this.cancelFlush(), this.cancelFlush = null;
 
   if (this.pushQueue.length) {
     var arr = this.pushQueue;
@@ -964,10 +1576,7 @@ Waveform.prototype.set = function (samples) {
     for (var _i5 = 0; _i5 < data.length; _i5++) {
       f32data[_i5] = data[_i5];
       f32fract[_i5] = data[_i5] - f32data[_i5];
-    } // for (let i = 0; i < data.length; i+=4) {
-    // 	if (isNaN(data[i])) f32fract[i] = -1
-    // }
-
+    }
 
     txt.subimage({
       width: w,
@@ -1060,9 +1669,9 @@ Waveform.prototype.destroy = function () {
     txt.destroy();
   });
 }; // style
+// Waveform.prototype.color
 
 
-Waveform.prototype.color;
 Waveform.prototype.opacity = 1;
 Waveform.prototype.thickness = 1;
 Waveform.prototype.mode = null; // Waveform.prototype.fade = true
@@ -1087,6 +1696,17 @@ function toPx(str) {
   if (!isBrowser) return parseFloat(str);
   var unit = parseUnit(str);
   return unit[0] * px(unit[1]);
+}
+
+function mirrorProperty(a, name, b) {
+  Object.defineProperty(a, name, {
+    get: function get() {
+      return b[name];
+    },
+    set: function set(v) {
+      return b[name] = v;
+    }
+  });
 }
 
 var glWaveform = Waveform;

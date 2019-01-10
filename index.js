@@ -3,7 +3,7 @@
 let pick = require('pick-by-alias')
 let extend = require('object-assign')
 let WeakMap = require('weak-map')
-let createRegl = require('regl')
+let createRegl = require('regl/regl')
 let parseRect = require('parse-rect')
 let createGl = require('gl-util/context')
 let isObj = require('is-plain-obj')
@@ -21,6 +21,7 @@ let idle = require('on-idle')
 let nidx = require('negative-index')
 
 const MAX_ARGUMENTS = 1024
+
 
 // FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
 
@@ -170,8 +171,8 @@ Waveform.prototype.createShader = function (o) {
 		offset: regl.prop('offset'),
 		count: regl.prop('count'),
 
-		frag: glsl('./shader/fade-frag.glsl'),
-		// frag: glsl('./shader/fill-frag.glsl'),
+		// frag: glsl('./shader/fade-frag.glsl'),
+		frag: glsl('./shader/fill-frag.glsl'),
 
 		uniforms: {
 			'samples.id': regl.prop('textureId'),

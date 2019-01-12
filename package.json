@@ -28,7 +28,7 @@
   ],
   "browserify": {
     "transform": ["glslify"]
-  }
+  },
   "author": "Dmitry Yv <dfcreative@gmail.com>",
   "license": "MIT",
   "bugs": {

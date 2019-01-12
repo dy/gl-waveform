@@ -3,7 +3,7 @@
 let pick = require('pick-by-alias')
 let extend = require('object-assign')
 let WeakMap = require('weak-map')
-let createRegl = require('regl/regl')
+let createRegl = require('regl')
 let parseRect = require('parse-rect')
 let createGl = require('gl-util/context')
 let isObj = require('is-plain-obj')
@@ -171,12 +171,13 @@ Waveform.prototype.createShader = function (o) {
 		offset: regl.prop('offset'),
 		count: regl.prop('count'),
 
-		// frag: glsl('./shader/fade-frag.glsl'),
-		frag: glsl('./shader/fill-frag.glsl'),
+		frag: glsl('./shader/fade-frag.glsl'),
+		// frag: glsl('./shader/fill-frag.glsl'),
 
 		uniforms: {
 			'samples.id': regl.prop('textureId'),
-			'samples.data': regl.prop('samples'),
+			// 'samples.data': regl.prop('samples'),
+			'samplesData': regl.prop('samples'),
 			'samples.prev': regl.prop('prevSamples'),
 			'samples.next': regl.prop('nextSamples'),
 			'samples.shape': regl.prop('dataShape'),
@@ -188,7 +189,11 @@ Waveform.prototype.createShader = function (o) {
 
 			// float32 sample fractions for precision
 			'fractions.id': regl.prop('textureId'),
-			'fractions.data': regl.prop('fractions'),
+			// FIXME: some really weird thing happens on iPhone with writing sampler data to struct
+			// it just considers that the same as the samples.data
+			// so we store sampler as a separate uniform
+			// 'fractions.data': regl.prop('fractions'),
+			'fractionsData': regl.prop('fractions'),
 			'fractions.prev': regl.prop('prevFractions'),
 			'fractions.next': regl.prop('nextFractions'),
 			'fractions.shape': regl.prop('dataShape'),
@@ -220,7 +225,7 @@ Waveform.prototype.createShader = function (o) {
 			viewport: regl.prop('viewport'),
 			opacity: regl.prop('opacity'),
 			color: regl.prop('color'),
-			thickness: regl.prop('thickness')
+			thickness: (c, p) => p.thickness * c.pixelRatio //regl.prop('thickness')
 		},
 
 		attributes: {

@@ -8,6 +8,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples;
+uniform sampler2D samplesData;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate, posShift;
 uniform vec4 viewport, color;
 uniform vec2 amplitude, range;
@@ -44,7 +45,7 @@ vec4 stats (float offset) {
 	}
 	// curr texture
 	else {
-		sample = texture2D(samples.data, uv);
+		sample = texture2D(samplesData, uv);
 	}
 
 	return sample;

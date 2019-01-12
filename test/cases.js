@@ -1,8 +1,7 @@
 'use strict'
 
 const t = require('tape')
-// const createWaveform = require('../index')
-const createWaveform = require('is-travis') ? require('../') : require('../index')
+const createWaveform = require('../')
 const gl = require('gl')(400, 300, {preserveDrawingBuffer: false})
 const eq = require('image-equal')
 const isBrowser = require('is-browser')
@@ -50,17 +49,17 @@ t.skip('calibrate step/end: thickness should not bend', async t => {
 	wf.push([0, 1, 1, -1, 1, 0])
 	wf.thickness = 10
 	wf.amplitude = [-2, 2]
+	wf.mode = 'range'
 	wf.viewport = [100,100,200,200]
+	wf.render()
 
 	// calibrate end
 	wf.range = [-.5, 6.5]
-	wf.mode = 'range'
 	wf.render()
 	t.ok(eq(await img`./test/fixture/calibrate-end.png`, wf, .3))
 	wf.clear()
 
 	wf.range = [1, 7]
-	wf.mode = 'range'
 	wf.render()
 	t.ok(eq(await img`./test/fixture/calibrate-end-range.png`, wf, .3))
 	wf.clear()

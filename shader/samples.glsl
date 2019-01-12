@@ -2,7 +2,7 @@
 
 struct Samples {
 	float id;
-	sampler2D data;
+	// sampler2D data;
 	sampler2D prev;
 	sampler2D next;
 	vec2 shape;

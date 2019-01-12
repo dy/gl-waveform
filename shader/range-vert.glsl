@@ -9,6 +9,7 @@ precision highp float;
 attribute float id, sign, side;
 
 uniform Samples samples, fractions;
+uniform sampler2D samplesData, fractionsData;
 uniform float opacity, thickness, pxStep, sampleStep, total, translate, passNum, passId;
 uniform vec4 viewport, color;
 uniform vec2 amplitude;
@@ -20,7 +21,7 @@ varying float normThickness;
 const float FLT_EPSILON = 1.19209290e-7;
 
 // returns sample picked from the texture
-vec4 picki (Samples samples, float offset) {
+vec4 picki (Samples samples, sampler2D data, float offset) {
 	// translate is here in order to remove float32 error (at the latest stage)
 	offset += translate;
 
@@ -47,7 +48,7 @@ vec4 picki (Samples samples, float offset) {
 	}
 	// curr texture
 	else {
-		sample = texture2D(samples.data, uv);
+		sample = texture2D(data, uv);
 	}
 
 	return sample;
@@ -64,19 +65,19 @@ vec3 stats (float offset) {
 	float offset0r = ceil(offset0);
 	float offset1r = ceil(offset1);
 
-	vec4 sample = picki(samples, offset);
+	vec4 sample = picki(samples, samplesData, offset);
 	// if (sample.w == -1.) return vec3(0,0,-1);
 
 	// head picks half the first sample
-	vec4 sample0l = picki(samples, offset0l);
-	vec4 sample1l = picki(samples, offset1l);
-	vec4 sample0r = picki(samples, offset0r);
-	vec4 sample1r = picki(samples, offset1r);
+	vec4 sample0l = picki(samples, samplesData, offset0l);
+	vec4 sample1l = picki(samples, samplesData, offset1l);
+	vec4 sample0r = picki(samples, samplesData, offset0r);
+	vec4 sample1r = picki(samples, samplesData, offset1r);
 
-	vec4 sample0lf = picki(fractions, offset0l);
-	vec4 sample1lf = picki(fractions, offset1l);
-	vec4 sample0rf = picki(fractions, offset0r);
-	vec4 sample1rf = picki(fractions, offset1r);
+	vec4 sample0lf = picki(fractions, fractionsData, offset0l);
+	vec4 sample1lf = picki(fractions, fractionsData, offset1l);
+	vec4 sample0rf = picki(fractions, fractionsData, offset0r);
+	vec4 sample1rf = picki(fractions, fractionsData, offset1r);
 
 	float t0 = 0., t1 = 0.;
 

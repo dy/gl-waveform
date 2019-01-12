@@ -11,7 +11,6 @@
     "lint": "eslint */*.js *.js --ignore-pattern test*",
     "demo": "budo demo -- --transform-key=test",
     "test-browser": "budo test -- -t glslify -p tsify",
-    "prepublishOnly": "npm run build",
     "build-multi": "browserify example/multi.js | indexhtmlify | metadataify > example/multi.html",
     "build-data": "browserify example/data.js | indexhtmlify | metadataify > example/data.html"
   },

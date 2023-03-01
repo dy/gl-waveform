@@ -1,4 +1,4 @@
-# gl-waveform [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges) [![Build Status](https://img.shields.io/travis/a-vis/gl-waveform.svg)](https://travis-ci.org/a-vis/gl-waveform)
+# gl-waveform [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges) [![Build Status](https://img.shields.io/travis/dy/gl-waveform.svg)](https://travis-ci.org/dy/gl-waveform)
 
 Display time-domain data with WebGL. Provides fair performance / quality among other renderers:
 
@@ -8,7 +8,7 @@ Display time-domain data with WebGL. Provides fair performance / quality among o
 * floating step compensation for non-regular sample sets.
 * unique render method of adjustable join-width via sample range sdev.
 
-[Demo 1](https://a-vis.github.io/gl-waveform/example/data), [Demo 2](https://a-vis.github.io/gl-waveform/example/multi)
+[Demo 1](https://dy.github.io/gl-waveform/example/data), [Demo 2](https://dy.github.io/gl-waveform/example/multi)
 
 ## Usage
 

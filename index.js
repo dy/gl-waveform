@@ -1,1074 +1,485 @@
-'use strict'
+/**
+ * gl-waveform – WebGL2 waveform renderer.
+ *
+ * Zoomed out, every device-pixel column shows the exact min/max of its samples, joined to its neighbours, with an
+ * inner RMS band. Zoomed in, an anti-aliased line runs through the samples, with dots once they are 6 CSS px apart.
+ * Column statistics come from a min/max/sum² pyramid queried on the CPU in doubles; the GPU draws one quad per
+ * viewport from a small texture of per-column (or per-sample) extents.
+ */
 
-let pick = require('pick-by-alias')
-let extend = require('object-assign')
-let WeakMap = require('weak-map')
-let createRegl = require('regl')
-let parseRect = require('parse-rect')
-let createGl = require('gl-util/context')
-let isObj = require('is-plain-obj')
-let pool = require('typedarray-pool')
-let glsl = require('glslify')
-let rgba = require('color-normalize')
-let neg0 = require('negative-zero')
-let f32 = require('to-float32')
-let parseUnit = require('parse-unit')
-let px = require('to-px')
-let lerp = require('lerp')
-let isBrowser = require('is-browser')
-let elOffset = require('offset')
-let idle = require('on-idle')
-let nidx = require('negative-index')
+const B = 256        // samples per pyramid leaf
+const C = 1 << 16    // samples per storage chunk, a multiple of B
+const TW = 2048      // data texture width, texels
+const DOT = 6        // CSS px between samples where dots appear; they reach full size at twice that
 
-const MAX_ARGUMENTS = 1024
+const ATTRS = { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false, depth: false, stencil: false }
+const COLOR = [0.25, 0.45, 0.85, 1]
 
+const VERT = `#version 300 es
+void main() { gl_Position = vec4(vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2. - 1., 0, 1); }`
 
-// FIXME: it is possible to oversample thick lines by scaling them with projected limit to vertical instead of creating creases
+const FRAG = `#version 300 es
+precision highp float;
+precision highp int;
+uniform highp sampler2D data; // envelope: per column [lo, hi, rms lo, rms hi]; line: per sample [y, y]; lo > hi is a gap
+uniform vec2 origin;          // viewport corner, device px
+uniform int count, line, dense;
+uniform float pps, off, hw, rad; // px per sample, first sample position in samples, half line width, dot radius
+uniform float zero, fade;        // silence's y, device px; how much a column holds several samples, 0..1
+uniform vec4 color, rms;         // premultiplied
+out vec4 frag;
 
-// FIXME: shring 4th NaN channel by putting it to one of fract channels
+vec4 at(int i) { return texelFetch(data, ivec2(i & ${TW - 1}, i >> ${Math.log2(TW)}), 0); }
 
-let shaderCache = new WeakMap()
-
-
-function Waveform (o) {
-	if (!(this instanceof Waveform)) return new Waveform(o)
-
-	// create a view for existing waveform
-	if (o instanceof Waveform) {
-		mirrorProperty(this, 'textures', o)
-		mirrorProperty(this, 'textures2', o)
-		mirrorProperty(this, 'lastY', o)
-		mirrorProperty(this, 'minY', o)
-		mirrorProperty(this, 'maxY', o)
-		mirrorProperty(this, 'total', o)
-		mirrorProperty(this, 'shader', o)
-		mirrorProperty(this, 'gl', o)
-		mirrorProperty(this, 'regl', o)
-		mirrorProperty(this, 'canvas', o)
-		mirrorProperty(this, 'blankTexture', o)
-		mirrorProperty(this, 'NaNTexture', o)
-		mirrorProperty(this, 'pushQueue', o)
-		mirrorProperty(this, 'textureLength', o)
-		mirrorProperty(this, 'textureShape', o)
-
-		Object.defineProperty(this, 'dirty', {
-			get: () => this._dirty || o.dirty || o.drawOptions.total !== this.drawOptions.total,
-			set: v => this._dirty = v
-		})
-
-		this.dirty = true
-		this.drawOptions = {}
-		this.isClone = true
-
-		this.update({
-			color: o.color,
-			thickness: o.thickness
-		})
-
-		return this
-	}
-
-	// stack of textures with sample data
-	// for a single pass we provide 2 textures, covering the screen
-	// every new texture resets accumulated sum/sum2 values
-	// textures store [amp, sum, sum2] values
-	// textures2 store [ampFract, sumFract, sum2Fract, _] values
-	// ampFract has util values: -1 for NaN amplitude
-	this.textures = []
-	this.textures2 = []
-
-	// pointer to the first/last x values, detected from the first data
-	// used for organizing data gaps
-	this.lastY
-	this.minY = Infinity, this.maxY = -Infinity
-	this.total = 0
-
-	// find a good name for runtime draw state
-	this.drawOptions = {}
-
-	this.shader = this.createShader(o)
-
-	this.gl = this.shader.gl
-	this.regl = this.shader.regl
-	this.canvas = this.gl.canvas
-	this.blankTexture = this.shader.blankTexture
-	this.NaNTexture = this.shader.NaNTexture
-
-	// tick processes accumulated samples to push in the next render frame
-	// to avoid overpushing per-single value (also dangerous for wrong step detection or network delays)
-	this.pushQueue = []
-	this.dirty = true
-
-	// FIXME: add beter recognition
-	// if (o.pick != null) this.storeData = !!o.pick
-	// if (o.fade != null) this.fade = !!o.fade
-
-	if (isObj(o)) this.update(o)
+float seg(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a, ap = p - a;
+  return length(ap - ab * clamp(dot(ap, ab) / max(dot(ab, ab), 1e-12), 0., 1.));
 }
 
-// create waveform shader, called once per gl context
-Waveform.prototype.createShader = function (o) {
-	let regl, gl, shader
-	if (!o) o = {}
-
-	// check shader cache
-	shader = shaderCache.get(o)
-	if (shader) return shader
-
-	if (isRegl(o)) o = {regl: o}
-
-
-	// we let regl init window/container in default case
-	// because it binds resize event to window
-	if (isObj(o) && !o.canvas && !o.gl && !o.regl) {
-		regl = createRegl({
-			extensions: 'OES_texture_float'
-		})
-		gl = regl._gl
-
-		shader = shaderCache.get(gl)
-		if (shader) return shader
-	}
-	else {
-		gl = createGl(o)
-		shader = shaderCache.get(gl)
-		if (shader) return shader
-
-		regl = createRegl({
-			gl, extensions: 'OES_texture_float'
-		})
-	}
-
-	//    id    0     1
-	//  side -1 +1 -1 +1
-	//         **    **          +1
-	//        /||   /||   ...
-	//    .../ ||  / ||  /       sign
-	//         || /  || /
-	//         **    **          -1
-	let idBuffer = regl.buffer({
-		usage: 'static',
-		type: 'int16',
-		data: (N => {
-			let x = Array()
-
-			// prepend -1 and -2 ids at the head
-			// to over-render for multipass overlay
-			x.push(-2, 1, 1, -2, -1, 1)
-
-			for (let i = -1; i < N; i++) {
-				// id, sign, side, id, sign, side
-				x.push(i, 1, -1, i, -1, -1)
-				x.push(i, 1, 1, i, -1, 1)
-			}
-
-			return x
-		})(this.maxSampleCount)
-	})
-
-	let shaderOptions = {
-		primitive: (c, p) => p.primitive || 'triangle strip',
-		offset: regl.prop('offset'),
-		count: regl.prop('count'),
-
-		frag: glsl('./shader/fade-frag.glsl'),
-		// frag: glsl('./shader/fill-frag.glsl'),
-
-		uniforms: {
-			'samples.id': regl.prop('textureId'),
-			// 'samples.data': regl.prop('samples'),
-			'samplesData': regl.prop('samples'),
-			'samples.prev': regl.prop('prevSamples'),
-			'samples.next': regl.prop('nextSamples'),
-			'samples.shape': regl.prop('dataShape'),
-			'samples.length': regl.prop('dataLength'),
-			'samples.sum': (c, p) => f32.float(p.samples.sum),
-			'samples.sum2': (c, p) => f32.float(p.samples.sum2),
-			'samples.prevSum': (c, p) => f32.float(p.prevSamples.sum),
-			'samples.prevSum2': (c, p) => f32.float(p.prevSamples.sum2),
-
-			// float32 sample fractions for precision
-			'fractions.id': regl.prop('textureId'),
-			// FIXME: some really weird thing happens on iPhone with writing sampler data to struct
-			// it just considers that the same as the samples.data
-			// so we store sampler as a separate uniform
-			// 'fractions.data': regl.prop('fractions'),
-			'fractionsData': regl.prop('fractions'),
-			'fractions.prev': regl.prop('prevFractions'),
-			'fractions.next': regl.prop('nextFractions'),
-			'fractions.shape': regl.prop('dataShape'),
-			'fractions.length': regl.prop('dataLength'),
-			'fractions.sum': (c, p) => f32.fract(p.samples.sum),
-			'fractions.sum2': (c, p) => f32.fract(p.samples.sum2),
-			'fractions.prevSum': (c, p) => f32.fract(p.prevSamples.sum),
-			'fractions.prevSum2': (c, p) => f32.fract(p.prevSamples.sum2),
-
-			passNum: regl.prop('passNum'),
-			passId: regl.prop('passId'),
-			passOffset: regl.prop('passOffset'),
-
-			// total number of samples
-			total: regl.prop('total'),
-			range: regl.prop('range'),
-
-			// number of pixels between vertices
-			pxStep: regl.prop('pxStep'),
-			posShift: regl.prop('posShift'),
-
-			// number of samples between vertices
-			sampleStep: regl.prop('sampleStep'),
-			translate: regl.prop('translate'),
-
-			// min/max amplitude
-			amplitude: regl.prop('amplitude'),
-
-			viewport: regl.prop('viewport'),
-			opacity: regl.prop('opacity'),
-			color: regl.prop('color'),
-			thickness: (c, p) => p.thickness * c.pixelRatio //regl.prop('thickness')
-		},
-
-		attributes: {
-			id: {
-				buffer: idBuffer,
-				stride: 6,
-				offset: 0
-			},
-			sign: {
-				buffer: idBuffer,
-				stride: 6,
-				offset: 2
-			},
-			side: {
-				buffer: idBuffer,
-				stride: 6,
-				offset: 4
-			}
-		},
-		blend: {
-			enable: true,
-			color: [0,0,0,0],
-			equation: {
-				rgb: 'add',
-				alpha: 'add'
-			},
-			func: {
-				srcRGB: 'src alpha',
-				dstRGB: 'one minus src alpha',
-				srcAlpha: 'one minus dst alpha',
-				dstAlpha: 'one'
-			}
-		},
-		depth: {
-			// FIXME: disable for the case of null folding
-			enable: false
-		},
-		scissor: {
-			enable: true,
-			box: (c, {clip, viewport}) => clip ? ({x: clip[0], y: clip[1], width: clip[2], height: clip[3]}) : ({x: viewport[0], y: viewport[1], width: viewport[2], height: viewport[3]})
-		},
-		viewport: (c, {viewport}) => ({x: viewport[0], y: viewport[1], width: viewport[2], height: viewport[3]}),
-		stencil: false
-	}
-
-	let drawRanges = regl(extend({
-		vert: glsl('./shader/range-vert.glsl')
-	}, shaderOptions))
-	let drawLine = regl(extend({
-		vert: glsl('./shader/line-vert.glsl')
-	}, shaderOptions))
-
-
-	// let drawPick = regl(extend({
-	// 	frag: glsl('./shader/pick-frag.glsl')
-	// }))
-
-	let blankTexture = regl.texture({
-		width: 1,
-		height: 1,
-		channels: this.textureChannels,
-		type: 'float'
-	})
-	blankTexture.sum = 0
-	blankTexture.sum2 = 0
-	let NaNTexture = regl.texture({
-		width: 1,
-		height: 1,
-		channels: this.textureChannels,
-		type: 'float',
-		data: new Float32Array([NaN, 0, 0, -1])
-	})
-	NaNTexture.sum = 0
-	NaNTexture.sum2 = 0
-	shader = { drawRanges, drawLine, regl, idBuffer, NaNTexture, blankTexture, gl }
-	shaderCache.set( gl, shader )
-	return shader
-}
-
-Object.defineProperties(Waveform.prototype, {
-	viewport: {
-		get: function () {
-			if (!this.dirty) return this.drawOptions.viewport
-
-			var viewport
-
-			if (!this._viewport) viewport = [0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]
-			else viewport = [this._viewport.x, this._viewport.y, this._viewport.width, this._viewport.height]
-
-			// invert viewport if necessary
-			if (!this.flip) {
-				viewport[1] = this.gl.drawingBufferHeight - viewport[1] - viewport[3]
-			}
-
-			return viewport
-		},
-		set: function (v) {
-			this._viewport = v ? parseRect(v) : v
-		}
-	},
-
-	color: {
-		get: function () {
-			if (!this.dirty) return this.drawOptions.color
-
-			return this._color || [0, 0, 0, 255]
-		},
-		// flatten colors to a single uint8 array
-		set: function (v) {
-			if (!v) v = 'transparent'
-
-			// single color
-			if (typeof v === 'string') {
-				this._color = rgba(v, 'uint8')
-			}
-			// flat array
-			else if (typeof v[0] === 'number') {
-				let l = Math.max(v.length, 4)
-				if (this._color) pool.freeUint8(this._color)
-				this._color = pool.mallocUint8(l)
-				let sub = (v.subarray || v.slice).bind(v)
-				for (let i = 0; i < l; i += 4) {
-					this._color.set(rgba(sub(i, i + 4), 'uint8'), i)
-				}
-			}
-			// nested array
-			else {
-				let l = v.length
-				if (this._color) pool.freeUint8(this._color)
-				this._color = pool.mallocUint8(l * 4)
-				for (let i = 0; i < l; i++) {
-					this._color.set(rgba(v[i], 'uint8'), i * 4)
-				}
-			}
-		}
-	},
-
-	amplitude: {
-		get: function () {
-			if (!this.dirty) return this.drawOptions.amplitude
-			return this._amplitude || [this.minY, this.maxY]
-		},
-		set: function (amplitude) {
-			if (typeof amplitude === 'number') {
-				this._amplitude = [-amplitude, +amplitude]
-			}
-			else if (amplitude.length) {
-				this._amplitude = [amplitude[0], amplitude[1]]
-			}
-			else {
-				this._amplitude = amplitude
-			}
-		}
-	},
-
-	range: {
-		get: function () {
-			if (!this.dirty) return this.drawOptions.range
-			if (this._range != null) {
-				if (typeof this._range === 'number') {
-					return [
-						nidx(this._range, this.total), this.total
-					]
-				}
-
-				return this._range
-			}
-			return [0, this.total]
-		},
-		set: function (range) {
-			if (!range) return this._range = null
-
-			if (range.length) {
-				// support vintage 4-value range
-				if (range.length === 4) {
-					this._range = [range[0], range[2]]
-					this.amplitude = [range[1], range[3]]
-				}
-				else {
-					this._range = [range[0], range[1]]
-				}
-			}
-			else if (typeof range === 'number') {
-				this._range = range
-			}
-
-			this.dirty = true
-		}
-	}
-})
-
-// update visual state
-Waveform.prototype.update = function (o) {
-	if (!o) return this
-	if (o.length != null) o = {data: o}
-
-	else if (typeof o !== 'object') throw Error('Argument must be a data or valid object')
-
-	this.dirty = true
-
-	o = pick(o, {
-		data: 'data value values sample samples',
-		// push: 'add append push insert concat',
-		range: 'range dataRange dataBox dataBounds dataLimits',
-		amplitude: 'amp amplitude amplitudes ampRange bounds limits maxAmplitude maxAmp',
-		thickness: 'thickness width linewidth lineWidth line-width',
-		pxStep: 'step pxStep',
-		color: 'color colour colors colours fill fillColor fill-color',
-		line: 'line line-style lineStyle linestyle',
-		viewport: 'clip vp viewport viewBox viewbox viewPort area',
-		opacity: 'opacity alpha transparency visible visibility opaque',
-		flip: 'flip iviewport invertViewport inverseViewport',
-		mode: 'mode',
-		shape: 'shape textureShape',
-		sampleStep: 'sampleStep'
-	})
-
-	// forcing rendering mode is mostly used for debugging purposes
-	if (o.mode !== undefined) this.mode = o.mode
-
-	if (o.shape !== undefined) {
-		if (this.textures.length) throw Error('Cannot set texture shape because textures are initialized already')
-		this.textureShape = o.shape
-		this.textureLength = this.textureShape[0] * this.textureShape[1]
-	}
-
-	// parse line style
-	if (o.line) {
-		if (typeof o.line === 'string') {
-			let parts = o.line.split(/\s+/)
-
-			// 12px black
-			if (/0-9/.test(parts[0][0])) {
-				if (!o.thickness) o.thickness = parts[0]
-				if (!o.color && parts[1]) o.color = parts[1]
-			}
-			// black 12px
-			else {
-				if (!o.thickness && parts[1]) o.thickness = parts[1]
-				if (!o.color) o.color = parts[0]
-			}
-		}
-		else {
-			o.color = o.line
-		}
-	}
-
-	if (o.thickness !== undefined) {
-		this.thickness = toPx(o.thickness)
-	}
-
-	if (o.pxStep !== undefined) {
-		this.pxStep = toPx(o.pxStep)
-	}
-
-	if (o.opacity !== undefined) {
-		this.opacity = parseFloat(o.opacity)
-	}
-
-	if (o.viewport !== undefined) {
-		this.viewport = o.viewport
-	}
-
-	if (o.flip) {
-		this.flip = !!o.flip
-	}
-
-	if (o.range !== undefined) {
-		this.range = o.range
-	}
-
-	if (o.color !== undefined) {
-		this.color = o.color
-	}
-
-	if (o.amplitude !== undefined) {
-		this.amplitude = o.amplitude
-	}
-
-	// reset sample textures if new samples data passed
-	if (o.data) {
-		this.total = 0
-		this.lastY = null
-		this.minY = Infinity
-		this.maxY = -Infinity
-		this.push(o.data)
-	}
-
-	// call push method
-	if (o.push) {
-		this.push(o.push)
-	}
-
-	// rather debugging-purpose param, not supposed to be used
-	if (o.sampleStep) this.sampleStep = o.sampleStep
-
-	return this
-}
-
-// calculate draw options
-Waveform.prototype.calc = function () {
-	if (!this.dirty) return this.drawOptions
-
-	this.flush()
-
-	let {total, opacity, amplitude, viewport, range} = this
-
-	let color = this.color
-	let thickness = this.thickness
-
-	// calc runtime props
-	let span = Math.abs(range[1] - range[0]) || 1
-
-	// init pxStep as max number of stops on the screen to cover the range
-	let pxStep = Math.max(
-		// width / span = how many pixels per sample to fit the range
-		viewport[2] / span,
-		// pxStep affects jittering on panning, .5 is good value
-		this.pxStep || .5//Math.pow(thickness, .1) * .1
-	)
-
-	// init sampleStep as sample interval to fit the data range into viewport
-	let sampleStep = pxStep * span / viewport[2]
-
-	// remove float64 residual
-	sampleStep = f32.float(sampleStep)
-
-	// snap sample step to 2^n grid: still smooth, but reduces float32 error
-	// FIXME: make sampleStep snap step detection based on the span
-	// round is better than ceil: ceil generates jittering
-	sampleStep = Math.max(Math.round(sampleStep), 1)
-
-	if (this.sampleStep) sampleStep = this.sampleStep
-
-	// recalc pxStep to adjust changed sampleStep, to fit initial the range
-	pxStep = viewport[2] * sampleStep / span
-	// FIXME: ↑ pxStep is close to 0.5, but can vary here somewhat
-	// pxStep = Math.ceil(pxStep * 16) / 16
-
-	let pxPerSample = pxStep / sampleStep
-
-	// translate is calculated so to meet conditions:
-	// - sampling always starts at 0 sample of 0 texture
-	// - panning never breaks that rule
-	// - changing sampling step never breaks that rule
-	// - to reduce error for big translate, it is rotated by textureLength
-	// - panning is always perceived smooth
-
-	// translate snapped to samplesteps makes sure 0 sample is picked pefrectly
-	// let translate =  Math.floor(range[0] / sampleStep) * sampleStep
-	// let translate = Math.floor((-range[0] % (this.textureLength * 3)) / sampleStep) * sampleStep
-	// if (translate < 0) translate += this.textureLength
-
-	// compensate snapping for low scale levels
-	let posShift = 0.
-	if (pxPerSample > 1) {
-		posShift = (Math.round(range[0]) - range[0]) * pxPerSample;
-	}
-
-	let mode = this.mode
-
-	// detect passes number needed to render full waveform
-	let passNum = Math.ceil(Math.floor(span * 1000) / 1000 / this.textureLength)
-	let passes = Array(passNum)
-	let firstTextureId = Math.round(range[0] / this.textureLength)
-	let clipWidth = Math.min(this.textureLength / sampleStep * pxStep, viewport[2])
-
-	for (let i = 0; i < passNum; i++) {
-		let textureId = firstTextureId + i;
-
-		// ignore negative textures
-		if (textureId < -1) continue;
-		if (textureId > this.textures.length) continue;
-
-		let clipLeft = Math.round(i * clipWidth)
-		let clipRight = Math.round((i + 1) * clipWidth)
-		let clip = [
-			clipLeft + viewport[0],
-			viewport[1],
-			// clipWidth here may fluctuate due to rounding
-			clipRight - clipLeft,
-			viewport[3]
-		]
-		// offset within the pass
-		let passOffset = Math.round(range[0] / this.textureLength) * this.textureLength
-		let translate = Math.round(range[0]) - passOffset
-
-		let samplesNumber = Math.min(
-			// number of visible points
-			Math.ceil(clipWidth / pxStep),
-
-			// max number of samples per pass
-			Math.ceil(this.textureLength / sampleStep)
-		)
-
-		passes[i] = {
-			passId: i,
-			textureId: textureId,
-			clip: clip,
-			passOffset: passOffset,
-
-			// translate depends on pass
-			translate: translate,
-
-			// FIXME: reduce 3 to 2 or less
-			// number of vertices to fill the clip width, including l/r overlay
-			count: Math.min(4 + 4 * samplesNumber * 3 + 4, this.maxSampleCount),
-
-			offset: 0,
-
-			samples: this.textures[textureId] || this.NaNTexture,
-			fractions: this.textures2[textureId] || this.blankTexture,
-			prevSamples: this.textures[textureId - 1] || this.NaNTexture,
-			nextSamples: this.textures[textureId + 1] || this.NaNTexture,
-			prevFractions: this.textures2[textureId - 1] || this.blankTexture,
-			nextFractions: this.textures2[textureId + 1] || this.blankTexture,
-
-			// position shift to compensate sampleStep snapping
-			shift: 0
-		}
-	}
-
-	// use more complicated range draw only for sample intervals
-	// note that rangeDraw gives sdev error for high values dataLength
-	this.drawOptions = {
-		thickness, color, pxStep, pxPerSample, viewport,
-		sampleStep, span, total, opacity, amplitude, range, mode, passes,
-		passNum,
-		posShift,
-		dataShape: this.textureShape,
-		dataLength: this.textureLength
-	}
-	this.dirty = false
-
-	return this.drawOptions
-}
-
-// draw frame according to state
-Waveform.prototype.render = function () {
-	this.flush()
-
-	if (this.total < 2) return this
-
-	let o = this.calc()
-
-	// multipass renders different textures to adjacent clip areas
-	o.passes.forEach((pass) => {
-		// o ← {count, offset, clip, texture, shift}
-		extend(o, pass)
-
-		// in order to avoid glitch switching range/line mode on rezoom
-		// we always render every range with transparent color
-		let color = o.color
-
-		// range case
-		if (o.pxPerSample <= 1. || (o.mode === 'range' && o.mode != 'line')) {
-			this.shader.drawRanges.call(this, o)
-
-			// o.color = [0,0,0,0]
-			// this.shader.drawLine.call(this, o)
-			// o.color = color
-
-			// this.shader.drawRanges.call(this, extend({}, o, {
-			// 	color: [255,0,0,255],
-			// 	primitive: 'points'
-			// }))
-		}
-
-		// line case
-		else {
-			this.shader.drawLine.call(this, o)
-
-			// o.color = [0,0,0,0]
-			// this.shader.drawRanges.call(this, o)
-			// o.color = color
-		}
-	})
-
-
-	return this
-}
-
-// append samples, will be put into texture at the next frame or idle
-Waveform.prototype.push = function (...samples) {
-	if (!samples || !samples.length) return this
-
-	for (let i = 0; i < samples.length; i++) {
-		if (samples[i].length) {
-			if (samples[i].length > MAX_ARGUMENTS) {
-				for (let j = 0; j < samples[i].length; j++) {
-					this.pushQueue.push(samples[i][j])
-				}
-			}
-			else this.pushQueue.push(...samples[i])
-		}
-		else this.pushQueue.push(samples[i])
-	}
-
-	if (this.cancelFlush) this.cancelFlush(), this.cancelFlush = null
-	this.dirty = true
-	this.cancelFlush = idle(() => {
-		this.cancelFlush = null
-		this.flush()
-	})
-
-	return this
-}
-
-// drain pushQueue
-Waveform.prototype.flush = function () {
-	// cancel planned callback
-	if (this.cancelFlush) this.cancelFlush(), this.cancelFlush = null
-	if (this.pushQueue.length) {
-		let arr = this.pushQueue
-		this.set(arr, this.total)
-		this.pushQueue.length = 0
-	}
-	return this
-}
-
-// write samples into texture
-Waveform.prototype.set = function (samples, at=0) {
-	if (!samples || !samples.length) return this
-
-	// draing queue, if possible overlap with total
-	if (at + samples.length > this.total + this.pushQueue.length) {
-		this.flush()
-	}
-
-	// future fill: provide NaN data
-	if (at > this.total) {
-		this.set(Array(at - this.total), this.total)
-	}
-
-	this.dirty = true
-
-	// carefully handle array
-	if (Array.isArray(samples)) {
-		let floatSamples = pool.mallocFloat64(samples.length)
-
-		for (let i = 0; i < samples.length; i++) {
-			// put NaN samples as indicators of blank samples
-			if (samples[i] == null || isNaN(samples[i])) {
-				floatSamples[i] = NaN
-			}
-			else {
-				floatSamples[i] = samples[i]
-			}
-		}
-
-		samples = floatSamples
-	}
-
-	// detect min/maxY
-	for (let i = 0; i < samples.length; i++) {
-		if (this.minY > samples[i]) this.minY = samples[i]
-		if (this.maxY < samples[i]) this.maxY = samples[i]
-	}
-
-	// detect textureShape based on limits
-	// in order to reset sum2 more frequently to reduce error
-	if (!this.textureShape) {
-		this.textureShape = [512, 512]
-		this.textureLength = this.textureShape[0] * this.textureShape[1]
-	}
-
-	let [txtW, txtH] = this.textureShape
-	let txtLen = this.textureLength
-
-	let offset = at % txtLen
-	let id = Math.floor(at / txtLen)
-	let y = Math.floor(offset / txtW)
-	let x = offset % txtW
-	let tillEndOfTxt = txtLen - offset
-	let ch = this.textureChannels
-
-	// get current texture
-	let txt = this.textures[id]
-	let txtFract = this.textures2[id]
-
-	if (!txt) {
-		let txtData = pool.mallocFloat64(txtLen * ch)
-
-		// fill txt data with NaNs for proper start/end/gap detection
-		for (let i = 0; i < txtData.length; i+=ch) {
-			txtData[i + 0] =
-			txtData[i + 1] =
-			txtData[i + 2] = 0
-			txtData[i + 3] = -1
-		}
-
-		txt = this.textures[id] = this.regl.texture({
-			width: this.textureShape[0],
-			height: this.textureShape[1],
-			channels: ch,
-			type: 'float',
-			min: 'nearest',
-			mag: 'nearest',
-			// min: 'linear',
-			// mag: 'linear',
-			wrap: ['clamp', 'clamp'],
-			data: f32.float(txtData)
-		})
-		this.lastY = txt.sum = txt.sum2 = 0
-
-		txtFract = this.textures2[id] = this.regl.texture({
-			width: this.textureShape[0],
-			height: this.textureShape[1],
-			channels: ch,
-			type: 'float',
-			min: 'nearest',
-			mag: 'nearest',
-			// min: 'linear',
-			// mag: 'linear',
-			wrap: ['clamp', 'clamp']
-		})
-
-		txt.data = txtData
-	}
-
-	// calc sum, sum2 and form data for the samples
-	let dataLen = Math.min(tillEndOfTxt, samples.length)
-	let data = txt.data.subarray(offset * ch, offset * ch + dataLen * ch)
-	for (let i = 0, l = dataLen; i < l; i++) {
-		// put NaN samples as indicators of blank samples
-		if (!isNaN(samples[i])) {
-			data[i * ch] = this.lastY = samples[i]
-			data[i * ch + 3] = 0
-		}
-		else {
-			data[i * ch] = NaN
-
-			// write NaN values as a definite flag
-			data[i * ch + 3] = -1
-		}
-
-		txt.sum += this.lastY
-		txt.sum2 += this.lastY * this.lastY
-
-		// we cannot rotate sums here because there can be any number of rotations between two edge samples
-		// also that is hard to guess correct rotation limit, that can change at any new data
-		// so we just keep precise secondary texture and hope the sum is not huge enough to reset at the next texture
-		data[i * ch + 1] = txt.sum
-		data[i * ch + 2] = txt.sum2
-	}
-	// increase total by the number of new samples
-	if (this.total - at < dataLen) this.total += dataLen - (this.total - at)
-
-	// fullfill last unfinished row
-	let firstRowWidth = 0
-	if (x) {
-		firstRowWidth = Math.min(txtW - x, dataLen)
-
-		writeTexture(x, y, firstRowWidth, 1, data.subarray(0, firstRowWidth * ch))
-
-		// if data is shorter than the texture row - skip the rest
-		if (x + samples.length <= txtW) {
-			pool.freeFloat64(samples)
-			pool.freeFloat64(data)
-			return this
-		}
-
-		y++
-
-		// shortcut next texture block
-		if (y === txtH) {
-			pool.freeFloat64(data)
-			this.push(samples.subarray(firstRowWidth))
-			pool.freeFloat64(samples)
-			return this
-		}
-
-		offset += firstRowWidth
-	}
-
-	// put rect with data
-	let h = Math.floor((dataLen - firstRowWidth) / txtW)
-	let blockLen = 0
-	if (h) {
-		blockLen = h * txtW
-
-		writeTexture(0, y, txtW, h, data.subarray(firstRowWidth * ch, (firstRowWidth + blockLen) * ch))
-		y += h
-	}
-
-	// put last row
-	let lastRowWidth = dataLen - firstRowWidth - blockLen
-	if (lastRowWidth) {
-		writeTexture(0, y, lastRowWidth, 1, data.subarray(-lastRowWidth * ch))
-	}
-
-	// shorten block till the end of texture
-	if (tillEndOfTxt < samples.length) {
-		this.set(samples.subarray(tillEndOfTxt), this.total)
-
-		pool.freeFloat64(samples)
-		pool.freeFloat64(data)
-
-		return this
-	}
-
-	// put data to texture, provide NaN transport & performant fractions calc
-	function writeTexture (x, y, w, h, data) {
-		let f32data = pool.mallocFloat32(data.length)
-		let f32fract = pool.mallocFloat32(data.length)
-
-		for (let i = 0; i < data.length; i++) {
-			f32data[i] = data[i]
-			f32fract[i] = data[i] - f32data[i]
-		}
-
-		txt.subimage({
-			width: w,
-			height: h,
-			data: f32data
-		}, x, y)
-		txtFract.subimage({
-			width: w,
-			height: h,
-			data: f32fract
-		}, x, y)
-
-		pool.freeFloat32(f32data)
-		pool.freeFloat32(f32fract)
-	}
-
-	return this
-}
-
-// get data at a point
-Waveform.prototype.pick = function (x) {
-	if (!this.storeData) throw Error('Picking is disabled. Enable it via constructor options.')
-
-	if (typeof x !== 'number') {
-		x = Math.max(x.clientX - elOffset(this.canvas).left, 0)
-	}
-
-	let {span, translater, translateri, viewport, currTexture, sampleStep, pxPerSample, pxStep, amplitude} = this.calc()
-
-	let txt = this.textures[currTexture]
-
-	if (!txt) return null
-
-	let xOffset = Math.floor(span * x / viewport[2])
-	let offset = Math.floor(translater + xOffset)
-	let xShift = translater - translateri
-
-	if (offset < 0 || offset > this.total) return null
-
-	let ch = this.textureChannels
-	// FIXME: use samples array
-	let data = txt.data
-
-	let samples = data.subarray(offset * ch, offset * ch + ch)
-
-	// single-value pick
-	// if (pxPerSample >= 1) {
-		let avg = samples[0]
-		return {
-			average: avg,
-			sdev: 0,
-			offset: [offset, offset],
-			x: viewport[2] * (xOffset - xShift) / span + this.viewport.x,
-			y: ((-avg - amplitude[0]) / (amplitude[1] - amplitude[0])) * this.viewport.height + this.viewport.y
-		}
-	// }
-
-	// FIXME: multi-value pick
-}
-
-// clear viewport area occupied by the renderer
-Waveform.prototype.clear = function () {
-	if (!this.drawOptions) return this
-
-	let {gl, regl} = this
-	let {x, y, width, height} = this.viewport
-    gl.enable(gl.SCISSOR_TEST)
-    gl.scissor(x, y, width, height)
-
-	// FIXME: avoid depth here
-    regl.clear({color: [0, 0, 0, 0], depth: 1})
-    gl.clear(gl.COLOR_BUFFRE_BIT | gl.DEPTH_BUFFER_BIT)
-
-    gl.disable(gl.SCISSOR_TEST)
-
+void main() {
+  vec2 p = gl_FragCoord.xy - origin;
+  float d = 1e9, e = 1e9, r = 0.; // distance to the shape, to the nearest sample; RMS coverage
+  if (line == 0) {
+    // envelope: column i spans [lo, hi] at its center, neighbouring centers are joined; x is relative to this column
+    int x = int(p.x), R = int(ceil(hw + .5));
+    vec2 q = vec2(0, p.y);
+    vec4 a = vec4(1, 0, 0, 0);
+    for (int i = max(x - R, 0); i <= min(x + R, count - 1); i++) {
+      vec4 b = at(i);
+      float cx = float(i - x);
+      if (b.x <= b.y) {
+        d = min(d, length(vec2(cx, max(max(b.x - p.y, p.y - b.y), 0.))));
+        if (a.x <= a.y) d = min(d, min(seg(q, vec2(cx - 1., a.x), vec2(cx, b.x)), seg(q, vec2(cx - 1., a.y), vec2(cx, b.y))));
+      }
+      a = b;
+    }
+    vec4 t = at(x);
+    if (dense == 1 && t.x <= t.y) {
+      // the share of the column's samples at or beyond this level, S = 1 − (|v| / P)^k from its peak P and RMS R:
+      // k = 2q / (1 − q), q = R² / P², gives that RMS (a sine fits k = 2; the higher the crest, the lower k)
+      float v = p.y - zero, P = v >= 0. ? t.y - zero : zero - t.x, R = max(t.w - zero, zero - t.z);
+      float q = P > 0. ? clamp(R * R / (P * P), 0., .98) : .98;
+      r = mix(1., 1. - pow(clamp(abs(v) / max(P, 1e-6), 0., 1.), 2. * q / (1. - q)), fade);
+    }
+    else r = clamp(min(t.w, p.y + .5) - max(t.z, p.y - .5), 0., 1.);
+  } else {
+    // line through the samples, dots at the samples
+    float j = p.x / pps - off, reach = (max(hw, rad) + .5) / pps;
+    vec2 a = vec2(0);
+    bool va = false;
+    for (int i = max(int(floor(j - reach)), 0); i <= min(int(ceil(j + reach)), count - 1); i++) {
+      vec4 t = at(i);
+      vec2 b = vec2((float(i) + off) * pps, t.x);
+      bool vb = t.x <= t.y;
+      if (vb) {
+        e = min(e, distance(p, b));
+        if (va) d = min(d, seg(p, a, b));
+      }
+      a = b; va = vb;
+    }
+    d = min(d, e);
+  }
+  float c = clamp(max(hw + .5 - d, rad + .5 - e), 0., 1.);
+  // dense: the fill as bright as the signal is often there, a peak reached once still at 30 %
+  frag = dense == 1 && line == 0 ? color * c * mix(.3, 1., r) : rms * r + color * c * (1. - rms.a * r);
+}`
+
+const UNIFORMS = ['data', 'origin', 'count', 'line', 'dense', 'pps', 'off', 'hw', 'rad', 'zero', 'fade', 'color', 'rms']
+const UNPACK = ['UNPACK_ALIGNMENT', 4, 'UNPACK_ROW_LENGTH', 0, 'UNPACK_SKIP_ROWS', 0, 'UNPACK_SKIP_PIXELS', 0, 'UNPACK_FLIP_Y_WEBGL', 0, 'UNPACK_PREMULTIPLY_ALPHA_WEBGL', 0]
+
+// Programs are shared by all instances on a context and dropped when it is lost
+const programs = new WeakMap()
+
+export default class Waveform {
+  #chunks = []      // samples: Float32Array chunks of C, null where nothing was written (reads as NaN)
+  #owned = new WeakSet() // chunks this instance allocated; the rest are views of the caller's array, never written
+  #n = 0            // length
+  #tree = []        // pyramid: tree[L] holds [min, max, sum², count] per node of B·2^L samples
+  #version = 0      // bumps on every data change
+  #range = null     // [from, to] or null for all data
+  #amplitude = [-1, 1]
+  #viewport = null  // CSS px [x, y, w, h] or null for the whole canvas
+  #color = COLOR
+  #rms = null       // color, false to hide, null for a tint of #color
+  #density = false  // fill shaded by how often the signal reaches each level, in place of the RMS band
+  #thickness = 1
+  #pixelRatio = null
+  #o = new Float64Array(4)    // query scratch
+  #cols = new Float64Array(0) // per column [from, to, min, max, rms]
+  #key = ''                   // state #cols was computed for
+  #buf = new Float32Array(0)  // texels
+  #draw = null                // what #buf holds
+  #tex = null
+  #rows = 0
+  #drawn = false
+
+  constructor(target, options) {
+    let gl = target?.getContext ? target.getContext('webgl2', ATTRS) : target
+    if (!(gl instanceof WebGL2RenderingContext)) throw TypeError('gl-waveform: expected a canvas that supports WebGL2, or a WebGL2RenderingContext')
+    this.gl = gl
+    this.canvas = gl.canvas
+    this.canvas.addEventListener?.('webglcontextlost', this.#lost)
+    this.canvas.addEventListener?.('webglcontextrestored', this.#restored)
+    if (!gl.isContextLost()) program(gl, false)
+    if (options) this.update(options)
+  }
+
+  get length() { return this.#n }
+  get range() { return this.#range ? [...this.#range] : [0, this.#n] }
+  get amplitude() { return [...this.#amplitude] }
+
+  /** Set any of data, range, amplitude, viewport, color, rms, density, thickness, pixelRatio; null restores the default. */
+  update(o = {}) {
+    if (o.data !== undefined) this.#load(o.data)
+    if (o.range !== undefined) this.#range = o.range && nums(o.range, 2, 'range')
+    if (o.amplitude !== undefined) this.#amplitude = o.amplitude ? nums(o.amplitude, 2, 'amplitude') : [-1, 1]
+    if (o.viewport !== undefined) this.#viewport = o.viewport && nums(o.viewport, 4, 'viewport')
+    if (o.thickness !== undefined) this.#thickness = o.thickness == null ? 1 : nums([o.thickness], 1, 'thickness')[0]
+    if (o.pixelRatio !== undefined) this.#pixelRatio = o.pixelRatio == null ? null : nums([o.pixelRatio], 1, 'pixelRatio')[0]
+    if (o.color !== undefined) this.#color = o.color == null ? COLOR : rgba(o.color, this.gl)
+    if (o.rms !== undefined) this.#rms = o.rms === false ? false : o.rms == null || o.rms === true ? null : rgba(o.rms, this.gl)
+    if (o.density !== undefined) this.#density = !!o.density
+    this.#draw = null
     return this
+  }
+
+  /** Append samples. */
+  push(samples) { return this.set(samples, this.#n) }
+
+  /** Write samples at offset, extending the data if needed; a gap before offset reads as NaN. */
+  set(samples, offset = 0) {
+    offset = Math.trunc(offset)
+    if (!(offset >= 0)) throw RangeError('gl-waveform: offset must be ≥ 0')
+    if (!ArrayBuffer.isView(samples)) samples = Float32Array.from(samples)
+    let end = offset + samples.length, from = Math.min(offset, this.#n)
+    if (end === offset) return this
+    for (let i = offset; i < end;) {
+      let j = Math.floor(i / C), o = i - j * C, m = Math.min(C - o, end - i)
+      this.#own(j).set(samples.subarray(i - offset, i - offset + m), o)
+      i += m
+    }
+    this.#n = Math.max(this.#n, end)
+    this.#index(from, end)
+    this.#version++
+    this.#draw = null
+    return this
+  }
+
+  /** Draw into the viewport, over what is there. */
+  render() {
+    let gl = this.gl
+    this.#drawn = true
+    if (gl.isContextLost()) return this
+    let [X, Y, W, H] = this.#rect(), d = this.#fill(W, H)
+    if (!d.count) return this
+    let { prog, vao, u } = program(gl)
+    gl.activeTexture(gl.TEXTURE0)
+    if (!this.#tex || d.rows > this.#rows) {
+      gl.deleteTexture(this.#tex)
+      gl.bindTexture(gl.TEXTURE_2D, this.#tex = gl.createTexture())
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, TW, this.#rows = d.rows)
+      d.uploaded = false
+    }
+    else gl.bindTexture(gl.TEXTURE_2D, this.#tex)
+    if (!d.uploaded) {
+      gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null)
+      for (let i = 0; i < UNPACK.length; i += 2) gl.pixelStorei(gl[UNPACK[i]], UNPACK[i + 1])
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, TW, d.rows, gl.RGBA, gl.FLOAT, this.#buf)
+      d.uploaded = true
+    }
+    gl.useProgram(prog)
+    gl.bindVertexArray(vao)
+    this.#target(X, Y, W, H)
+    gl.disable(gl.DEPTH_TEST)
+    gl.disable(gl.STENCIL_TEST)
+    gl.disable(gl.CULL_FACE)
+    gl.enable(gl.BLEND)
+    gl.blendEquation(gl.FUNC_ADD)
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+    gl.viewport(X, Y, W, H)
+    gl.uniform1i(u.data, 0)
+    gl.uniform2f(u.origin, X, Y)
+    gl.uniform1i(u.count, d.count)
+    gl.uniform1i(u.line, d.line)
+    gl.uniform1f(u.pps, d.pps)
+    gl.uniform1f(u.off, d.off)
+    gl.uniform1f(u.hw, d.hw)
+    gl.uniform1f(u.rad, d.rad)
+    gl.uniform1i(u.dense, +this.#density)
+    gl.uniform1f(u.zero, d.zero)
+    gl.uniform1f(u.fade, d.fade)
+    let c = this.#color, r = this.#rms ?? tint(c), a = r ? r[3] * d.fade : 0
+    gl.uniform4f(u.color, c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3])
+    gl.uniform4f(u.rms, a && r[0] * a, a && r[1] * a, a && r[2] * a, a)
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+    return this
+  }
+
+  /** Clear the viewport to transparent. */
+  clear() {
+    let gl = this.gl
+    if (gl.isContextLost()) return this
+    this.#target(...this.#rect())
+    gl.clearColor(0, 0, 0, 0)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+    return this
+  }
+
+  /** Samples under the column at x (CSS px from the viewport's left): { from, to, min, max, rms } or null. */
+  pick(x) {
+    let [X, , W] = this.#rect(), [r0, r1] = this.range, spp = (r1 - r0) / W
+    let c = Math.floor(((this.#viewport?.[0] ?? 0) + x) * this.#pr()) - X
+    if (!(c >= 0 && c < W && spp > 0 && spp < Infinity)) return null
+    if (spp > 1) {
+      let s = this.#columns(W), k = c * 5
+      return s[k + 2] <= s[k + 3] ? { from: s[k], to: s[k + 1], min: s[k + 2], max: s[k + 3], rms: s[k + 4] } : null
+    }
+    let k = Math.round(r0 + (c + .5) * spp) + 0, v = this.#at(k)
+    return v === v ? { from: k, to: k + 1, min: v, max: v, rms: Math.abs(v) } : null
+  }
+
+  destroy() {
+    this.canvas.removeEventListener?.('webglcontextlost', this.#lost)
+    this.canvas.removeEventListener?.('webglcontextrestored', this.#restored)
+    if (!this.gl.isContextLost()) this.gl.deleteTexture(this.#tex)
+    this.#tex = null
+    this.#draw = null
+    this.#chunks = []
+    this.#tree = []
+    this.#n = 0
+  }
+
+  // ── data ────────────────────────────────────────────────────────────────
+
+  // The pyramid's arrays are kept for data up to 2× shorter, so new PCM for the same file allocates nothing
+  #load(data) {
+    let d = data instanceof Float32Array ? data : Float32Array.from(data ?? [])
+    this.#chunks = []
+    for (let i = 0; i < d.length; i += C) this.#chunks.push(d.subarray(i, i + C))
+    if (d.length > this.#n || d.length * 2 < this.#n) this.#tree = []
+    this.#n = d.length
+    this.#index(0, this.#n)
+    this.#version++
+  }
+
+  // Writable chunk j: allocated over a gap, copied from a view of the caller's array
+  #own(j) {
+    let d = this.#chunks[j]
+    if (this.#owned.has(d)) return d
+    while (this.#chunks.length < j) this.#chunks.push(null)
+    let e = new Float32Array(C).fill(NaN)
+    if (d) e.set(d)
+    this.#owned.add(e)
+    return this.#chunks[j] = e
+  }
+
+  #at(i) {
+    let d = i >= 0 && i < this.#n && this.#chunks[Math.floor(i / C)]
+    return d ? d[i % C] : NaN
+  }
+
+  // Rebuild the pyramid nodes covering samples [a, b)
+  #index(a, b) {
+    let n = this.#n, t = this.#tree
+    if (!n) return void (t.length = 0)
+    let lo = Math.floor(a / B), hi = Math.ceil(b / B), size = Math.ceil(n / B), prev = 0
+    for (let L = 0; ; L++) {
+      let v = t[L] = grow(t[L], size * 4), w = t[L - 1]
+      for (let j = lo; j < hi; j++) {
+        let p = j * 4
+        v[p] = Infinity; v[p + 1] = -Infinity; v[p + 2] = v[p + 3] = 0
+        if (!L) this.#scan(j * B, Math.min(j * B + B, n), v, p)
+        else { merge(v, p, w, 2 * p); if (2 * j + 1 < prev) merge(v, p, w, 2 * p + 4) }
+      }
+      if (size === 1) return void (t.length = L + 1)
+      lo >>= 1; hi = (hi + 1) >> 1; prev = size; size = (size + 1) >> 1
+    }
+  }
+
+  // Accumulate samples [a, b), within one chunk, into v[p..p+3] = [min, max, sum², count]
+  #scan(a, b, v, p) {
+    let j = Math.floor(a / C), d = this.#chunks[j]
+    if (a >= b || !d) return
+    let s = a - j * C, e = b - j * C, lo = v[p], hi = v[p + 1], q = 0, k = e - s
+    for (let i = s; i < e; i++) { let x = d[i]; if (x < lo) lo = x; if (x > hi) hi = x; q += x * x }
+    if (q !== q) { q = 0; k = 0; for (let i = s; i < e; i++) { let x = d[i]; if (x === x) q += x * x, k++ } }
+    v[p] = lo; v[p + 1] = hi; v[p + 2] += q; v[p + 3] += k
+  }
+
+  // Exact [min, max, sum², count] of samples [a, b) into o
+  #stat(a, b, o) {
+    o[0] = Infinity; o[1] = -Infinity; o[2] = o[3] = 0
+    let ja = Math.ceil(a / B), jb = Math.floor(b / B)
+    if (ja > jb) return this.#scan(a, b, o, 0)
+    this.#scan(a, ja * B, o, 0)
+    this.#scan(jb * B, b, o, 0)
+    for (let L = 0; ja < jb; L++) {
+      let v = this.#tree[L]
+      if (ja & 1) merge(o, 0, v, 4 * ja++)
+      if (jb & 1) merge(o, 0, v, 4 * --jb)
+      ja >>= 1; jb >>= 1
+    }
+  }
+
+  // ── view ────────────────────────────────────────────────────────────────
+
+  #pr() { return this.#pixelRatio || globalThis.devicePixelRatio || 1 }
+
+  // Viewport in device px, GL origin: [x, y, w, h]
+  #rect() {
+    let gl = this.gl, H = gl.drawingBufferHeight
+    if (!this.#viewport) return [0, 0, gl.drawingBufferWidth, H]
+    let pr = this.#pr(), [x, y, w, h] = this.#viewport, X = Math.round(x * pr), Y = Math.round((y + h) * pr)
+    return [X, H - Y, Math.round((x + w) * pr) - X, Y - Math.round(y * pr)]
+  }
+
+  #target(X, Y, W, H) {
+    let gl = this.gl
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.enable(gl.SCISSOR_TEST)
+    gl.scissor(X, Y, W, H)
+    gl.colorMask(true, true, true, true)
+  }
+
+  // Per-column stats for width W. Column c starts at sample ceil((q+c)·spp), q = floor(from / spp): anchored to
+  // multiples of samples per pixel, so a pan moves whole columns. From 4 leaves per pixel, edges round to a leaf edge
+  // (1/8 px off at most), so a column is whole pyramid nodes and costs O(log n) instead of two partial-leaf scans.
+  #columns(W) {
+    let [r0, r1] = this.range, key = `${this.#version} ${r0} ${r1} ${W}`
+    if (key === this.#key) return this.#cols
+    let spp = (r1 - r0) / W, q = Math.floor(r0 / spp), n = this.#n, o = this.#o, snap = spp >= 4 * B
+    let edge = c => snap ? Math.round(Math.ceil((q + c) * spp) / B) * B : Math.ceil((q + c) * spp)
+    if (this.#cols.length < W * 5) this.#cols = new Float64Array(W * 5)
+    let s = this.#cols, b = edge(0)
+    for (let c = 0, k = 0; c < W; c++, k += 5) {
+      let a = Math.max(b, 0)
+      b = edge(c + 1)
+      let e = Math.min(b, n)
+      if (a < e) this.#stat(a, e, o)
+      else o[0] = Infinity, o[1] = -Infinity, o[3] = 0
+      s[k] = a; s[k + 1] = Math.max(a, e); s[k + 2] = o[0]; s[k + 3] = o[1]; s[k + 4] = o[3] && Math.sqrt(o[2] / o[3])
+    }
+    this.#key = key
+    return s
+  }
+
+  // Texels for a W×H viewport
+  #fill(W, H) {
+    let pr = this.#pr(), [r0, r1] = this.range, [a0, a1] = this.#amplitude, key = `${W} ${H} ${pr}`
+    if (this.#draw?.key === key) return this.#draw
+    let spp = (r1 - r0) / W, ky = H / (a1 - a0), hw = Math.max(this.#thickness * pr / 2, .5), m = hw + 2
+    let d = this.#draw = { key, count: 0, rows: 0, line: 0, pps: 1 / spp, off: 0, hw, rad: 0, fade: 0, zero: 0, uploaded: false }
+    if (!(spp > 0 && spp < Infinity && Math.abs(ky) < Infinity && H > 0)) return d
+    // the middle of the amplitude range sits on a pixel center for odd line widths, on an edge for even, so silence is crisp
+    let y0 = Math.round(2 * hw) % 2 ? Math.floor(H / 2) + .5 : Math.round(H / 2), mid = (a0 + a1) / 2
+    let y = v => { v = y0 + (v - mid) * ky; return v < -m ? -m : v > H + m ? H + m : v }
+    d.zero = y(0)
+
+    if (spp > 1) {
+      let s = this.#columns(W), t = this.#texels(W), f = Math.min((spp - 1) / 3, 1)
+      for (let c = 0, k = 0, p = 0; c < W; c++, k += 5, p += 4) {
+        let lo = s[k + 2], hi = s[k + 3], r = s[k + 4]
+        if (lo > hi) { t[p] = t[p + 2] = 1; t[p + 1] = t[p + 3] = 0; continue }
+        let yl = y(lo), yh = y(hi), rl = y(Math.max(-r, lo)), rh = y(Math.min(r, hi))
+        t[p] = Math.min(yl, yh); t[p + 1] = Math.max(yl, yh); t[p + 2] = Math.min(rl, rh); t[p + 3] = Math.max(rl, rh)
+      }
+      d.count = W
+      d.fade = f * f * (3 - 2 * f) // the RMS band fades in over 1–4 samples per px, where columns start to hold several
+    }
+    else {
+      let pps = 1 / spp, R = (this.#thickness + 3) / 2 * pr, f = Math.min(Math.max((pps / pr - DOT) / DOT, 0), 1)
+      d.rad = f && hw + (R - hw) * f * f * (3 - 2 * f)
+      let g = Math.ceil((Math.max(hw, d.rad) + .5) / pps) + 1
+      let k0 = Math.max(Math.floor(r0) - g, 0), k1 = Math.min(Math.ceil(r1) + g, this.#n - 1)
+      if (k1 < k0) return d
+      let t = this.#texels(k1 - k0 + 1)
+      for (let k = k0, p = 0; k <= k1; k++, p += 4) {
+        let v = this.#at(k)
+        if (v === v) t[p] = t[p + 1] = y(v)
+        else t[p] = 1, t[p + 1] = 0
+      }
+      d.count = k1 - k0 + 1; d.line = 1; d.off = k0 - r0
+    }
+    d.rows = Math.ceil(d.count / TW)
+    return d
+  }
+
+  #texels(count) {
+    let len = Math.ceil(count / TW) * TW * 4
+    if (this.#buf.length < len) this.#buf = new Float32Array(len)
+    return this.#buf
+  }
+
+  #lost = e => {
+    e.preventDefault()
+    programs.delete(this.gl)
+    this.#tex = null
+    this.#rows = 0
+    this.#draw = null
+  }
+
+  #restored = () => { if (this.#drawn) this.render() }
 }
 
-// dispose all resources
-Waveform.prototype.destroy = function () {
-	this.textures.forEach(txt => {
-		txt.destroy()
-	})
-	this.textures2.forEach(txt => {
-		txt.destroy()
-	})
+// ── helpers ───────────────────────────────────────────────────────────────
+
+function merge(v, p, w, q) {
+  if (w[q] < v[p]) v[p] = w[q]
+  if (w[q + 1] > v[p + 1]) v[p + 1] = w[q + 1]
+  v[p + 2] += w[q + 2]
+  v[p + 3] += w[q + 3]
 }
 
-
-// style
-// Waveform.prototype.color
-Waveform.prototype.opacity = 1
-Waveform.prototype.thickness = 1
-Waveform.prototype.mode = null
-// Waveform.prototype.fade = true
-
-Waveform.prototype.flip = false
-
-// Texture size affects
-// - sdev error: bigger texture accumulate sum2 error so signal looks more fluffy
-// - performance: bigger texture is slower to create
-// - zoom level: only 2 textures per screen are available, so zoom is limited
-// - max number of textures
-Waveform.prototype.textureShape
-Waveform.prototype.textureLength
-Waveform.prototype.textureChannels = 4
-Waveform.prototype.maxSampleCount = 8192 * 2
-
-
-function isRegl (o) {
-	return typeof o === 'function' &&
-	o._gl &&
-	o.prop &&
-	o.texture &&
-	o.buffer
+function grow(a, len) {
+  if (a?.length >= len) return a
+  let b = new Float64Array(Math.max(len, (a?.length ?? 0) * 2))
+  if (a) b.set(a)
+  return b
 }
 
-function isNeg(v) {
-	return v < 0 || neg0(v)
+function nums(v, len, name) {
+  let a = Array.from({ length: len }, (_, i) => +v?.[i])
+  if (!a.every(Number.isFinite)) throw TypeError(`gl-waveform: ${name} must be ${len > 1 ? len + ' finite numbers' : 'a finite number'}`)
+  return a
 }
 
-function toPx(str) {
-	if (typeof str === 'number') return str
-	if (!isBrowser) return parseFloat(str)
-	let unit = parseUnit(str)
-	return unit[0] * px(unit[1])
+// RMS band default: the line color, lightened
+function tint(c) { return [c[0] + (1 - c[0]) * .45, c[1] + (1 - c[1]) * .45, c[2] + (1 - c[2]) * .45, c[3]] }
+
+// Compiling starts with the first waveform on a context, so the driver works on it while data loads; the first draw waits
+function program(gl, ready = true) {
+  let p = programs.get(gl)
+  if (!p) {
+    let prog = gl.createProgram(), shaders = [[gl.VERTEX_SHADER, VERT], [gl.FRAGMENT_SHADER, FRAG]].map(([type, src]) => {
+      let s = gl.createShader(type)
+      gl.shaderSource(s, src)
+      gl.compileShader(s)
+      gl.attachShader(prog, s)
+      return s
+    })
+    gl.linkProgram(prog)
+    programs.set(gl, p = { prog, shaders, vao: gl.createVertexArray(), u: null })
+  }
+  if (ready && !p.u) {
+    if (!gl.getProgramParameter(p.prog, gl.LINK_STATUS)) throw Error('gl-waveform: ' + p.shaders.map(s => gl.getShaderInfoLog(s)).join('') + gl.getProgramInfoLog(p.prog))
+    p.u = {}
+    for (let name of UNIFORMS) p.u[name] = gl.getUniformLocation(p.prog, name)
+  }
+  return p
 }
 
-function mirrorProperty(a, name, b) {
-	Object.defineProperty(a, name, {
-		get: () => b[name],
-		set: (v) => b[name] = v
-	})
+// CSS color → [r, g, b, a] 0..1 in the context's color space; arrays pass through
+const ctx2d = {}
+function rgba(c, gl) {
+  if (typeof c !== 'string') return nums([c[0], c[1], c[2], c[3] ?? 1], 4, 'color').map(v => Math.min(Math.max(v, 0), 1))
+  let space = gl.drawingBufferColorSpace || 'srgb'
+  let ctx = ctx2d[space] ??= (globalThis.OffscreenCanvas ? new OffscreenCanvas(1, 1) : document.createElement('canvas')).getContext('2d', { colorSpace: space, willReadFrequently: true })
+  ctx.fillStyle = '#000'; ctx.fillStyle = c
+  if (ctx.fillStyle === '#000000') { ctx.fillStyle = '#fff'; ctx.fillStyle = c; if (ctx.fillStyle === '#ffffff') throw TypeError(`gl-waveform: invalid color ${c}`) }
+  ctx.clearRect(0, 0, 1, 1)
+  ctx.fillRect(0, 0, 1, 1)
+  let d = ctx.getImageData(0, 0, 1, 1).data
+  return [d[0] / 255, d[1] / 255, d[2] / 255, d[3] / 255]
 }
-
-module.exports = Waveform

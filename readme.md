@@ -1,120 +1,129 @@
-# gl-waveform [![unstable](https://img.shields.io/badge/stability-unstable-green.svg)](http://github.com/badges/stability-badges) [![Build Status](https://img.shields.io/travis/dy/gl-waveform.svg)](https://travis-ci.org/dy/gl-waveform)
+# gl-waveform
 
-Display time-domain data with WebGL. Provides fair performance / quality among other renderers:
+WebGL2 waveform renderer for audio editors. Zoomed out, every pixel column shows the exact min and max of its samples, joined into one outline, with an RMS band inside. Zoomed in, an anti-aliased line runs through the samples, with dots. Pans and zooms at 60 fps over an hour of 48 kHz audio, with no float32 jitter at sample offsets past 1e9.
 
-* no performance deterioration - O(n) for update, O(c) for rendering.
-* no memory limit - O(c * n).
-* no float32 error introduced by shader, at any scale/range/amount of data.
-* floating step compensation for non-regular sample sets.
-* unique render method of adjustable join-width via sample range sdev.
+<img src="example/preview.png" width="968" alt="An hour of synthetic stereo speech in two lanes: a single-sample spike at 18:36, silence gaps, a clipped stretch at 40:00">
 
-[Demo 1](https://dy.github.io/gl-waveform/example/data), [Demo 2](https://dy.github.io/gl-waveform/example/multi)
+[Demo](https://dy.github.io/gl-waveform/example/): an hour of synthetic stereo speech with a one-sample spike, silences and clipping. Zoom, pan, record.
 
 ## Usage
 
-Install package as
-
-[![npm i gl-waveform](https://nodei.co/npm/gl-waveform.png?mini=true)](https://npmjs.org/package/gl-waveform/)
-
-Examplary set up is
+`npm i gl-waveform`
 
 ```js
-let Waveform = require('gl-waveform')
+import Waveform from 'gl-waveform'
 
-// new component instance creates new canvas and puts that to document
-let waveform = new Waveform()
+// the drawing buffer is yours to size
+canvas.width = canvas.clientWidth * devicePixelRatio
+canvas.height = canvas.clientHeight * devicePixelRatio
 
-// update method sets state of the component: data, color etc.
-waveform.update({
-	data: [0, .5, 1, .5, 0, -.5, -1, ...],
-	color: 'gray',
-	range: [0, 44100]
-})
+let wf = new Waveform(canvas, { data: samples })  // mono Float32Array
+wf.render()
 
-// render method draws frame, needs to be called when state is changed
-waveform.render()
+// on every frame of a zoom or pan
+wf.update({ range: [from, to] }).clear().render()
+```
 
-// push method appends new data
-waveform.push(newData)
-waveform.render()
+Stereo, as two lanes on one canvas:
+
+```js
+let lanes = [left, right].map((data, i) => new Waveform(canvas, { data, viewport: [0, i * 100, 800, 100] }))
+for (let wf of lanes) wf.update({ range }).clear().render()
 ```
 
 ## API
 
-### `waveform = new Waveform(arg|options?)`
+### `new Waveform(target, options?)`
 
-`arg` can be:
+`target` is a canvas, whose WebGL2 context is created (`preserveDrawingBuffer: true`, `antialias: false`) or reused, or a `WebGL2RenderingContext` to share. Waveforms on one context share one shader program; each has its own small texture. `options` go to `update()`.
 
-* `gl` - existing webgl context.
-* `regl` - existing [regl](https://ghub.io/regl) instance.
-* `canvas` - canvas element to initialize waveform on.
-* `container` - html element to use as a container for new canvas with webgl context.
-* `waveform` - gl-waveform instance to create a view for. In this case, the data will be shared.
-* none - new fullscreen canvas in the `<body>`.
+### `wf.update(options)`
 
-`options` can provide:
+Option | Default | Meaning
+---|---|---
+`data` | empty | Mono samples; replaces all data. A `Float32Array` is referenced, not copied, and never written to; other array-likes are converted.
+`range` | `[0, length]` | Visible `[from, to]` in samples: fractional, may extend past the data.
+`amplitude` | `[-1, 1]` | Values at the viewport's bottom and top; `[1, -1]` flips.
+`viewport` | whole canvas | `[x, y, width, height]` in CSS px from the canvas' top-left corner.
+`color` | blue | Line and envelope: a CSS color, `oklch()` included, or `[r, g, b, a]` in 0..1.
+`rms` | `color`, lightened | RMS band color; `false` hides the band.
+`density` | `false` | Zoomed out, the fill is as bright as the signal is often at that level, in place of the RMS band: a level reached once stays at 30 %.
+`thickness` | `1` | Line width in CSS px, at least one device pixel.
+`pixelRatio` | `devicePixelRatio` | Device px per CSS px.
 
-Property | Meaning
+Keys left out keep their value, `null` restores the default. `update({ range })` only stores the range: cheap enough for every frame.
+
+### Methods
+
+Method | Does
 ---|---
-`gl`, `regl`, `canvas`, `container` | Same as `arg`.
-`pixelRatio` | Device pixel ratio, by default `window.devicePixelRatio`.
-`clip` | Viewport area within the canvas, an array `[left, top, width, height]` or rectangle `{x, y, width, height}`, see [parse-rect](https://ghub.io/parse-rect).
-`flip` | Use inverted webgl viewport direction (bottom → top) instead of normal canvas2d direction (top → bottom). By default `false`.
-`pick` | If picking data is required. By default `true`. Disabling reduces memory usage and increases `push` performance.
+`wf.render()` | Draws into the viewport, over what is there. Does nothing while the context is lost.
+`wf.clear()` | Clears the viewport to transparent.
+`wf.push(samples)` | Appends samples.
+`wf.set(samples, offset)` | Writes samples from `offset`, extending the data if needed; a gap before `offset` reads as NaN.
+`wf.pick(x)` | The pixel column at `x` CSS px from the viewport's left: `{ from, to, min, max, rms }` of its samples `[from, to)`, or `null` over a gap. Zoomed in, the sample nearest the column's center.
+`wf.destroy()` | Releases the texture, the data and the event listeners.
 
-### `waveform.update(options)`
+Properties: `wf.gl`, `wf.canvas`, `wf.length`, `wf.range` (resolved), `wf.amplitude`.
 
-Update state of the renderer instance. Possible `options`:
+## Rendering
 
-Property | Meaning
----|---
-`data`			| Array or typed array with sample values. Usually it contains values from `-1..+1` range, but that can be adjusted via `amplitude` property. Can be a `regl-texture` instance or a list of textures, to share data between instances. If you need time series data, have a look at `tick-array` package to normalize input data values.
-`range`			| Visible data x-range, an array `[start, end]` offsets or a number of the last samples to show. Can also be a 4-value array `[xStart, minAmplitude, xEnd, maxAmplityde]` compatible with other gl-components, in this case `amplitude` property is ignored. Negative number value counts data from the end. `null` range displays all available data.
-`amplitude` 	| Amplitudes range, number or array `[min, max]`. `null` value uses data min/max.
-`color` 		| Trace line color. Can be a color string or an array with float or uint values, eg. `[0,0,1,1]` or `uint8<[100,120,255,255]>`, see [color-normalize](https://ghub.io/color-normalize).
-`thickness` 	| Trace line width, number in pixels or a string with units, eg. `3em`.
+* **Zoomed out**, over one sample per device pixel: each column shows the exact min and max of its samples, and neighbouring columns join into one outline, so a one-sample spike in 10M samples stays visible at full zoom-out. The RMS band spans −rms..+rms within min..max, rms = √mean(x²) over the column; it fades in from 1 to 4 samples per pixel.
+* **Zoomed in**: an anti-aliased line through the samples. Dots appear at 6 CSS px per sample and reach full size at 12.
+* **No seam**: as columns thin out to one sample, the outline becomes the line, so crossing one sample per pixel changes neither peaks nor stroke; ink per sample changes by about 1%.
+* **Stable pans**: column edges sit on multiples of samples per pixel, so a pan moves the zoomed-out view by whole pixels and never reshuffles samples between columns. From 1024 samples per pixel, edges round to multiples of 256 samples, at most 1/8 px off, so a column is whole pyramid nodes.
+* **NaN** is a gap. **±Infinity** and values past `amplitude` clamp to the viewport edge; `pick()` reports them as they are.
+* **Blending** is premultiplied, over whatever is under the viewport, so the canvas can overlay a spectrogram or a grid. The context must have `premultipliedAlpha` (the default).
+* **Context loss**: nothing throws while the context is lost; on restore, each waveform that had rendered uploads again and redraws.
 
-### `waveform.set(data, offset=0)`
+## Architecture
 
-Put samples data by the `offset`. Existing data by that offset is rewritten.
+1. Samples live in chunks of 64K. `update({ data })` makes views into your array; `set()` and `push()` copy only the chunks they touch; gaps allocate nothing.
+2. A pyramid over the samples keeps `[min, max, Σx², count]` in doubles per node of 256·2ᴸ samples: 0.25 bytes per sample, built in one pass, updated in O(k + log n) by `push()` and `set()`.
+3. Each frame, the CPU reads every device-pixel column from the pyramid in doubles: exact min, max and RMS from O(log n) nodes plus at most two partial leaves. Absolute sample positions never reach the GPU, so float32 has nothing to round.
+4. The results go into one RGBA32F texel per column (zoomed out) or per visible sample (zoomed in), already in viewport pixels: tens of KB per frame. GPU memory is that texture, whatever the data length.
+5. One draw per viewport: a quad whose fragment shader measures the distance to the joined column spans, or to the line and its dots, and turns it into anti-aliased coverage.
 
-### `waveform.push(data)`
+v4 reduced samples on the GPU instead: it needed float32 fraction-splitting, multipass textures and GPU memory proportional to the data, and drew mean ± deviation rather than peaks.
 
-Append new samples to the end.
+### Measured
 
-### `waveform.render()`
+`npm run bench`: headless Chromium 153 on an Apple M4 Max (Metal) with other jobs running (load average ~20), two lanes of 1440×200 CSS px at DPR 2 (2880×400 device px each), synthetic speech. A frame is `update({ range })`, `clear()` and `render()` on both lanes, then `gl.finish()`. Medians of three runs.
 
-Draw trace frame according to the state.
+Samples | `update({ data })` | Zoom frame, mean / p95 | Pan frame, mean / p95 | Unchanged frame | `push()` of 1024 | Pyramid
+---|---|---|---|---|---|---
+1M | 1.8 ms | 0.52 / 2.2 ms | 0.11 / 0.3 ms | 0.01 ms | 4 µs | 0.25 MB
+10M | 18 ms | 0.77 / 3.1 ms | 2.9 / 3.3 ms | 0.01 ms | 4 µs | 2.5 MB
+172.8M (1 h) | 297 ms | 0.90 / 3.2 ms | 2.8 / 3.3 ms | 0.01 ms | 14 µs | 43 MB
 
-### `waveform.pick(event|x)`
+Zooming continuously on `requestAnimationFrame` runs at 60 fps at every size. `update({ data })` is one pass at about 1.7 ns per sample of speech. Frames cost most between 256 and 1024 samples per pixel (the pan row), where columns scan partial leaves. Of 723 zoom frames over 172.8M samples, two took over 4 ms: the first after loading (30 ms) and one at 633 samples per pixel (7 ms).
 
-Get information about samples at `x` coordinate relative to the canvas. Returns an object with props:
+## Changes from v4
 
-Property | Meaning
----|---
-`average` | Average value for the picking point. The one actually visible on the screen.
-`sdev` | Standard deviance for the picking point.
-`x`, `y` | Actual coordinates of picking value relative to canvas.
-`offset` | An array with `[left, right]` offsets within data.
+* ESM with a default export, WebGL2, no dependencies. Was CommonJS on WebGL1 with regl, glslify and 16 more packages.
+* Draws exact per-column min/max with an RMS band, a sample line and dots. Was mean ± standard deviation from running sums in float32 textures.
+* GPU memory is one texture sized to the viewport. Was every sample in float textures.
+* `pick(x)` returns `{ from, to, min, max, rms }`, with `x` in CSS px from the viewport's left. Was `pick(event | x)` returning `{ average, sdev, x, y, offset }`.
+* `viewport` is in CSS px; was device px.
+* `amplitude` defaults to `[-1, 1]`; was the data's min/max.
+* Added: `rms`, dots, ±Infinity clamping, context loss handling, `length`.
+* Removed, with replacements where one exists:
+  * `new Waveform()` without a target, `container`, `regl` and `new Waveform(otherWaveform)`: pass a canvas or a WebGL2 context.
+  * Setters `wf.range = …`, `wf.amplitude = …`, `wf.viewport = …`, `wf.color = …`: use `update()`. `range` and `amplitude` stay as getters.
+  * `flip`: use `amplitude: [1, -1]`.
+  * `clip` and rectangle objects: use `viewport: [x, y, width, height]`.
+  * `opacity`: use the color's alpha.
+  * 4-value `range`: use `range` and `amplitude`. Numeric `range` (last N samples) and `amplitude` as a number: pass arrays.
+  * `thickness` with units (`'3em'`): pass CSS px. Color arrays in 0..255: pass 0..1.
+  * `update(array)`: use `update({ data })`. `push(...values)` and `push(number)`: use `push(samples)`. regl textures as `data`.
+  * `pick: false`, `line`, `mode`, `pxStep`, `sampleStep`, `shape` and the option aliases (`samples`, `amp`, `width`…).
+  * `regl`, `total` (now `length`), `minY`, `maxY`, `textures` properties.
 
-### `waveform.clear()`
+## Develop
 
-Clear viewport area dedicated for the instance.
-
-### `waveform.destroy()`
-
-Dispose waveform instance, data and all assiciated resources.
-
-### Properties
-
-* `waveform.gl` - WebGL context.
-* `waveform.canvas` - canvas element.
-* `waveform.regl` - regl instance.
-
-<!-- TODO: benchmark -->
-
-<!-- ### See also -->
-<!-- * [audio-waveform](https://github.com/a-vis/audio-waveform) − extended waveform renderer for audio. -->
+* `npm test`: every pixel column's stats against brute force over the samples (random data, NaN runs, ±Infinity, 0 to 1M samples, `push`/`set` edits, offsets near 1e9, 1e-3 to 1e5 samples per pixel), pixel checks through `readPixels` (spike, line and dots, lanes, resize, transparency, joins, the zoom threshold, gaps, colors, offset 1e9 drawn as offset 1000), context loss and the API contract. Headless Chromium through Playwright; `npx playwright install chromium` if it is missing.
+* `npm run bench`: the table above.
+* Demo: any static server at the repo root, e.g. `npx serve`, then open `/example/`. `?minutes=10` makes a shorter file.
 
 ## License
 

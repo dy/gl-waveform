@@ -1,7 +1,7 @@
 {
   "name": "gl-waveform",
   "version": "5.0.0",
-  "description": "WebGL2 waveform renderer: exact peaks, RMS band, sample-accurate line",
+  "description": "WebGL2 renderer for numeric signals, time series and audio: exact peaks, RMS band, sample-accurate line",
   "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
@@ -16,7 +16,7 @@
     "index.d.ts"
   ],
   "scripts": {
-    "test": "node test/index.js",
+    "test": "node --test --test-concurrency=1 test/index.js test/demo.js",
     "bench": "node test/bench.js"
   },
   "repository": "dy/gl-waveform",

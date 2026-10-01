@@ -1,10 +1,14 @@
 # gl-waveform
 
-WebGL2 waveform renderer for audio editors. Zoomed out, every pixel column shows the exact min and max of its samples, joined into one outline, with an RMS band inside. Zoomed in, an anti-aliased line runs through the samples, with dots. Pans and zooms at 60 fps over an hour of 48 kHz audio, with no float32 jitter at sample offsets past 1e9.
+WebGL2 renderer for numeric signals, time series and audio. Zoomed out, every pixel column shows the exact min and max of its samples, joined into one outline, with an RMS band inside. Zoomed in, an anti-aliased line runs through the samples, with dots. Pans and zooms at 60 fps over an hour of 48 kHz audio, with no float32 jitter at sample offsets past 1e9.
 
-<img src="example/preview.png" width="968" alt="An hour of synthetic stereo speech in two lanes: a single-sample spike at 18:36, silence gaps, a clipped stretch at 40:00">
+<img src="example/preview.png" width="968" alt="Sine, sawtooth and triangle signals with numeric axes and live data and appearance settings">
 
-[Demo](https://dy.github.io/gl-waveform/example/): an hour of synthetic stereo speech with a one-sample spike, silences and clipping. Zoom, pan, record.
+[Playground](https://dy.github.io/gl-waveform/example/): oscillators, noise, random walks, steps, gaps and spikes, or speech. Set the sample count, magnitude and offset; style each trace; inspect exact samples; stream new data. Values and horizontal positions are numeric by default.
+
+Open JSON arrays (one array per channel), headerless CSV (one channel per column), plain numbers, or browser-supported audio. JSON `null`, empty CSV cells and text `NaN` represent gaps. Choose **Time** and set a sample rate when the horizontal axis has a time unit. Wheel or pinch to zoom, drag to pan; arrow keys pan, +/− zoom, and Home fits the data.
+
+[Audio stress test](https://dy.github.io/gl-waveform/example/stress.html): the hour of stereo speech, one-sample spike, silence, clipping and sample-level zoom. `?minutes=10` makes a smaller file.
 
 ## Usage
 
@@ -123,7 +127,7 @@ Zooming continuously on `requestAnimationFrame` runs at 60 fps at every size. `u
 
 * `npm test`: every pixel column's stats against brute force over the samples (random data, NaN runs, ±Infinity, 0 to 1M samples, `push`/`set` edits, offsets near 1e9, 1e-3 to 1e5 samples per pixel), pixel checks through `readPixels` (spike, line and dots, lanes, resize, transparency, joins, the zoom threshold, gaps, colors, offset 1e9 drawn as offset 1000), context loss and the API contract. Headless Chromium through Playwright; `npx playwright install chromium` if it is missing.
 * `npm run bench`: the table above.
-* Demo: any static server at the repo root, e.g. `npx serve`, then open `/example/`. `?minutes=10` makes a shorter file.
+* Demo: any static server at the repo root, e.g. `npx serve`, then open `/example/`. The previous large-audio demo is at `/example/stress.html`; `?minutes=10` makes a shorter file.
 
 ## License
 

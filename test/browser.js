@@ -14,7 +14,7 @@ export async function open({ gpu = false, width = 1024, height = 768 } = {}) {
   await page.route(origin + '/**', route => {
     let p = decodeURIComponent(new URL(route.request().url()).pathname)
     if (p === '/') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><body style="margin:0"></body>' })
-    return route.fulfill({ path: root + p.slice(1) })
+    return route.fulfill({ path: root + p.slice(1) + (p.endsWith('/') ? 'index.html' : '') })
   })
   await page.goto(origin + '/')
   return { browser, page }

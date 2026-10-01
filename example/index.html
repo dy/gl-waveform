@@ -2,222 +2,59 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>gl-waveform</title>
-<style>
-  :root {
-    color-scheme: dark;
-    --bg: oklch(0.16 0.01 255);
-    --lane: oklch(0.2 0.012 255);
-    --line: oklch(0.32 0.02 255);
-    --fg: oklch(0.92 0.01 255);
-    --dim: oklch(0.64 0.02 255);
-    --wave: oklch(0.76 0.12 235);
-    --rec: oklch(0.68 0.2 25);
-  }
-  * { box-sizing: border-box }
-  html, body { height: 100% }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .75rem 1rem }
-  h1 { font-size: inherit; margin: 0 .25rem 0 0 }
-  nav { display: flex; flex-wrap: wrap; gap: .25rem }
-  button, label { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 4px; padding: .2rem .6rem; cursor: pointer }
-  button:hover, label:hover { border-color: var(--dim) }
-  button:focus-visible, label:has(:focus-visible) { outline: 2px solid var(--wave); outline-offset: 1px }
-  label:has(:checked) { border-color: var(--rec); color: var(--rec) }
-  input[type=checkbox] { position: absolute; opacity: 0; pointer-events: none }
-  output { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap }
-  main { position: relative; flex: 1; min-height: 240px; margin: 0 1rem }
-  .lane { position: absolute; left: 0; right: 0; background: var(--lane); border-radius: 3px }
-  canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100% }
-  #wave { touch-action: none; cursor: crosshair }
-  #wave.drag { cursor: grabbing }
-  #ruler { height: 24px; pointer-events: none }
-  footer { padding: .6rem 1rem .8rem; color: var(--dim) }
-</style>
-
+<meta name="description" content="Explore numeric signals, streaming data and audio with gl-waveform.">
+<title>gl-waveform · playground</title>
+<link rel="stylesheet" href="./style.css">
 <header>
-  <h1>gl-waveform</h1>
-  <nav>
-    <button data-go="all">Whole file</button>
-    <button data-go="spike">1-sample spike</button>
-    <button data-go="clip">Clipping</button>
-    <button data-go="gap">Silence</button>
-    <button data-go="samples">Samples</button>
+  <div class="identity"><h1>gl-waveform</h1><span>Signals, samples, time series.</span></div>
+  <nav aria-label="Data controls">
+    <select id="source" aria-label="Source"><option value="osc">Oscillators</option><option value="noise">Noise</option><option value="walk">Random walk</option><option value="steps">Steps</option><option value="gaps">Gaps & spikes</option><option value="voice">Stereo speech</option><option value="file" hidden>Loaded file</option></select>
+    <button id="open">Open file</button><input id="file" type="file" accept="audio/*,.csv,.txt,.json" hidden>
+    <button id="stream" aria-pressed="false">Stream</button>
+    <button id="settings" aria-expanded="true" aria-controls="panel">Settings</button>
   </nav>
-  <label><input type="checkbox" id="rec"> Record</label>
-  <output id="status">Generating…</output>
-  <output id="fps"></output>
-  <output id="readout"></output>
 </header>
-<main>
-  <div class="lane"></div>
-  <div class="lane"></div>
-  <canvas id="wave"></canvas>
-  <canvas id="ruler"></canvas>
-</main>
-<footer>Wheel or pinch to zoom at the pointer · drag or scroll sideways to pan · double-click for the whole file · <code>?minutes=10</code> for a shorter file</footer>
-
+<div class="workspace">
+  <main>
+    <div class="plot" id="plot"><canvas id="grid" aria-hidden="true"></canvas><canvas id="chart" tabindex="0" aria-label="Waveform. Arrow keys pan, plus and minus zoom, Home fits all samples."></canvas><canvas id="axes" aria-hidden="true"></canvas></div>
+    <div class="viewbar"><button id="fit">Fit data</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="samples">Sample detail</button><output id="view"></output></div>
+    <output id="readout" class="readout">Move over a trace to inspect samples.</output>
+    <p id="error" role="alert" hidden></p>
+  </main>
+  <aside id="panel" aria-label="Settings">
+    <form id="controls">
+      <fieldset id="generator"><legend>Data</legend>
+        <label>Samples<select id="count"><option>512</option><option selected>8192</option><option>65536</option><option>1000000</option><option>10000000</option></select></label>
+        <label>Cycles<input id="cycles" type="number" min="1" max="1000" step="1" value="8"></label>
+        <label>Magnitude<input id="magnitude" type="number" min="0" max="1000000" step="any" value="1"></label>
+        <label>Offset<input id="offset" type="number" min="-1000000" max="1000000" step="any" value="0"></label>
+      </fieldset>
+      <fieldset><legend>Appearance</legend>
+        <div id="colors" class="colors"></div>
+        <label>Background<input id="background" type="color" value="#f6f6f4"></label>
+        <label>Line width <output id="thickness-value">1.5 px</output><input id="thickness" type="range" min="0.5" max="8" step="0.5" value="1.5"></label>
+        <label>Opacity <output id="opacity-value">90%</output><input id="opacity" type="range" min="0.05" max="1" step="0.05" value="0.9"></label>
+        <label>Envelope<select id="fill"><option value="rms">RMS band</option><option value="density">Density</option><option value="solid">Solid</option></select></label>
+        <label class="check"><input id="grid-on" type="checkbox" checked>Grid</label>
+      </fieldset>
+      <fieldset><legend>View</legend>
+        <div class="pair"><label>Value min<input id="low" type="number" step="any" value="-1.25"></label><label>Value max<input id="high" type="number" step="any" value="1.25"></label></div>
+        <button id="auto-fit" type="button">Fit values</button>
+        <label>Horizontal axis<select id="units"><option value="samples">Samples</option><option value="time">Time</option></select></label>
+        <label id="rate-row" hidden>Sample rate · Hz<input id="rate" type="number" min="1" max="384000" step="1" value="48000"></label>
+      </fieldset>
+      <fieldset id="streaming"><legend>Streaming</legend>
+        <label>Block · samples<select id="block"><option>64</option><option selected>512</option><option>4096</option></select></label>
+        <label>Updates / second<input id="speed" type="number" min="1" max="60" step="1" value="12"></label>
+        <label class="check"><input id="follow" type="checkbox" checked>Follow new samples</label>
+      </fieldset>
+      <button type="reset" class="reset">Reset settings</button>
+    </form>
+  </aside>
+</div>
+<footer><output id="status" role="status">Loading…</output><output id="perf"></output><a href="./stress.html">Audio stress test</a><a href="https://github.com/dy/gl-waveform">Source ↗</a></footer>
 <script type="module">
-import Waveform from '../index.js'
-import voice from './voice.js'
-
-const SR = 48000, MINUTES = +new URLSearchParams(location.search).get('minutes') || 60, N = Math.round(MINUTES * 60 * SR)
-const $ = s => document.querySelector(s), css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
-const canvas = $('#wave'), ruler = $('#ruler'), rulerCtx = ruler.getContext('2d'), laneBgs = document.querySelectorAll('.lane')
-const RULER = 24, GAP = 8
-
-// ── one hour of speech-like stereo, with silence, a clipped stretch and one spike ──────────────────────
-
-// Landmarks, as fractions of the file so ?minutes works
-const at = x => Math.round(x * N)
-const SILENCE = [[.083, .0863], [.308, .3122], [.55, .5555], [.87, .8722]].map(g => g.map(at))
-const SPIKE = Math.round((SILENCE[1][0] + SILENCE[1][1]) / 2)
-const CLIP = [at(.667), at(.692)]
-
-let data
-try { data = [new Float32Array(N), new Float32Array(N)] }
-catch (e) { $('#status').value = `No memory for 2 × ${MINUTES} min: try ?minutes=10`; throw e }
-const voices = [voice(1), voice(2)]
-for (let a = 0; a < N; a += 1 << 23) {
-  let b = Math.min(a + (1 << 23), N)
-  voices.forEach((fill, c) => fill(data[c], a, b))
-  $('#status').value = `Generating ${Math.round(b / N * 100)}%`
-  await new Promise(requestAnimationFrame)
-}
-for (let d of data) {
-  for (let [a, b] of SILENCE) d.fill(0, a, b)
-  for (let i = CLIP[0]; i < CLIP[1]; i++) d[i] = Math.max(-1, Math.min(1, d[i] * 4))
-}
-data[0][SPIKE] = .9
-
-// ── waveforms: two lanes on one canvas ─────────────────────────────────
-
-const color = css('--wave'), lanes = [0, 1].map(() => new Waveform(canvas, { color }))
-let t0 = performance.now()
-lanes.forEach((wf, c) => wf.update({ data: data[c] }))
-$('#status').value = `${MINUTES} min stereo at 48 kHz, 2 × ${(N / 1e6).toFixed(1)}M samples, indexed in ${Math.round(performance.now() - t0)} ms`
-
-let range = [0, N], dirty = true, cssW = 1, laneH = 1
-
-const resized = new ResizeObserver(([e]) => {
-  let box = e.devicePixelContentBoxSize?.[0], { width, height } = e.contentRect
-  canvas.width = box ? box.inlineSize : Math.round(width * devicePixelRatio)
-  canvas.height = box ? box.blockSize : Math.round(height * devicePixelRatio)
-  ruler.width = Math.round(width * devicePixelRatio); ruler.height = Math.round(RULER * devicePixelRatio)
-  cssW = width; laneH = (height - RULER - GAP) / 2
-  lanes.forEach((wf, i) => {
-    let y = RULER + i * (laneH + GAP)
-    wf.update({ viewport: [0, y, width, laneH], pixelRatio: canvas.width / width })
-    Object.assign(laneBgs[i].style, { top: y + 'px', height: laneH + 'px' })
-  })
-  dirty = true
-})
-try { resized.observe(canvas, { box: 'device-pixel-content-box' }) } catch { resized.observe(canvas) } // the former also reports DPR changes
-
-// ── view: zoom at the pointer, pan, landmarks ─────────────────────────
-
-const length = () => lanes[0].length
-const view = (a, b) => {
-  let span = Math.min(Math.max(b - a, cssW / 200), length() * 1.5), c = (a + b) / 2
-  if (span !== b - a) a = c - span / 2, b = c + span / 2
-  range = [a, b]; dirty = true
-}
-const zoom = (x, k) => { let s = range[0] + x / cssW * (range[1] - range[0]); view(s - (s - range[0]) * k, s + (range[1] - s) * k) }
-const pan = dx => { let d = dx / cssW * (range[1] - range[0]); view(range[0] + d, range[1] + d) }
-const around = (s, span) => view(s - span / 2, s + span / 2)
-
-canvas.addEventListener('wheel', e => {
-  e.preventDefault()
-  let k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? cssW : 1
-  if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) pan((e.deltaX || e.deltaY) * k)
-  else zoom(e.offsetX, Math.exp(e.deltaY * k * (e.ctrlKey ? .01 : .002)))
-}, { passive: false })
-
-const pointers = new Map()
-canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, e.offsetX); canvas.classList.add('drag') })
-let hover = null
-canvas.addEventListener('pointerleave', () => { hover = null; $('#readout').value = '' })
-canvas.addEventListener('pointermove', e => {
-  hover = [e.offsetX, e.offsetY]
-  if (!pointers.has(e.pointerId)) return readout(...hover)
-  let prev = pointers.get(e.pointerId)
-  if (pointers.size === 1) pan(prev - e.offsetX)
-  else {
-    let other = [...pointers].find(([id]) => id !== e.pointerId)[1]
-    if (Math.abs(e.offsetX - other) > 10) zoom((e.offsetX + other) / 2, Math.abs(prev - other) / Math.abs(e.offsetX - other))
-  }
-  pointers.set(e.pointerId, e.offsetX)
-})
-for (let type of ['pointerup', 'pointercancel']) canvas.addEventListener(type, e => { pointers.delete(e.pointerId); if (!pointers.size) canvas.classList.remove('drag') })
-canvas.addEventListener('dblclick', () => view(0, length()))
-
-const GO = {
-  all: () => view(0, length()),
-  spike: () => around(SPIKE, SR * 2),
-  clip: () => view(CLIP[0] - SR * 3, CLIP[0] + SR * 9),
-  gap: () => view(SILENCE[0][0] - SR * 2, SILENCE[0][1] + SR * 2),
-  samples: () => { let s = CLIP[0] - SR * 20, d = data[0]; while (Math.abs(d[s]) < .2) s++; around(s, 48) }
-}
-for (let b of document.querySelectorAll('[data-go]')) b.addEventListener('click', () => { rec.checked = false; GO[b.dataset.go]() })
-
-// ── readout: pick() under the pointer ─────────────────────────────────
-
-const time = (t, digits = 3) => { let m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(digits).padStart(digits ? digits + 3 : 2, '0')}` }
-const num = v => (v < 0 ? '−' : ' ') + Math.abs(v).toFixed(3)
-function readout(x, y) {
-  let i = y < RULER + laneH + GAP / 2 ? 0 : 1, p = lanes[i].pick(x)
-  $('#readout').value = !p ? '' : p.to - p.from === 1
-    ? `${'LR'[i]} ${time(p.from / SR, 5)} · sample ${p.from} · ${num(p.min)}`
-    : `${'LR'[i]} ${time(p.from / SR)} · ${p.to - p.from} samples · min ${num(p.min)} max ${num(p.max)} rms ${p.rms.toFixed(3)}`
-}
-
-// ── recording: the voices go on, pushed as they arrive; the view follows the end ──
-
-const rec = $('#rec')
-let last = 0
-rec.addEventListener('change', () => { last = performance.now(); if (rec.checked) view(length() - SR * 8, length() + SR * 2) })
-function record(now) {
-  let k = Math.round(SR * Math.min((now - last) / 1000, .1))
-  last = now
-  if (!k) return
-  let follow = range[1] >= length()
-  lanes.forEach((wf, c) => { let block = new Float32Array(k); voices[c](block, 0, k); wf.push(block) })
-  if (follow) range = [range[0] + k, range[1] + k]
-  dirty = true
-}
-
-// ── time ruler ───────────────────────────────────────────────────────
-
-const STEPS = [1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, .001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
-function drawRuler() {
-  let pr = ruler.width / cssW, [a, b] = range, step = STEPS.find(s => s * SR / (b - a) * cssW >= 90) ?? 3600
-  rulerCtx.setTransform(pr, 0, 0, pr, 0, 0)
-  rulerCtx.clearRect(0, 0, cssW, RULER)
-  rulerCtx.fillStyle = css('--dim')
-  rulerCtx.font = '11px ui-sans-serif, system-ui, sans-serif'
-  for (let k = Math.ceil(a / SR / step); k * step * SR <= b; k++) {
-    let x = (k * step * SR - a) / (b - a) * cssW
-    rulerCtx.fillRect(Math.round(x), RULER - 5, 1, 5)
-    rulerCtx.fillText(time(k * step, Math.max(0, Math.ceil(-Math.log10(step)))), Math.round(x) + 4, RULER - 8)
-  }
-}
-
-// ── frame loop: draw only when something changed ─────────────────────
-
-let times = [], cost = 0
-requestAnimationFrame(function frame(now) {
-  requestAnimationFrame(frame)
-  if (rec.checked) record(now)
-  if (!dirty) return
-  dirty = false
-  let t = performance.now()
-  for (let wf of lanes) wf.update({ range }).clear().render()
-  drawRuler()
-  if (hover) readout(...hover)
-  cost = cost * .9 + (performance.now() - t) * .1
-  times.push(now)
-  while (times[0] < now - 1000) times.shift()
-  let spp = (range[1] - range[0]) / canvas.width, fps = times.length >= 10 ? `${times.length} fps · ` : ''
-  $('#fps').value = `${fps}${cost.toFixed(1)} ms/frame · ${spp >= 1 ? spp.toFixed(spp < 10 ? 1 : 0) + ' samples/px' : (1 / spp).toFixed(1) + ' px/sample'}`
-})
+if (new URLSearchParams(location.search).has('minutes')) location.replace('./stress.html' + location.search)
+else import('./demo.js').catch(e => { const error = document.getElementById('error'); error.hidden = false; error.textContent = e.message })
 </script>
+</html>

@@ -9,7 +9,7 @@ export function step(span, pixels) {
   const raw = span / Math.max(1, pixels / 90), exp = 10 ** Math.floor(Math.log10(raw))
   return [1, 2, 5, 10].find(n => n * exp >= raw) * exp
 }
-export const label = n => Number(n.toPrecision(6)).toLocaleString('en-US', { maximumFractionDigits: 6 })
+export const label = n => (Number.isInteger(n) ? n : Number(n.toPrecision(6))).toLocaleString('en-US', { maximumFractionDigits: 6 })
 export function setup({ resize, zoom, pan, fit, inspect, wheel }) {
   const canvas = $('chart'), plot = $('plot'), pointers = new Map()
   const observer = new ResizeObserver(() => {
@@ -56,12 +56,14 @@ export function setup({ resize, zoom, pan, fit, inspect, wheel }) {
   $('fit').onclick = fit
   $('zoom-in').onclick = () => zoom(canvas.clientWidth / 2, .5)
   $('zoom-out').onclick = () => zoom(canvas.clientWidth / 2, 2)
-  $('settings').onclick = () => {
-    $('panel').hidden = !$('panel').hidden
-    $('settings').setAttribute('aria-expanded', !$('panel').hidden)
-    if (!$('panel').hidden && matchMedia('(max-width: 759px)').matches) $('panel').scrollIntoView({ block: 'start' })
+  function settings(open) {
+    $('panel').hidden = !open
+    $('settings').setAttribute('aria-expanded', String(open))
+    if (!open) $('settings').focus()
   }
-  if (matchMedia('(max-width: 759px)').matches) { $('panel').hidden = true; $('settings').setAttribute('aria-expanded', 'false') }
+  $('settings').onclick = () => settings($('panel').hidden)
+  $('close-settings').onclick = () => settings(false)
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('panel').hidden) settings(false) })
   $('controls').onsubmit = e => e.preventDefault()
   $('controls').addEventListener('change', e => { if (e.target.type === 'number') e.target.reportValidity() })
   $('open').onclick = () => $('file').click()

@@ -2,36 +2,43 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Explore numeric signals, streaming data and audio with gl-waveform.">
-<title>gl-waveform · playground</title>
+<meta name="description" content="Explore long waveforms, numeric signals and fast streaming data with gl-waveform.">
+<title>gl-waveform</title>
 <link rel="stylesheet" href="./style.css">
+<body class="waveform">
 <header>
-  <div class="identity"><h1>gl-waveform</h1><span>Signals, samples, time series.</span></div>
-  <nav aria-label="Data controls">
-    <select id="source" aria-label="Source"><option value="osc">Oscillators</option><option value="noise">Noise</option><option value="walk">Random walk</option><option value="steps">Steps</option><option value="gaps">Gaps & spikes</option><option value="voice">Stereo speech</option><option value="file" hidden>Loaded file</option></select>
+  <h1><a href="https://github.com/dy/gl-waveform">gl-waveform</a></h1>
+  <nav aria-label="Source">
+    <select id="source" aria-label="Source"><option value="voice">Long waveform</option><option value="osc">Oscillators</option><option value="noise">Noise</option><option value="walk">Random walk</option><option value="steps">Steps</option><option value="gaps">Gaps &amp; spikes</option><option value="file" hidden>Loaded file</option></select>
     <button id="open">Open file</button><input id="file" type="file" accept="audio/*,.csv,.txt,.json" hidden>
-    <button id="stream" aria-pressed="false">Stream</button>
-    <button id="settings" aria-expanded="true" aria-controls="panel">Settings</button>
+    <button id="stream" aria-pressed="false" disabled>Stream</button>
   </nav>
+  <output id="perf"></output>
+  <button id="settings" aria-expanded="false" aria-controls="panel">Settings</button>
 </header>
-<div class="workspace">
-  <main>
-    <div class="plot" id="plot"><canvas id="grid" aria-hidden="true"></canvas><canvas id="chart" tabindex="0" aria-label="Waveform. Arrow keys pan, plus and minus zoom, Home fits all samples."></canvas><canvas id="axes" aria-hidden="true"></canvas></div>
-    <div class="viewbar"><button id="fit">Fit data</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="samples">Sample detail</button><output id="view"></output></div>
-    <output id="readout" class="readout">Move over a trace to inspect samples.</output>
-    <p id="error" role="alert" hidden></p>
-  </main>
-  <aside id="panel" aria-label="Settings">
-    <form id="controls">
+<main>
+  <div class="plot" id="plot"><canvas id="grid" aria-hidden="true"></canvas><canvas id="chart" tabindex="0" aria-label="Waveform: drag to pan, wheel or pinch to zoom, Home to fit."></canvas><canvas id="axes" aria-hidden="true"></canvas></div>
+
+  <p id="error" role="alert" hidden></p>
+</main>
+<footer>
+  <nav aria-label="View"><button id="fit">Whole signal</button><button id="spike">1-sample spike</button><button id="clip">Clipping</button><button id="silence">Silence</button><button id="samples">Samples</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></nav>
+  <output id="status" role="status">Generating…</output>
+  <output id="readout"></output>
+  <output id="view" hidden></output>
+</footer>
+<aside id="panel" aria-label="Settings" hidden>
+  <button id="close-settings" aria-label="Close settings">×</button>
+  <form id="controls">
       <fieldset id="generator"><legend>Data</legend>
-        <label>Samples<select id="count"><option>512</option><option selected>8192</option><option>65536</option><option>1000000</option><option>10000000</option></select></label>
+        <label>Samples<select id="count"><option>512</option><option>8192</option><option>65536</option><option>1000000</option><option>10000000</option><option value="172800000" selected>172.8 million  1 hour</option></select></label>
         <label>Cycles<input id="cycles" type="number" min="1" max="1000" step="1" value="8"></label>
         <label>Magnitude<input id="magnitude" type="number" min="0" max="1000000" step="any" value="1"></label>
         <label>Offset<input id="offset" type="number" min="-1000000" max="1000000" step="any" value="0"></label>
       </fieldset>
       <fieldset><legend>Appearance</legend>
         <div id="colors" class="colors"></div>
-        <label>Background<input id="background" type="color" value="#f6f6f4"></label>
+        <label>Background<input id="background" type="color" value="#19212d"></label>
         <label>Line width <output id="thickness-value">1.5 px</output><input id="thickness" type="range" min="0.5" max="8" step="0.5" value="1.5"></label>
         <label>Opacity <output id="opacity-value">90%</output><input id="opacity" type="range" min="0.05" max="1" step="0.05" value="0.9"></label>
         <label>Envelope<select id="fill"><option value="rms">RMS band</option><option value="density">Density</option><option value="solid">Solid</option></select></label>
@@ -40,21 +47,19 @@
       <fieldset><legend>View</legend>
         <div class="pair"><label>Value min<input id="low" type="number" step="any" value="-1.25"></label><label>Value max<input id="high" type="number" step="any" value="1.25"></label></div>
         <button id="auto-fit" type="button">Fit values</button>
-        <label>Horizontal axis<select id="units"><option value="samples">Samples</option><option value="time">Time</option></select></label>
-        <label id="rate-row" hidden>Sample rate · Hz<input id="rate" type="number" min="1" max="384000" step="1" value="48000"></label>
+        <label>Horizontal axis<select id="units"><option value="samples">Samples</option><option value="time" selected>Time</option></select></label>
+        <label id="rate-row">Sample rate  Hz<input id="rate" type="number" min="1" max="384000" step="1" value="48000"></label>
       </fieldset>
       <fieldset id="streaming"><legend>Streaming</legend>
-        <label>Block · samples<select id="block"><option>64</option><option selected>512</option><option>4096</option></select></label>
-        <label>Updates / second<input id="speed" type="number" min="1" max="60" step="1" value="12"></label>
+        <label>Samples / frame<select id="block"><option>1024</option><option>16384</option><option selected>65536</option><option>262144</option></select></label>
+        <label>Frame rate<input id="speed" type="number" min="1" max="240" step="1" value="60"></label>
         <label class="check"><input id="follow" type="checkbox" checked>Follow new samples</label>
       </fieldset>
       <button type="reset" class="reset">Reset settings</button>
     </form>
-  </aside>
-</div>
-<footer><output id="status" role="status">Loading…</output><output id="perf"></output><a href="./stress.html">Audio stress test</a><a href="https://github.com/dy/gl-waveform">Source ↗</a></footer>
+</aside>
 <script type="module">
-if (new URLSearchParams(location.search).has('minutes')) location.replace('./stress.html' + location.search)
-else import('./demo.js').catch(e => { const error = document.getElementById('error'); error.hidden = false; error.textContent = e.message })
+import('./demo.js').catch(e => { const error = document.getElementById('error'); error.hidden = false; error.textContent = e.message })
 </script>
+</body>
 </html>

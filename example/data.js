@@ -7,7 +7,22 @@ export function generator(source, { cycles = 8, count = 8192, magnitude = 1, off
   const names = source === 'osc' ? ['Sine', 'Saw', 'Triangle'] : source === 'voice' ? ['Left', 'Right'] : [{ noise: 'Noise', walk: 'Random walk', steps: 'Steps', gaps: 'Gaps & spikes' }[source]]
   return { names, next(n) {
     const data = names.map(() => new Float32Array(n))
-    if (source === 'voice') voices.forEach((fill, c) => fill(data[c], 0, n))
+    if (source === 'voice') {
+      voices.forEach((fill, c) => fill(data[c], 0, n))
+      // The original long-waveform landmarks, stable across streaming blocks.
+      for (const d of data) {
+        for (const [a, b] of [[.083, .0863], [.308, .3122], [.55, .5555], [.87, .8722]]) {
+          const from = Math.max(0, Math.round(a * count) - pos), to = Math.min(n, Math.round(b * count) - pos)
+          if (from < to) d.fill(0, from, to)
+        }
+        for (let i = Math.max(0, Math.round(.667 * count) - pos), end = Math.min(n, Math.round(.692 * count) - pos); i < end; i++) d[i] = Math.max(-1, Math.min(1, d[i] * 4))
+      }
+      const spike = Math.round((Math.round(.308 * count) + Math.round(.3122 * count)) / 2) - pos
+      if (spike >= 0 && spike < n) data[0][spike] = .9
+      if (magnitude !== 1 || offset !== 0) for (const d of data) for (let i = 0; i < n; i++) d[i] = d[i] * magnitude + offset
+      pos += n
+      return data
+    }
     for (let i = 0; i < n; i++, pos++) {
       const phase = (pos * cycles / count) % 1
       if (source === 'osc') { data[0][i] = Math.sin(phase * Math.PI * 2); data[1][i] = phase * 2 - 1; data[2][i] = 1 - 4 * Math.abs(phase - .5) }

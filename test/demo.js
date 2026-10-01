@@ -20,6 +20,15 @@ test('signals: streaming chunks continue the same signal, independent of block s
   }
 })
 
+test('long signal keeps the original silence, clipping and single-sample spike', () => {
+  const [left, right] = generator('voice', { count: 1000000 }).next(1000000)
+  const spike = Math.round((308000 + 312200) / 2)
+  assert.equal(left[spike], Math.fround(.9))
+  assert.equal(right[spike], 0)
+  assert.ok(left.subarray(83000, 86300).every(v => v === 0))
+  assert.ok(left.subarray(667000, 692000).some(v => Math.abs(v) === 1))
+})
+
 test('playground: generic values, settings, navigation, stream, file errors and reset', async () => {
   const { browser, page } = await open({ width: 1100, height: 850 }), errors = []
   page.on('pageerror', e => errors.push(e.message))
@@ -28,20 +37,26 @@ test('playground: generic values, settings, navigation, stream, file errors and 
   const pixels = () => page.locator('#chart').evaluate(c => c.toDataURL())
   const change = async (id, val) => { await page.locator('#' + id).fill(val); await page.locator('#' + id).press('Tab') }
   try {
-    await page.goto(origin + '/index.html'); await page.waitForURL(origin + '/example/');
+    await page.goto(origin + '/index.html?samples=8192'); await page.waitForURL(origin + '/example/?samples=8192');
     assert.equal(new URL(page.url()).pathname, '/example/'); await wait('8,192 samples')
+    assert.equal(await page.locator('#panel').isHidden(), true)
+    await page.locator('#spike').click()
+    await page.waitForFunction(() => document.getElementById('view').textContent !== '0 → 0.170667 s')
+    await page.locator('#fit').click()
+    await page.locator('#settings').click()
+    await page.locator('#source').selectOption('osc'); await wait('Oscillators')
     await page.waitForFunction(() => document.getElementById('perf').textContent.includes('ms/frame'))
     const initial = await pixels()
     await change('offset', '1000'); await page.waitForFunction(() => +document.getElementById('low').value > 900)
     const box = await page.locator('#chart').boundingBox()
     await page.mouse.move(box.x + box.width / 2, box.y + 80)
     assert.match(await text('readout'), /Sine.*(value|min)/)
-    await page.locator('#samples').click(); await page.waitForFunction(() => document.getElementById('view').textContent !== '0 → 8,192 samples'); const detailed = await text('view'); assert.notEqual(detailed, '0 → 8,192 samples')
+    await page.locator('#close-settings').click(); await page.locator('#samples').click(); await page.waitForFunction(() => document.getElementById('view').textContent !== '0 → 8,192 samples'); const detailed = await text('view'); assert.notEqual(detailed, '0 → 8,192 samples')
     await page.locator('#chart').focus(); await page.keyboard.press('Home')
     await page.waitForFunction(() => document.getElementById('view').textContent === '0 → 8,192 samples')
     await page.locator('#chart').focus(); await page.keyboard.press('+'); await page.keyboard.press('ArrowRight')
     await page.waitForFunction(() => document.getElementById('view').textContent !== '0 → 8,192 samples')
-    await change('low', '1000'); await change('high', '1000'); assert.match(await text('error'), /must differ/)
+    await page.locator('#settings').click(); await change('low', '1000'); await change('high', '1000'); assert.match(await text('error'), /must differ/)
     await change('high', '1002'); assert.equal(await page.locator('#error').isHidden(), true)
     await page.locator('#fill').selectOption('density'); await page.locator('#grid-on').uncheck()
     assert.notEqual(await pixels(), initial)
@@ -54,7 +69,7 @@ test('playground: generic values, settings, navigation, stream, file errors and 
     await page.locator('#file').setInputFiles({ name: 'bad.csv', mimeType: 'text/csv', buffer: Buffer.from('value,nope') })
     await page.waitForFunction(() => !document.getElementById('error').hidden)
     assert.match(await text('status'), /values.json/)
-    await page.locator('[type=reset]').click(); await wait('Oscillators')
+    await page.locator('[type=reset]').click(); await wait('Long waveform')
     assert.equal(await page.locator('#stream').isEnabled(), true); assert.equal(await page.locator('#error').isHidden(), true)
     for (const width of [320, 375, 414, 768]) {
       await page.setViewportSize({ width, height: 850 })
@@ -62,9 +77,10 @@ test('playground: generic values, settings, navigation, stream, file errors and 
       await page.locator('#settings').click(); await page.locator('#settings').click()
     }
     // A fresh narrow viewport starts with the settings collapsed and remains keyboard accessible.
-    await page.setViewportSize({ width: 375, height: 850 }); await page.reload(); await wait('Oscillators')
+    await page.setViewportSize({ width: 375, height: 850 }); await page.reload(); await wait('Long waveform')
     assert.equal(await page.locator('#panel').isHidden(), true)
     await page.locator('#settings').focus(); await page.keyboard.press('Enter'); assert.equal(await page.locator('#panel').isVisible(), true)
+    await page.keyboard.press('Escape'); assert.equal(await page.locator('#panel').isHidden(), true)
     assert.deepEqual(errors, [])
   } finally { await browser.close() }
 })

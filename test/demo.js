@@ -70,6 +70,7 @@ test('playground: generic values, settings, navigation, stream, file errors and 
     await page.waitForFunction(() => !document.getElementById('error').hidden)
     assert.match(await text('status'), /values.json/)
     await page.locator('[type=reset]').click(); await wait('Long waveform')
+    await page.waitForFunction(() => document.getElementById('status').textContent.includes('indexed'), null, { timeout: 60000 })
     assert.equal(await page.locator('#stream').isEnabled(), true); assert.equal(await page.locator('#error').isHidden(), true)
     for (const width of [320, 375, 414, 768]) {
       await page.setViewportSize({ width, height: 850 })

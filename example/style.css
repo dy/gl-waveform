@@ -36,6 +36,7 @@ main { position: relative; flex: 1; min-height: 80px; margin: 0 16px }
 footer { color: var(--dim); font-size: 11px; gap: 4px 20px }
 footer button { font-size: 12px }
 #status, #readout { font-variant-numeric: tabular-nums; white-space: pre-wrap }
+#status b { color: var(--fg); font-weight: 500 }
 #readout { margin-left: auto; font-family: var(--mono) }
 #error { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 2; padding: 8px; margin: 0; color: var(--error); background: var(--bg) }
 #panel { position: fixed; z-index: 3; bottom: 0; left: 0; right: 0; max-height: min(75dvh, 520px); overflow-y: auto; background: var(--bg); box-shadow: 0 -1px color-mix(in srgb, var(--fg) 15%, transparent); padding: 28px 24px 20px }

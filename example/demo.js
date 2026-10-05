@@ -5,7 +5,7 @@ import { $, css, num, clamp, error, frame, step, label, setup, decode } from './
 const canvas = $('chart'), ax = $('axes').getContext('2d'), grid = $('grid').getContext('2d')
 const LEFT = 44, TOP = 24, GAP = 8, COLORS = ['#79c6ed', '#87c6a5', '#d5b47b', '#bf9de4', '#e7a597', '#87c6a5', '#b8bceb', '#e1d2b5']
 let lanes = [], names = [], colors = [], bounds = [Infinity, -Infinity], gen, range = [0, 8192], amplitude = [-1.25, 1.25]
-let indexed = 0, baseCount = 0, streamStart = 0, streamed = 0, frames = [], cost = 0, reported = 0, paint = true
+let indexed = 0, loading = false, baseCount = 0, streamStart = 0, streamed = 0, frames = [], cost = 0, reported = 0, paint = true
 let w = 1, h = 1, pr = 1, pw = 1, lh = 1, dirty = true, running = false, last = 0, task = 0, title = '', source = 'voice'
 const length = () => lanes[0]?.length || 1
 const unit = () => $('units').value === 'time' ? num('rate') || 48000 : 1
@@ -25,7 +25,10 @@ function layout() {
   dirty = true
 }
 function stop() { running = false; status(); $('stream').textContent = 'Stream'; $('stream').setAttribute('aria-pressed', 'false') }
-function status() { $('status').value = `${title}  ${names.length} ${names.length === 1 ? 'trace' : 'traces'}  ${label(length())} samples${indexed ? `  indexed ${indexed} ms` : ''}` }
+function status() {
+  const count = document.createElement('b'); count.textContent = `${label(lanes[0]?.length || 0)} samples`
+  $('status').replaceChildren(`${title}  ${names.length} ${names.length === 1 ? 'trace' : 'traces'}  `, count, loading ? '…' : `  indexed ${Math.round(indexed)} ms`)
+}
 function include(data) {
   for (const d of data) for (const v of d) if (Number.isFinite(v)) { bounds[0] = Math.min(bounds[0], v); bounds[1] = Math.max(bounds[1], v) }
 }
@@ -37,15 +40,15 @@ function fitValues() {
   $('low').value = Number(amplitude[0].toPrecision(7)); $('high').value = Number(amplitude[1].toPrecision(7))
   dirty = true
 }
-function install(next, labels, heading) {
-  stop()
+function install(labels, heading, data, count = data[0].length) {
+  stop(); loading = false
   const fresh = []
-  try { const start = performance.now(); next.forEach(d => fresh.push(new Waveform(canvas, { data: d }))); indexed = Math.round(performance.now() - start) }
+  try { const start = performance.now(); labels.forEach((_, i) => fresh.push(new Waveform(canvas, data ? { data: data[i] } : {}))); indexed = performance.now() - start }
   catch (e) { fresh.forEach(wf => wf.destroy()); throw e }
   lanes.forEach(wf => wf.destroy()); lanes = fresh; names = labels; title = heading
   bounds = [Infinity, -Infinity]
   if (source === 'voice') bounds = [num('offset') - num('magnitude'), num('offset') + num('magnitude')]
-  else include(next)
+  else if (data) include(data)
   const gl = lanes[0].gl; gl.disable(gl.SCISSOR_TEST); gl.clear(gl.COLOR_BUFFER_BIT)
   colors = labels.map((_, i) => COLORS[source === 'voice' ? 0 : i % COLORS.length]); $('colors').replaceChildren()
   labels.forEach((name, i) => {
@@ -56,29 +59,29 @@ function install(next, labels, heading) {
   })
   $('generator').disabled = source === 'file'; $('streaming').disabled = source === 'file'; $('stream').disabled = source === 'file'
   $('cycles').disabled = source !== 'osc' && source !== 'steps' && source !== 'gaps'
-  baseCount = next[0].length
+  baseCount = count
   for (const id of ['spike', 'clip', 'silence']) $(id).hidden = source !== 'voice'
-  value(0, length()); fitValues(); layout(); status(); error(''); paint = true
+  value(0, count); fitValues(); layout(); status(); error(''); paint = true
 }
+// Generated signals load as a stream: each frame pushes the next block, so the picture fills in and the count runs up.
 async function generate() {
   const id = ++task; stop(); const nextSource = $('source').value
   if (nextSource === 'file') return
   const opts = Object.fromEntries(['cycles', 'count', 'magnitude', 'offset', 'rate'].map(key => [key, num(key)]))
-  const nextGen = generator(nextSource, opts)
-  $('stream').disabled = true
-  $('status').value = 'Generating…'
   try {
-    const next = nextGen.names.map(() => new Float32Array(opts.count))
-    for (let a = 0; a < opts.count; a += 4194304) {
-      const blocks = nextGen.next(Math.min(4194304, opts.count - a))
-      blocks.forEach((block, c) => next[c].set(block, a))
-      $('status').value = `Generating ${Math.round(Math.min(a + 4194304, opts.count) / opts.count * 100)}%…`
+    source = nextSource; gen = generator(source, opts)
+    $('source').querySelector('[value=file]').hidden = true
+    install(gen.names, $('source').selectedOptions[0].textContent, null, opts.count)
+    loading = true; indexed = 0; $('stream').disabled = true
+    for (let a = 0; a < opts.count; a += 1048576) {
+      const blocks = gen.next(Math.min(1048576, opts.count - a)), start = performance.now()
+      lanes.forEach((wf, c) => wf.push(blocks[c])); indexed += performance.now() - start
+      if (source !== 'voice') { include(blocks); fitValues() }
+      dirty = true; status()
       await frame(); if (id !== task) return
     }
-    source = nextSource; gen = nextGen
-    $('source').querySelector('[value=file]').hidden = true
-    install(next, gen.names, $('source').selectedOptions[0].textContent)
-  } catch (e) { if (id === task) { error(e.message); status(); $('stream').disabled = !gen || source === 'file' } }
+    loading = false; status(); $('stream').disabled = false
+  } catch (e) { if (id === task) { loading = false; error(e.message); status() } }
 }
 function inspect(x, y) {
   const i = Math.floor((y - TOP) / (lh + GAP)), local = y - TOP - i * (lh + GAP)
@@ -152,7 +155,7 @@ $('file').onchange = async () => {
     source = 'file'; $('source').value = 'file'; $('source').querySelector('[value=file]').hidden = false
     if (result.rate) { $('rate').value = result.rate; $('units').value = 'time'; $('rate-row').hidden = false }
     else { $('units').value = 'samples'; $('rate-row').hidden = true }
-    install(result.data, result.data.map((_, i) => `Channel ${i + 1}`), file.name)
+    install(result.data.map((_, i) => `Channel ${i + 1}`), file.name, result.data)
   } catch (e) { if (id === task) { error(`Cannot open ${file.name}: ${e.message}`); status() } }
   finally { $('file').value = '' }
 }

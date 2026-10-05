@@ -66,6 +66,8 @@ Method | Does
 `wf.clear()` | Clears the viewport to transparent.
 `wf.push(samples)` | Appends samples.
 `wf.set(samples, offset)` | Writes samples from `offset`, extending the data if needed; a gap before `offset` reads as NaN.
+`wf.peaks(leaves, offset)` | Summaries of samples held elsewhere: `[min, max, Σx², count]` per 256 samples from `offset` (a multiple of 256). Zoomed out to 1024 samples per px or more, columns are exact from them alone; `set()` writes samples over them, 65536 at a time, for the zoomed-in line.
+`wf.drop(from, to)` | Lets go of the samples of the whole 64K chunks within `[from, to)`, keeping their peaks: hours of audio drawn from peaks, with samples only where it is zoomed in.
 `wf.pick(x)` | The pixel column at `x` CSS px from the viewport's left: `{ from, to, min, max, rms }` of its samples `[from, to)`, or `null` over a gap. Zoomed in, the sample nearest the column's center.
 `wf.destroy()` | Releases the texture, the data and the event listeners.
 

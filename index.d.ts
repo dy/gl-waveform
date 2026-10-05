@@ -50,6 +50,14 @@ export default class Waveform {
   push(samples: ArrayLike<number>): this
   /** Write samples at offset, extending the data if needed; a gap before offset reads as NaN */
   set(samples: ArrayLike<number>, offset?: number): this
+  /**
+   * Summaries of samples not held: [min, max, Σx², count] per leaf of 256 samples from `offset` (a multiple of 256).
+   * Zoomed out to 1024 samples per px or more, columns are exact from them alone; set() writes samples over them, a chunk
+   * of 65536 at a time for exact columns zoomed in.
+   */
+  peaks(leaves: ArrayLike<number>, offset?: number): this
+  /** Let go of the samples of the whole 65536-sample chunks within [from, to), keeping their peaks */
+  drop(from?: number, to?: number): this
   /** Draw into the viewport, over what is there */
   render(): this
   /** Clear the viewport to transparent */

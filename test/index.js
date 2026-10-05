@@ -34,6 +34,12 @@ test('columns: data built by push(), set() over it and set() past the end', asyn
   for (let seed of [21, 22, 23]) clean(await run('edits', { seed, steps: 40, W: 300, pr: 1 }), 'columns')
 })
 
+test('columns: samples held only as peaks, some chunks set and dropped: exact zoomed out, and zoomed in where held', async () => {
+  for (let [seed, n, W, pr] of [[41, 1e6 + 3, 640, 1], [42, 3e5 + 77, 333, 1.5], [43, 65536 * 5, 500, 2]]) {
+    clean(await run('peaked', { seed, n, W, pr, count: 40 }), 'columns')
+  }
+})
+
 test('columns: samples at offset 1e9, from 1e6 down to 1e-3 samples per px', async () => {
   let res = await run('far', { seed: 31, W: 400, pr: 2 })
   assert.equal(res.length, 1e9 + 2000)

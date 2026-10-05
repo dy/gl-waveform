@@ -87,6 +87,48 @@ export function views({ seed, n, nan, inf, count, W, pr }) {
   return { cols: cols + W, bad: bad.slice(0, 3), nbad: bad.length }
 }
 
+// Leaves of 256 samples, [min, max, Σx², count] each, as a host that holds the samples elsewhere sends them (Float32)
+export function leaves(d) {
+  let n = Math.ceil(d.length / 256), v = new Float32Array(n * 4)
+  for (let j = 0; j < n; j++) {
+    let lo = Infinity, hi = -Infinity, q = 0, k = 0
+    for (let i = j * 256; i < Math.min(d.length, j * 256 + 256); i++) { let x = d[i]; if (x !== x) continue; if (x < lo) lo = x; if (x > hi) hi = x; q += x * x; k++ }
+    v.set([lo, hi, q, k], j * 4)
+  }
+  return v
+}
+
+// Samples held only as peaks, some chunks of them set and some of those dropped again: zoomed out to 1024 samples a
+// px or more every column is exact, and zoomed in wherever the samples are held
+export function peaked({ seed, n, W, pr, count }) {
+  let r = random(seed), d = noise(n, r, { nan: 2 }), wf = new Waveform(canvas(W, 8), { pixelRatio: pr })
+  let C = 65536, held = new Set()
+  // in two halves, as they would come
+  let half = Math.floor(n / 512) * 256, all = leaves(d)
+  wf.peaks(all.subarray(half / 256 * 4), half)
+  wf.peaks(all.subarray(0, half / 256 * 4), 0)
+  for (let k = 0; k < 4; k++) { let j = Math.floor(r() * Math.ceil(n / C)); wf.set(d.subarray(j * C, (j + 1) * C), j * C); held.add(j) }
+  let gone = [...held][0]
+  wf.drop(gone * C, (gone + 1) * C)
+  held.delete(gone)
+  let bad = [], cols = 0
+  if (wf.length !== n) return { cols, bad: [{ length: wf.length, expected: n }], nbad: 1 }
+  for (let k = 0; k < count; k++) {
+    let spp = 1024 * 10 ** (r() * 3), from = r() * n - spp * W / 2
+    wf.update({ range: [from, from + spp * W] })
+    bad.push(...compare(wf, i => d[i], W, pr))
+    cols += W
+    // zoomed in, within a chunk held
+    let j = [...held][Math.floor(r() * held.size)], s = 10 ** (r() * 5 - 3), a = j * C + r() * (C - s * W)
+    if (j == null || a + s * W > Math.min(n, (j + 1) * C)) continue
+    wf.update({ range: [a, a + s * W] })
+    bad.push(...compare(wf, i => d[i], W, pr))
+    cols += W
+  }
+  wf.canvas.remove()
+  return { cols, bad: bad.slice(0, 3), nbad: bad.length }
+}
+
 // Data built by push() and set(), including writes past the end, checked against a plain array kept alongside
 export function edits({ seed, steps, W, pr }) {
   let r = random(seed), wf = new Waveform(canvas(W, 8), { pixelRatio: pr }), ref = new Float32Array(0), n = 0

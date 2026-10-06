@@ -55,11 +55,10 @@ void main() {
     }
     vec4 t = at(x);
     if (dense == 1 && t.x <= t.y) {
-      // the share of the column's samples at or beyond this level, S = 1 − (|v| / P)^k from its peak P and RMS R:
-      // k = 2q / (1 − q), q = R² / P², gives that RMS (a sine fits k = 2; the higher the crest, the lower k)
-      float v = p.y - zero, P = v >= 0. ? t.y - zero : zero - t.x, R = max(t.w - zero, zero - t.z);
-      float q = P > 0. ? clamp(R * R / (P * P), 0., .98) : .98;
-      r = mix(1., 1. - pow(clamp(abs(v) / max(P, 1e-6), 0., 1.), 2. * q / (1. - q)), fade);
+      // how often a Laplace-distributed signal of the column's RMS R is at this level, against zero: e^(−√2·|v| / R).
+      // Speech is close to Laplace (Gazor & Zhang 2003), so most of a column's samples sit near the axis
+      float R = max(max(t.w - zero, zero - t.z), 1e-6);
+      r = mix(1., exp(-${Math.SQRT2} * abs(p.y - zero) / R), fade);
     }
     else r = clamp(min(t.w, p.y + .5) - max(t.z, p.y - .5), 0., 1.);
   } else {

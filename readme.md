@@ -47,7 +47,7 @@ Option | Default | Meaning
 `viewport` | whole canvas | `[x, y, width, height]` in CSS px from the canvas' top-left corner.
 `color` | blue | Line and envelope: a CSS color, `oklch()` included, or `[r, g, b, a]` in 0..1.
 `rms` | `color`, lightened | RMS band color; `false` hides the band.
-`density` | `false` | Zoomed out, the fill is as bright as the signal is often at that level, in place of the RMS band: a level reached once stays at 30 %.
+`density` | `false` | Zoomed out, the fill is as bright as a Laplace-distributed signal of the column's RMS is often at that level, e^(−√2·\|v\|/rms) of its brightness on the axis, in place of the RMS band; a level reached once stays at 30 %. Speech is close to Laplace (Gazor & Zhang 2003), music between it and Gaussian.
 `thickness` | `1` | Line width in CSS px, at least one device pixel.
 `pixelRatio` | `devicePixelRatio` | Device px per CSS px.
 

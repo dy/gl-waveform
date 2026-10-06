@@ -104,12 +104,14 @@ test('render: crossing one sample per px keeps peaks and ink per sample', async 
   assert.ok(Math.abs(above.ink / below.ink - 1) < .02, `ink per sample: ${above.ink} vs ${below.ink}`)
 })
 
-test('render: density shades the fill by how often the signal is at each level', async () => {
+test('render: density shades the fill by how often a Laplace signal of the column\'s RMS is at each level', async () => {
   let { plain, sine, square } = await run('density')
   assert.deepEqual([plain.zero, plain.high], [255, 255], 'without density the envelope is solid')
   assert.equal(sine.zero, 255, 'a sine is at its zero line most often: full')
-  assert.ok(Math.abs(sine.high / 255 - .43) < .06, `a sine at 90 % of its peak: ${sine.high} (about .43 of 255)`)
-  assert.ok(square.high > 240, `a square wave spends its time at its peak: ${square.high}`)
+  // at .9 of the peak P: .3 + .7·e^(−√2·.9P / rms), rms P/√2 for the sine, P for the square
+  const laplace = rms => .3 + .7 * Math.exp(-Math.SQRT2 * .9 / rms)
+  assert.ok(Math.abs(sine.high / 255 - laplace(Math.SQRT1_2)) < .03, `a sine at 90 % of its peak: ${sine.high} (${laplace(Math.SQRT1_2).toFixed(3)} of 255)`)
+  assert.ok(Math.abs(square.high / 255 - laplace(1)) < .03, `a square at 90 % of its peak: ${square.high} (${laplace(1).toFixed(3)} of 255)`)
 })
 
 test('render: NaN is a gap, ±Infinity is clamped to the edge', async () => {

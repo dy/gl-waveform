@@ -9,21 +9,22 @@
 <header>
   <h1><a href="https://github.com/dy/gl-waveform">gl-waveform</a></h1>
   <nav aria-label="Source">
-    <select id="source" aria-label="Source"><option value="voice">Long waveform</option><option value="osc">Oscillators</option><option value="noise">Noise</option><option value="walk">Random walk</option><option value="steps">Steps</option><option value="gaps">Gaps &amp; spikes</option><option value="file" hidden>Loaded file</option></select>
-    <button id="open">Open file</button><input id="file" type="file" accept="audio/*,.csv,.txt,.json" hidden>
+    <select id="source" aria-label="Source"><optgroup label="Signals"><option value="voice">Long waveform</option><option value="osc">Oscillators</option><option value="noise">Noise</option><option value="walk">Random walk</option><option value="steps">Steps</option><option value="gaps">Gaps &amp; spikes</option></optgroup><option value="file" hidden>Loaded file</option></select>
+    <button id="play" aria-label="Play" hidden>Play</button><button id="open">Open file</button><input id="file" type="file" accept="audio/*,.csv,.txt,.json" hidden>
     <button id="stream" aria-pressed="false" disabled>Stream</button>
   </nav>
   <output id="perf"></output>
   <button id="settings" aria-expanded="false" aria-controls="panel">Settings</button>
 </header>
 <main>
-  <div class="plot" id="plot"><canvas id="grid" aria-hidden="true"></canvas><canvas id="chart" tabindex="0" aria-label="Waveform: drag to pan, wheel or pinch to zoom, Home to fit."></canvas><canvas id="axes" aria-hidden="true"></canvas></div>
-
+  <div class="plot" id="plot"><canvas id="grid" aria-hidden="true"></canvas><canvas id="chart" tabindex="0" aria-label="Waveform: drag to pan, wheel or pinch to zoom, Home to fit."></canvas><canvas id="axes" aria-hidden="true"></canvas><div id="playhead" hidden></div></div>
+  <audio id="player" preload="auto" hidden></audio><input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Playback position" hidden>
+  <output id="note" hidden></output>
   <p id="error" role="alert" hidden></p>
 </main>
 <footer>
   <nav aria-label="View"><button id="fit">Whole signal</button><button id="spike">1-sample spike</button><button id="clip">Clipping</button><button id="silence">Silence</button><button id="samples">Samples</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></nav>
-  <output id="status" role="status">Generating…</output>
+  <output id="status" role="status">Generating…</output><a id="credit" target="_blank" rel="noopener" hidden></a>
   <output id="readout"></output>
   <output id="view" hidden></output>
 </footer>

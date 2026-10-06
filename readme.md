@@ -4,7 +4,7 @@ WebGL2 renderer for numeric signals, time series and audio. Zoomed out, every pi
 
 [<img src="example/preview.png" width="968" alt="An hour of synthetic stereo speech in two lanes: a single-sample spike at 18:36, silence gaps, a clipped stretch at 40:00">](https://dy.github.io/gl-waveform/)
 
-[Demo](https://dy.github.io/gl-waveform/): an hour of synthetic stereo speech, 172.8 million samples a channel, pushed as it is generated, with a one-sample spike, silences and clipping. Zoom, pan, stream, or open your own audio, CSV or JSON.
+[Demo](https://dy.github.io/gl-waveform/): an hour of synthetic stereo speech, 172.8 million samples a channel, pushed as it is generated, with a one-sample spike, silences and clipping. Recordings of Bach, Chopin, Vivaldi and Beethoven to play, live radio and the microphone recorded as they sound. Zoom, pan, stream, or open your own audio, CSV or JSON. The [v4 demos](https://dy.github.io/gl-waveform/example/old.html) ([multiscale](https://dy.github.io/gl-waveform/example/old-multi.html)) run on v5 too.
 
 ## Usage
 
@@ -125,7 +125,7 @@ Zooming continuously on `requestAnimationFrame` runs at 60 fps at every size. `u
 
 * `npm test`: every pixel column's stats against brute force over the samples (random data, NaN runs, ±Infinity, 0 to 1M samples, `push`/`set` edits, offsets near 1e9, 1e-3 to 1e5 samples per pixel), pixel checks through `readPixels` (spike, line and dots, lanes, resize, transparency, joins, the zoom threshold, gaps, colors, offset 1e9 drawn as offset 1000), context loss and the API contract. Headless Chromium through Playwright; `npx playwright install chromium` if it is missing.
 * `npm run bench`: the table above.
-* Demo: any static server at the repo root, e.g. `npx serve`, then open `/example/`. `?minutes=10` or `?samples=1000000` makes a smaller dataset. The previous demo is at `/example/stress.html`.
+* Demo: any static server at the repo root, e.g. `npx serve`, then open `/example/`. `?minutes=10` or `?samples=1000000` makes a smaller dataset. `?source=cello` opens a recording, `wqxr` the radio, `mic` the microphone. The first v5 demo is at `/example/stress.html`, the v4 demos at `/example/old.html` and `/example/old-multi.html`.
 
 ## License
 

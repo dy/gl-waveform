@@ -1,12 +1,16 @@
 import Waveform from '../index.js'
 import { generator, parse } from './data.js'
+import { recordings, streams, download, listen as radio, record } from './sources.js'
 import { $, css, num, clamp, error, frame, step, label, setup, decode } from './ui.js'
 
-const canvas = $('chart'), ax = $('axes').getContext('2d'), grid = $('grid').getContext('2d')
+const canvas = $('chart'), ax = $('axes').getContext('2d'), grid = $('grid').getContext('2d'), player = $('player')
 const LEFT = 44, TOP = 24, GAP = 8, COLORS = ['#79c6ed', '#87c6a5', '#d5b47b', '#bf9de4', '#e7a597', '#87c6a5', '#b8bceb', '#e1d2b5']
 let lanes = [], names = [], colors = [], bounds = [Infinity, -Infinity], gen, range = [0, 8192], amplitude = [-1.25, 1.25]
 let indexed = 0, loading = false, baseCount = 0, streamStart = 0, streamed = 0, frames = [], cost = 0, reported = 0, paint = true
 let w = 1, h = 1, pr = 1, pw = 1, lh = 1, dirty = true, running = false, last = 0, task = 0, title = '', source = 'voice'
+let live = null, taken = [], url = null // the live capture and its chunks per channel, to play back once stopped; the audio heard
+const cache = new Map() // recordings already decoded
+const signal = () => !!$('source').querySelector(`[label=Signals] [value="${source}"]`)
 const length = () => lanes[0]?.length || 1
 const unit = () => $('units').value === 'time' ? num('rate') || 48000 : 1
 const value = (a, b) => { range = [a, b]; dirty = true }
@@ -27,7 +31,22 @@ function layout() {
 function stop() { running = false; status(); $('stream').textContent = 'Stream'; $('stream').setAttribute('aria-pressed', 'false') }
 function status() {
   const count = document.createElement('b'); count.textContent = `${label(lanes[0]?.length || 0)} samples`
-  $('status').replaceChildren(`${title}  ${names.length} ${names.length === 1 ? 'trace' : 'traces'}  `, count, loading ? '…' : `  indexed ${Math.round(indexed)} ms`)
+  $('status').replaceChildren(`${title}  ${names.length} ${names.length === 1 ? 'trace' : 'traces'}  `, count, loading ? '…' : live ? '  live' : indexed === indexed ? `  indexed ${Math.round(indexed)} ms` : '')
+}
+function notice(text = '') { $('note').value = text; $('note').hidden = !text }
+function credit(info) {
+  $('credit').hidden = !info
+  if (!info) return
+  $('credit').href = info.page; $('credit').textContent = info.credit ? `${info.credit} · ${info.license}` : new URL(info.page).hostname
+}
+// Sound to hear: a recording, an audio file or a recorded take, with a playhead
+function audio(blob) {
+  release(); player.src = url = URL.createObjectURL(blob)
+  $('play').hidden = $('seek').hidden = false; $('seek').value = 0
+}
+function release() {
+  player.pause(); player.removeAttribute('src'); player.load(); if (url) URL.revokeObjectURL(url); url = null
+  $('play').hidden = $('seek').hidden = $('playhead').hidden = true; $('play').textContent = 'Play'
 }
 function include(data) {
   for (const d of data) for (const v of d) if (Number.isFinite(v)) { bounds[0] = Math.min(bounds[0], v); bounds[1] = Math.max(bounds[1], v) }
@@ -50,18 +69,87 @@ function install(labels, heading, data, count = data[0].length) {
   if (source === 'voice') bounds = [num('offset') - num('magnitude'), num('offset') + num('magnitude')]
   else if (data) include(data)
   const gl = lanes[0].gl; gl.disable(gl.SCISSOR_TEST); gl.clear(gl.COLOR_BUFFER_BIT)
-  colors = labels.map((_, i) => COLORS[source === 'voice' ? 0 : i % COLORS.length]); $('colors').replaceChildren()
+  colors = labels.map((_, i) => COLORS[signal() && source !== 'voice' ? i % COLORS.length : 0]); $('colors').replaceChildren()
   labels.forEach((name, i) => {
     const label = document.createElement('label'), input = document.createElement('input')
     label.textContent = name; input.type = 'color'; input.value = colors[i]; input.setAttribute('aria-label', `${name} color`)
     input.oninput = () => { colors[i] = input.value; paint = dirty = true }
     label.append(input); $('colors').append(label)
   })
-  $('generator').disabled = source === 'file'; $('streaming').disabled = source === 'file'; $('stream').disabled = source === 'file'
+  $('generator').disabled = $('streaming').disabled = $('stream').disabled = !signal()
   $('cycles').disabled = source !== 'osc' && source !== 'steps' && source !== 'gaps'
   baseCount = count
   for (const id of ['spike', 'clip', 'silence']) $(id).hidden = source !== 'voice'
-  value(0, count); fitValues(); layout(); status(); error(''); paint = true
+  value(0, count); fitValues(); layout(); status(); error(''); notice(); paint = true
+}
+// Channels that are all the same, as in a mono recording published as stereo, draw as one
+const distinct = data => data.filter((d, c) => !c || d.some((v, i) => v !== data[0][i]))
+const channels = n => n === 2 ? ['Left', 'Right'] : n === 1 ? ['Mono'] : Array.from({ length: n }, (_, i) => `Channel ${i + 1}`)
+function timed(rate) { $('rate').value = rate; $('units').value = 'time'; $('rate-row').hidden = false }
+// Live chunks onto the lanes, the view following the end
+function take(chunk) {
+  if (!live) return
+  if (length() + chunk[0].length > num('rate') * 600) { stopLive(); return error('Ten minutes recorded. Choose a source to start again.') }
+  lanes.forEach((wf, i) => { const c = chunk[Math.min(i, chunk.length - 1)]; wf.push(c); taken[i].push(c) })
+  if ($('follow').checked) { const n = length(), span = range[1] - range[0]; value(n > span ? n - span : 0, n > span ? n : span) }
+  dirty = true
+}
+// Stopped, the take plays back like a recording
+function stopLive() {
+  if (!live) return
+  live.stop(); live = null; indexed = NaN // pushed as it came, never indexed at once
+  const n = lanes[0].length, mix = new Float32Array(n)
+  taken.forEach(chunks => { let at = 0; for (const c of chunks) { for (let i = 0; i < c.length; i++) mix[at + i] += c[i] / taken.length; at += c.length } })
+  taken = []
+  if (n) audio(wav(mix, num('rate'))); else release()
+  status()
+}
+function wav(data, sr) {
+  const bytes = new ArrayBuffer(44 + data.length * 2), v = new DataView(bytes)
+  const str = (at, s) => [...s].forEach((c, i) => v.setUint8(at + i, c.charCodeAt(0)))
+  str(0, 'RIFF'); v.setUint32(4, bytes.byteLength - 8, true); str(8, 'WAVEfmt ')
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true)
+  str(36, 'data'); v.setUint32(40, data.length * 2, true)
+  for (let i = 0; i < data.length; i++) v.setInt16(44 + i * 2, clamp(data[i], -1, 1) * 32767, true)
+  return new Blob([bytes], { type: 'audio/wav' })
+}
+// A recording (downloaded once), live radio, the microphone or a generated signal
+async function choose() {
+  const picked = $('source').value, rec = recordings.find(r => r.id === picked), station = streams.find(s => s.id === picked)
+  if (picked === 'file') return
+  stopLive(); release(); credit()
+  if (!rec && !station && picked !== 'mic') {
+    $('units').value = picked === 'voice' ? 'time' : 'samples'; $('rate-row').hidden = $('units').value !== 'time'
+    return generate()
+  }
+  const id = ++task, name = $('source').selectedOptions[0].textContent
+  stop(); error('')
+  try {
+    if (rec) {
+      let got = cache.get(picked)
+      if (!got) {
+        notice(`Downloading ${name}…`)
+        const blob = await download(rec.url, p => { if (id === task) notice(`Downloading ${name}  ${Math.round(p * 100)}%`) })
+        if (id !== task) return
+        notice(`Decoding ${name}…`)
+        const { data, rate } = await decode(blob)
+        cache.set(picked, got = { data: distinct(data), rate, blob })
+      }
+      if (id !== task) return
+      source = picked; timed(got.rate)
+      install(channels(got.data.length), name, got.data); audio(got.blob); credit(rec)
+    } else {
+      notice(station ? `Tuning in to ${name}…` : 'Waiting for the microphone…')
+      const tap = await (station ? radio(station.url, take) : record(take)), n = station ? 2 : 1
+      if (id !== task) return tap.stop()
+      source = picked; timed(tap.rate)
+      install(channels(n), name, Array.from({ length: n }, () => new Float32Array(0)), 0)
+      live = tap; taken = lanes.map(() => []); value(0, tap.rate * 8); credit(station); status()
+      $('play').hidden = false; $('play').textContent = 'Stop'
+    }
+    $('source').querySelector('[value=file]').hidden = true
+  } catch (e) { if (id === task) { notice(); error(`${name}: ${e.message}`); status() } }
 }
 // Generated signals load as a stream: each frame pushes the next block, so the picture fills in and the count runs up.
 async function generate() {
@@ -121,11 +209,18 @@ $('clip').onclick = () => { stop(); view(baseCount * .66, baseCount * .70) }
 $('silence').onclick = () => { stop(); view(baseCount * .078, baseCount * .092) }
 $('samples').onclick = () => { stop(); const c = (range[0] + range[1]) / 2; view(c - 24, c + 24) }
 $('auto-fit').onclick = fitValues
-$('source').onchange = () => {
-  $('units').value = $('source').value === 'voice' ? 'time' : 'samples'
-  $('rate-row').hidden = $('units').value !== 'time'
-  generate()
-}
+$('source').prepend(...[['Recordings', recordings], ['Live', [...streams, { id: 'mic', name: 'Microphone' }]]].map(([label, list]) => {
+  const group = document.createElement('optgroup')
+  group.label = label
+  group.append(...list.map(s => new Option(s.name, s.id)))
+  return group
+}))
+$('source').onchange = choose
+$('play').onclick = () => live ? stopLive() : player.paused ? player.play().catch(e => error(e.message)) : player.pause()
+for (const event of ['play', 'pause', 'ended']) player.addEventListener(event, () => { if (!live) $('play').textContent = player.paused ? 'Play' : 'Pause' })
+player.addEventListener('timeupdate', () => { if (Number.isFinite(player.duration)) $('seek').value = player.currentTime / player.duration * 1000 })
+$('seek').oninput = () => { if (Number.isFinite(player.duration)) player.currentTime = num('seek') / 1000 * player.duration }
+window.addEventListener('pagehide', () => { stopLive(); release() })
 $('stream').onclick = () => {
   if (running) return stop()
   running = true; streamStart = last = performance.now(); streamed = 0; frames = []; reported = 0; $('stream').textContent = 'Pause'; $('stream').setAttribute('aria-pressed', 'true')
@@ -143,19 +238,21 @@ $('controls').oninput = e => {
   $('rate-row').hidden = $('units').value !== 'time'; paint = dirty = true
 }
 $('generator').onchange = e => { if (e.target.validity.valid && e.target.value) generate() }
-$('controls').onreset = () => { queueMicrotask(() => { $('source').value = 'voice'; document.documentElement.style.removeProperty('--plot-bg'); $('rate-row').hidden = false; $('thickness-value').value = '1.5 px'; $('opacity-value').value = '90%'; generate() }) }
+$('controls').onreset = () => { queueMicrotask(() => { $('source').value = 'voice'; document.documentElement.style.removeProperty('--plot-bg'); $('rate-row').hidden = false; $('thickness-value').value = '1.5 px'; $('opacity-value').value = '90%'; choose() }) }
 $('file').onchange = async () => {
   const file = $('file').files[0]; if (!file) return
-  const id = ++task; stop(); $('status').value = `Opening ${file.name}…`
+  const id = ++task; stop(); stopLive(); $('status').value = `Opening ${file.name}…`
   try {
     const numeric = /\.(json|csv|txt)$/i.test(file.name)
     const result = numeric ? { data: parse(await file.text(), /\.json$/i.test(file.name)) } : await decode(file)
     if (id !== task) return
     if (result.data.length > 8) throw Error('Open a file with at most 8 channels.')
     source = 'file'; $('source').value = 'file'; $('source').querySelector('[value=file]').hidden = false
-    if (result.rate) { $('rate').value = result.rate; $('units').value = 'time'; $('rate-row').hidden = false }
+    release(); credit()
+    if (result.rate) timed(result.rate)
     else { $('units').value = 'samples'; $('rate-row').hidden = true }
     install(result.data.map((_, i) => `Channel ${i + 1}`), file.name, result.data)
+    if (result.rate) audio(file)
   } catch (e) { if (id === task) { error(`Cannot open ${file.name}: ${e.message}`); status() } }
   finally { $('file').value = '' }
 }
@@ -169,6 +266,13 @@ if (Number.isFinite(requested) && requested >= 4 && requested <= 172800000) {
 requestAnimationFrame(function draw(now) {
   requestAnimationFrame(draw)
   const start = performance.now()
+  if (url && lanes.length) {
+    // the playhead, the view paging along with it
+    const pos = player.currentTime * num('rate'), span = range[1] - range[0]
+    if (!player.paused && $('follow').checked && (pos > range[1] || pos < range[0])) value(pos, pos + span)
+    const x = LEFT + (pos - range[0]) / span * pw
+    $('playhead').hidden = player.paused || x < LEFT || x > LEFT + pw; $('playhead').style.left = x + 'px'; $('playhead').style.top = TOP + 'px'
+  }
   if (running && now - last >= 1000 / (num('speed') || 60) - 1) {
     last = now
     // Cap only the appended data; the hour-long default can stream immediately.
@@ -202,4 +306,7 @@ requestAnimationFrame(function draw(now) {
     }
   } catch (e) { stop(); error(e.message) }
 })
-await generate()
+// ?source= picks the first source: a recording, a stream, mic or a signal
+const asked = params.get('source')
+if ($('source').querySelector(`option[value="${CSS.escape(asked ?? '')}"]`)) $('source').value = asked
+await choose()

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gl-waveform v4: multiscale</title>
+<style>
+  body { margin: 0; overflow: hidden; background: black }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none }
+</style>
+
+<canvas></canvas>
+
+<script type="module">
+// v4 Demo 2 (example/multiscale.js, 2018) on the v5 API: one 440 Hz saw stream, each lane its last N samples,
+// 256 more per lane from the top and from the bottom toward the middle; a zoom scales every N
+import Waveform from '../index.js'
+import { osc, panzoom } from './old-deps.js'
+
+const canvas = document.querySelector('canvas'), H = 28, PAD = 28
+
+// v4 shared one master's data among views; here one waveform draws every lane, a viewport and range at a time
+let wf = new Waveform(canvas, { color: 'white', thickness: 2, amplitude: [-3, 3] }), lanes, zoom = 1
+
+const layout = () => {
+  let n = Math.floor(innerHeight / H), h = (innerHeight - PAD * 2) / n, half = Math.floor(n / 2)
+  canvas.width = innerWidth * devicePixelRatio, canvas.height = innerHeight * devicePixelRatio
+  lanes = Array.from({ length: n }, (_, i) => ({ y: i * h + PAD, h, n: 256 * (i < half ? i + 1 : n - i) }))
+}
+addEventListener('resize', layout)
+layout()
+
+panzoom(canvas, e => zoom *= 1 + e.dz / canvas.offsetWidth)
+
+// 20480 samples to start, then 4 a frame: the array keeps its last 4 and the oscillator's phase
+let data = osc.saw(2048 * 10, 440)
+wf.push(data)
+data.splice(0, data.length - 4)
+
+;(function tick() {
+  wf.push(osc.saw(data))
+  wf.update({ viewport: null }).clear()
+  for (let { y, h, n } of lanes) wf.update({ viewport: [0, y, innerWidth, h], range: [wf.length - n * zoom, wf.length] }).render()
+  requestAnimationFrame(tick)
+})()
+</script>

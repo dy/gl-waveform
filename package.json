@@ -16,7 +16,7 @@
     "index.d.ts"
   ],
   "scripts": {
-    "test": "node --test --test-concurrency=1 test/index.js test/demo.js",
+    "test": "node --test --test-concurrency=1 test/index.js test/demo.js test/old.js",
     "bench": "node test/bench.js"
   },
   "repository": "dy/gl-waveform",

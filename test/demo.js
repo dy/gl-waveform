@@ -40,6 +40,9 @@ test('playground: generic values, settings, navigation, stream, file errors and 
     await page.goto(origin + '/index.html?samples=8192'); await page.waitForURL(origin + '/example/?samples=8192');
     assert.equal(new URL(page.url()).pathname, '/example/'); await wait('8,192 samples')
     assert.equal(await page.locator('#panel').isHidden(), true)
+    const groups = await page.locator('#source optgroup').evaluateAll(gs => gs.map(g => [g.label, g.children.length]))
+    assert.deepEqual(groups, [['Recordings', 6], ['Live', 3], ['Signals', 6]], 'recordings, live radio and the microphone, signals')
+    assert.equal(await page.locator('#play').isHidden(), true, 'a generated signal has nothing to play')
     await page.locator('#spike').click()
     await page.waitForFunction(() => document.getElementById('view').textContent !== '0 → 0.170667 s')
     await page.locator('#fit').click()

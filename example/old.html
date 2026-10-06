@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gl-waveform v4: data</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0; height: 100vh; overflow: hidden; background: #f6f6f6; color: #060606; font-family: Roboto, Helvetica, Arial, sans-serif }
+  #traces { position: absolute; top: 9rem; width: 100%; height: 60%; touch-action: none }
+  .fps-text { font-size: .8rem; margin-left: .2rem; font-weight: 300 }
+
+  /* ControlKit 0.1, its dark theme */
+  .panel {
+    --up: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 5h8L4 0z' fill='%23959b9e'/></svg>");
+    --down: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 0h8L4 5z' fill='%23959b9e'/></svg>");
+    --hide: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 5h8L4 0z' fill='%234c5356'/></svg>");
+    --show: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 0h8L4 5z' fill='%234c5356'/></svg>");
+    position: absolute; top: 0; right: 0; z-index: 1; width: 280px; background: #1a1a1a; box-shadow: 0 2px 2px rgba(0, 0, 0, .25);
+    font: 11px Arial, sans-serif; color: #fff; text-shadow: 1px 1px #000; user-select: none; -webkit-user-select: none
+  }
+  .panel summary { display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-weight: 700; list-style: none; cursor: pointer }
+  .panel summary::-webkit-details-marker { display: none }
+  .panel summary::after { content: ''; width: 10px; height: 100%; background: var(--up) center no-repeat }
+  .panel details:not([open]) > summary::after { background-image: var(--down) }
+  .panel > summary { height: 30px; color: #65696b; text-shadow: none }
+  .panel > summary::after { width: 20px; height: 20px; border-radius: 2px; background: var(--hide) center no-repeat, #1a1d1f; box-shadow: 0 0 0 1px #131313 inset, -1px 2px 0 0 #212527 inset }
+  .panel:not([open]) > summary::after { background-image: var(--show) }
+  .panel > summary:hover::after { background-color: #000 }
+  .panel > details > summary { height: 27px; background: #272727; border-bottom: 1px solid #242424; color: #fff }
+  .panel > details:not([open]) > summary { background: linear-gradient(#3b3b3b, #383838); box-shadow: 0 1px 0 0 #404040 inset }
+  .panel ul { margin: 0; padding: 0; list-style: none }
+  .panel li { display: flex; align-items: center; justify-content: space-between; height: 35px; padding: 0 10px; background: #2e2e2e; border-bottom: 1px solid #222729 }
+  .panel li:last-child { border-bottom: none }
+  .panel li > :first-child { width: 30%; color: #aeb5b8 }
+  .panel li > :last-child { display: flex; justify-content: space-between; align-items: center; width: 70%; height: 25px }
+  .panel input, .panel output, .panel button { height: 25px; border: none; border-radius: 2px; outline: 0; font: inherit; color: #fff; text-shadow: inherit }
+  .panel input:focus-visible, .panel button:focus-visible, .color:focus-within { outline: 1px solid #b32435 }
+  .panel input[type=text], .panel output {
+    width: 46px; padding: 0; text-align: center;
+    background: linear-gradient(rgba(0, 0, 0, .075), rgba(0, 0, 0, .125)), #222729; box-shadow: 0 0 0 1px #1f1f1f inset
+  }
+  .panel output { display: flex; align-items: center; width: 100%; padding-left: 8px }
+  .panel input[type=range] {
+    --fill: max(1px, calc((100% - 6px) * var(--p, 0))) 19px no-repeat;
+    appearance: none; -webkit-appearance: none; width: 70%; margin: 0; cursor: ew-resize; box-shadow: 0 0 0 1px #1f1f1f inset;
+    background: linear-gradient(transparent, rgba(0, 0, 0, .1)) 3px 3px / var(--fill), linear-gradient(#b32435, #b32435) 3px 3px / var(--fill), #1e2224
+  }
+  .panel input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 0; height: 19px }
+  .panel input[type=range]::-moz-range-thumb { width: 0; border: 0 }
+  .panel .amp b { width: 25%; color: #878787; text-align: center; text-shadow: 1px 1px #1a1a1a }
+  .panel li > .color { position: relative; display: flex; align-items: center; justify-content: center; border-radius: 2px; box-shadow: 0 0 0 1px #111314 inset; cursor: pointer }
+  .color input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer }
+  .panel button {
+    width: 100%; height: 26px; font-size: 10px; font-weight: 700; text-transform: uppercase; text-shadow: 0 1px #000; cursor: pointer;
+    background: linear-gradient(#404040, #3b3b3b); box-shadow: 0 0 0 1px #1f1f1f inset, -1px 2px 0 0 #4a4a4a inset
+  }
+  .panel button:hover { background: linear-gradient(#454545, #3b3b3b) }
+</style>
+
+<canvas id="traces"></canvas>
+
+<details class="panel" open>
+  <summary>Options</summary>
+  <details open>
+    <summary>Appearance</summary>
+    <ul>
+      <li><span>thickness</span><span><input type="range" id="thickness" min=".5" max="100" step="any"><input type="text" data-for="thickness" data-dp="2"></span></li>
+      <li><span>color</span><label class="color"><input type="color" id="color"><span id="rgb"></span></label></li>
+      <li><span>opacity</span><span><input type="range" id="opacity" min="0" max="1" step="any"><input type="text" data-for="opacity" data-dp="2"></span></li>
+      <li><span>amp range</span><span class="amp"><b>MIN</b><input type="text" id="min"><b>MAX</b><input type="text" id="max"></span></li>
+    </ul>
+  </details>
+  <details open>
+    <summary>Data</summary>
+    <ul>
+      <li><span>packet size</span><span><input type="range" id="size" min="64" max="8192" step="1"><input type="text" data-for="size" data-dp="0"></span></li>
+      <li><span>frequency, Hz</span><span><input type="range" id="frequency" min="1" max="3000" step="1"><input type="text" data-for="frequency" data-dp="0"></span></li>
+      <li><span>total length</span><span><output id="total"></output></span></li>
+      <li><span></span><span><button id="pause">Pause / resume</button></span></li>
+    </ul>
+  </details>
+</details>
+
+<script type="module">
+// v4 Demo 1 (example/data.js, 2018) on the v5 API: three oscillators streamed into three lanes of one canvas
+import Waveform from '../index.js'
+import { osc, panzoom, fps, size as sz } from './old-deps.js'
+
+const $ = s => document.querySelector(s), canvas = $('#traces')
+const hex = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16))
+const num = box => box.value.trim() && isFinite(box.value)
+
+fps({ position: 'bottom-left', style: 'position: absolute;' })
+
+let config = { thickness: 1, color: [0, 0, 0], opacity: .75, amp: [-1.5, 1.5], size: 1024, frequency: 150, paused: false }
+
+// Each lane keeps its own color until one is picked; v4's opacity is the color's alpha.
+// Zoomed out, v4 drew mean ± standard deviation: for these zero-mean signals, the RMS band, so it stays on.
+let colors = ['#F26C4F', '#94BA65', '#3A89C9'].map(hex)
+let waveforms = colors.map(() => new Waveform(canvas))
+
+let frame
+const draw = () => (cancelAnimationFrame(frame), frame = requestAnimationFrame(() => waveforms.forEach(wf => wf.clear().render())))
+
+const style = () => (waveforms.forEach((wf, i) => wf.update({
+  thickness: config.thickness, amplitude: config.amp, color: [...colors[i].map(c => c / 255), config.opacity]
+})), draw())
+
+// v4 sized the drawing buffer in CSS px and split it in thirds; v5 viewports are CSS px, the buffer device px
+const layout = () => {
+  let { clientWidth: w, clientHeight: h } = canvas
+  canvas.width = w * devicePixelRatio, canvas.height = h * devicePixelRatio
+  waveforms.forEach((wf, i) => wf.update({ viewport: [0, i * h / 3, w, h / 3] }))
+  draw()
+}
+addEventListener('resize', layout)
+layout(), style()
+
+// panel
+for (let box of document.querySelectorAll('[data-for]')) {
+  let k = box.dataset.for, range = $('#' + k), show = () => {
+    range.value = config[k], box.value = config[k].toFixed(box.dataset.dp)
+    range.style.setProperty('--p', (config[k] - range.min) / (range.max - range.min))
+  }
+  range.oninput = () => (config[k] = +range.value, show(), style())
+  box.onchange = () => (num(box) && (config[k] = Math.min(+range.max, Math.max(+range.min, +box.value))), show(), style())
+  show()
+}
+
+const color = $('#color'), showColor = () => ($('#rgb').textContent = config.color, color.parentNode.style.background = `rgb(${config.color})`)
+color.oninput = () => (config.color = hex(color.value), colors = colors.map(() => config.color), showColor(), style())
+showColor()
+
+const amp = [$('#min'), $('#max')], showAmp = () => amp.forEach((box, i) => box.value = config.amp[i].toFixed(2))
+amp.forEach((box, i) => {
+  box.onchange = () => (num(box) && (config.amp[i] = +box.value), showAmp(), style())
+  box.onkeydown = e => {
+    let d = { ArrowUp: .1, ArrowDown: -.1 }[e.key]
+    if (d) e.preventDefault(), box.value = Math.round((config.amp[i] + d) * 10) / 10, box.onchange()
+  }
+})
+showAmp()
+
+// a packet of `size` samples per lane every 1000/frequency ms; the last packet in view until a pan or zoom
+let moved = false, timer, data = [[], [], []], shapes = ['sin', 'saw', 'tri']
+const tick = () => {
+  waveforms.forEach((wf, i) => wf.push(data[i] = osc[shapes[i]](config.size, data[i])))
+  if (!moved) waveforms.forEach(wf => wf.update({ range: [wf.length - config.size, wf.length] }))
+  $('#total').value = sz(waveforms[0].length, true, true)
+  draw()
+  if (!config.paused) timer = setTimeout(tick, 1000 / config.frequency)
+}
+$('#pause').onclick = () => (config.paused = !config.paused, clearTimeout(timer), config.paused || tick())
+tick()
+
+panzoom(canvas, e => {
+  moved = true
+  let w = canvas.offsetWidth, rx = e.x / w
+  waveforms.forEach(wf => {
+    let [from, to] = wf.range, span = to - from, dz = e.dz / w
+    from -= rx * span * dz + span * e.dx / w
+    to += (1 - rx) * span * dz - span * e.dx / w
+    wf.update({ range: [from, to] })
+  })
+  draw()
+})
+</script>

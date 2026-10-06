@@ -125,7 +125,7 @@ Zooming continuously on `requestAnimationFrame` runs at 60 fps at every size. `u
 
 * `npm test`: every pixel column's stats against brute force over the samples (random data, NaN runs, ±Infinity, 0 to 1M samples, `push`/`set` edits, offsets near 1e9, 1e-3 to 1e5 samples per pixel), pixel checks through `readPixels` (spike, line and dots, lanes, resize, transparency, joins, the zoom threshold, gaps, colors, offset 1e9 drawn as offset 1000), context loss and the API contract. Headless Chromium through Playwright; `npx playwright install chromium` if it is missing.
 * `npm run bench`: the table above.
-* Demo: any static server at the repo root, e.g. `npx serve`, then open `/example/`. `?source=cello` picks a recording, `wqxr` the radio, `mic` the microphone. The first v5 demo is at `/example/stress.html`, the v4 demos at `/example/old.html` and `/example/old-multi.html`.
+* Demo: any static server at the repo root, e.g. `npx serve`, then open `/`. `?source=cello` picks a recording, `wqxr` the radio, `mic` the microphone. The first v5 demo is at `/example/stress.html`, the v4 demos at `/example/old.html` and `/example/old-multi.html`.
 
 ## License
 

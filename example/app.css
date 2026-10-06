@@ -34,7 +34,7 @@ summary .aa-icon { margin-top: .2rem }
 .aa-progress { position: fixed; top: 0; left: 0; height: .2rem; background: var(--fg); z-index: 3 }
 
 /* settings-panel, typer theme: its tones come from the palette (--t08 the text, --t9 the panel), set by app.js */
-.settings-panel { position: fixed; left: 1rem; bottom: 2.5rem; z-index: 1; max-width: calc(100vw - 4rem); margin: 0; padding: .5rem 1rem; border-radius: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; line-height: 1.15; color: var(--t08); text-shadow: var(--ts) }
+.settings-panel { position: fixed; left: 1rem; bottom: 2.5rem; z-index: 1; max-width: calc(100vw - 4rem); margin: 0; padding: .5rem 1rem; border-radius: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; line-height: 1.15; color: var(--t08) }
 .settings-panel h2 { display: inline-block; margin: 0; padding: .5rem 0; font-size: 16px; font-weight: 400; line-height: 1; vertical-align: baseline }
 .settings-panel h2 a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--link) }
 .settings-panel h2 a:hover { border-bottom-color: var(--t0) }
@@ -42,7 +42,7 @@ summary .aa-icon { margin-top: .2rem }
 .field > span:first-child { padding-right: 12px; color: var(--t25) }
 .field:hover > span:first-child { color: var(--t08) }
 .select { position: relative; display: inline-block }
-.select select { appearance: none; -webkit-appearance: none; height: 24px; min-width: 4em; margin-right: -3px; padding: 0 12px 0 6px; border: 0; border-radius: 2px; outline: none; cursor: pointer; line-height: 24px; color: var(--t25); text-shadow: var(--ts);
+.select select { appearance: none; -webkit-appearance: none; height: 24px; min-width: 4em; margin-right: -3px; padding: 0 12px 0 6px; border: 0; border-radius: 2px; outline: none; cursor: pointer; line-height: 24px; color: var(--t25);
   background: linear-gradient(hsl(from var(--sel) h s calc(l + 7)), hsl(from var(--sel) h s calc(l - 7))) var(--sel);
   box-shadow: inset 1px 0 rgb(from var(--light) r g b / .04), inset 0 1px rgb(from var(--light) r g b / .15), inset 0 -1px 1px rgb(from var(--light) r g b / .07), 0 1px 2px rgb(from var(--shade) r g b / .35) }
 .select select:hover, .select select:focus-visible { --sel: var(--sel-hi) }

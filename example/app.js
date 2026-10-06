@@ -5,13 +5,8 @@ import { recordings, streams, tap } from './sources.js'
 export const $ = id => document.getElementById(id)
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x))
 
-// The libraries v3 used, from esm.sh; if one fails to load, the page goes on without it or with a stand-in
-const esm = (name, fallback) => import(`https://esm.sh/${name}`).then(m => m.default ?? m, () => fallback)
-const [nice, colormap, colorScale, tinycolor, createFps] = await Promise.all([
-  // the first readable ones stand in for all
-  esm('nice-color-palettes@1.0.1', [['#ecd078', '#d95b43', '#c02942', '#542437', '#53777a'], ['#774f38', '#e08e79', '#f1d4af', '#ece5ce', '#c5e0dc'], ['#e8ddcb', '#cdb380', '#036564', '#033649', '#031634'], ['#490a3d', '#bd1550', '#e97f02', '#f8ca00', '#8a9b0f']]),
-  esm('colormap@2.3.2'), esm('colormap@2.3.2/colorScale.js', {}), esm('tinycolor2@1.6.0'), esm('fps-indicator@1.3.0')
-])
+// The libraries v3 used, from esm.sh, loaded behind the page: till they come, or if they fail, it goes on without them
+export const esm = (name, fallback) => import(`https://esm.sh/${name}`).then(m => m.default ?? m, () => fallback)
 
 // ── colors: [r, g, b] 0..255 with a 0..1 ────────────────────────────────────
 
@@ -34,15 +29,20 @@ export const ramp = stops => t => {
 // WCAG 2 relative luminance and contrast
 export const lum = c => c.slice(0, 3).map(v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0)
 const contrast = (a, b) => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05)
-const readable = tinycolor ? (a, b) => tinycolor.isReadable(a, b, { level: 'AA', size: 'large' }) : (a, b) => contrast(parse(a), parse(b)) >= 3
 
-// v3's palettes: nice-color-palettes and every colormap scale at 16 shades, kept where the first and last colors read as large text
-let palettes = [...nice]
-if (colormap) for (const name in colorScale) {
-  if (['alpha', 'hsv', 'rainbow', 'rainbow-soft', 'phase'].includes(name)) continue
-  try { palettes.push(colormap({ colormap: colorScale[name], nshades: 16, format: 'rgbaString' })) } catch {}
-}
-palettes = palettes.filter(p => readable(p[0], p.at(-1)))
+// v3's palettes: nice-color-palettes and every colormap scale at 16 shades, kept where the first and last colors read as
+// large text (tinycolor's AA, WCAG's 3:1 without it). A few readable ones stand in till they load
+const readable = (a, b) => contrast(parse(a), parse(b)) >= 3
+let palettes = [['#ecd078', '#d95b43', '#c02942', '#542437', '#53777a'], ['#e8ddcb', '#cdb380', '#036564', '#033649', '#031634'], ['#490a3d', '#bd1550', '#e97f02', '#f8ca00', '#8a9b0f']]
+Promise.all([esm('nice-color-palettes@1.0.1'), esm('colormap@2.3.2'), esm('colormap@2.3.2/colorScale.js', {}), esm('tinycolor2@1.6.0')]).then(([nice, colormap, colorScale, tinycolor]) => {
+  const all = [...nice ?? []]
+  if (colormap) for (const name in colorScale) {
+    if (['alpha', 'hsv', 'rainbow', 'rainbow-soft', 'phase'].includes(name)) continue
+    try { all.push(colormap({ colormap: colorScale[name], nshades: 16, format: 'rgbaString' })) } catch {}
+  }
+  const ok = tinycolor ? (a, b) => tinycolor.isReadable(a, b, { level: 'AA', size: 'large' }) : readable
+  if (all.length) palettes = all.filter(p => ok(p[0], p.at(-1)))
+})
 
 // typer's tones on the settings panel: its palette from text (0) to panel (1)
 function theme(stops) {
@@ -53,7 +53,6 @@ function theme(stops) {
   set('--t0', tone(0)); set('--t08', fg); set('--t25', tone(.25)); set('--t9', bg)
   set('--sel', tone(.855)); set('--sel-hi', tone(.855 + (inversed ? -.07 : .07))); set('--box', tone(.915)); set('--box-on', tone(.93))
   set('--light', light); set('--shade', shade); set('--link', alpha(tone(0), .1))
-  panel.setProperty('--ts', lum(fg) > lum(bg) ? `0 -1px ${css(mix(bg, shade, .5))}` : `0 1px ${css(mix(bg, light, .5))}`)
   panel.setProperty('--check', `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${css(fg)}" stroke="${css(fg)}" stroke-width="1.2" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`)}")`)
 }
 
@@ -61,14 +60,15 @@ function theme(stops) {
  *  { color(t), flat }: color(0) is the page, color(1) the ink, as [r, g, b, a] */
 export function palette(onColors, start = ['black'], active = '#24D4C0') {
   const set = (p, active) => {
-    const rgb = p.map(parse), flat = rgb.length < 2, color = ramp((flat ? [[255, 255, 255, 1], ...rgb] : rgb).toReversed())
+    // one color is ink on white
+    const rgb = p.map(parse), flat = rgb.length < 2, color = ramp(flat ? [[255, 255, 255, 1], rgb[0]] : rgb.toReversed())
     const bg = color(0), ink = css(rgb[0])
     document.body.style.setProperty('--bg', css(bg))
     document.body.style.setProperty('--fg', ink)
     $('panel').style.backgroundColor = css(alpha(bg, .5))
     $('panel').style.boxShadow = `0 0 0 2px ${css(alpha(color(.5), .1))}`
     if (!flat) theme(rgb)
-    if (fps) fps.element.style.color = ink
+    ink0 = ink; if (fps) fps.element.style.color = ink
     $('swatch').replaceChildren(...[active, ...p].filter(Boolean).slice(0, 3).map(c => Object.assign(document.createElement('span'), { style: `background: ${c}` })))
     onColors({ color, flat })
   }
@@ -81,7 +81,11 @@ export function palette(onColors, start = ['black'], active = '#24D4C0') {
   set(start, active)
 }
 
-export const fps = createFps?.({ position: 'top-right', css: { fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: '12px', padding: 0, marginTop: '1rem', marginRight: '1rem' } })
+let fps, ink0 = ''
+esm('fps-indicator@1.3.0').then(create => {
+  fps = create?.({ position: 'top-right', css: { fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: '12px', padding: 0, marginTop: '1rem', marginRight: '1rem' } })
+  if (fps) fps.element.style.color = ink0
+})
 
 // ── the source picker, as app-audio ───────────────────────────────────────
 

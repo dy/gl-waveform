@@ -45,7 +45,7 @@ test('demo: sound comes in from the right as it plays; the hour streams in; drag
   page.on('pageerror', e => errors.push(e.message))
   await page.route(url => !url.href.startsWith(origin), route => route.abort()) // offline: the libraries' stand-ins
   try {
-    await page.goto(origin + '/example/')
+    await page.goto(origin + '/index.html')
     await page.waitForFunction(() => document.getElementById('title').textContent.startsWith('Bach'))
     assert.equal(await ink(page, 'chart'), 0, 'nothing before a click')
     for (const id of ['swatch', 'envelope', 'width', 'grid-on']) assert.ok(await page.locator('#' + id).count(), id)

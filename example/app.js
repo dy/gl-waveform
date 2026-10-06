@@ -249,6 +249,20 @@ export function timeline(span) {
   return t
 }
 
+/** The newest sample to draw, gliding at the sampling rate between the blocks sound arrives in (2048 samples, 43 ms at
+ *  48 kHz), one block behind the newest: a view that follows it scrolls every frame, not by a block at a time */
+export function glide(block = 2048) {
+  let shown = 0, last = performance.now()
+  return (length, rate, playing) => {
+    const now = performance.now(), dt = Math.min((now - last) / 1000, .1)
+    last = now
+    if (!playing || shown > length) return shown = length
+    shown += dt * rate
+    shown += (length - block - shown) * .05 // drift back toward a block behind, as the clocks of the page and the sound differ
+    return shown = clamp(shown, Math.max(0, length - 4 * block), length)
+  }
+}
+
 // ── plot-grid ─────────────────────────────────────────────────────────────
 
 // pretty-number: thousands apart by a narrow space

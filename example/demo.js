@@ -3,10 +3,11 @@
 // An hour of synthetic speech comes in the same way, pushed as fast as it is generated.
 import Waveform from '../index.js'
 import { generator, parse } from './data.js'
-import { $, clamp, css, alpha, palette, picker, sound, gestures, timeline, rules, pretty, step } from './app.js'
+import { $, clamp, css, alpha, palette, picker, sound, gestures, timeline, glide, rules, pretty, step } from './app.js'
 
-const SPAN = 8, KEEP = 2 ** 25, HOUR = 172800000 // seconds in view at first; samples held, older ones drawn from their peaks
+const SPAN = 20, KEEP = 2 ** 25, HOUR = 172800000 // seconds in view at first; samples held, older ones drawn from their peaks
 const canvas = $('chart'), wf = new Waveform(canvas)
+const newest = glide()
 let rate = 48000, view = timeline(rate * SPAN), amp = 1, peak = 0, fixed = false, look = null, w = 0, h = 0, pr = 0, dirty = true, task = 0
 
 const ui = picker(start, [['Signals', [{ id: 'hour', name: 'An hour of synthetic speech' }]]])
@@ -51,7 +52,7 @@ function layout() {
   wf.update({ viewport: box(), pixelRatio: pr }); dirty = true
 }
 gestures(canvas, {
-  pan(dx) { view.pan(-dx / w * view.span, wf.length); dirty = true },
+  pan(dx) { view.pan(-dx / w * view.span, newest(wf.length, rate, audio.playing)); dirty = true },
   zoom(x, y, kx, ky) {
     if (kx !== 1) view.zoom(x / w, kx, wf.length, Math.max(wf.length, view.span) * 1.25)
     if (ky !== 1) { amp = clamp(amp * ky, 1e-3, 1e3); fixed = true }
@@ -117,9 +118,9 @@ $('file').accept = 'audio/*,.csv,.txt,.json'
 
 requestAnimationFrame(function frame() {
   requestAnimationFrame(frame)
-  if (!dirty) return
+  if (!dirty && !audio.playing) return
   dirty = false
-  const range = view.range(wf.length)
+  const range = view.range(newest(wf.length, rate, audio.playing))
   wf.update({ range, amplitude: [-amp, amp] }).clear().render()
   rule(range)
   const el = audio.element

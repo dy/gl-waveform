@@ -1,0 +1,71 @@
+/* The demos' page, the same file in gl-waveform, gl-spectrogram and gl-spectrum: gl-spectrum v3's look, app-audio top
+   left, fps-indicator top right, settings-panel in its typer theme bottom left, plot-grid's labels along the bottom */
+:root { --font: Montserrat, sans-serif; --bg: #fff; --fg: #000 }
+html, body { margin: 0; height: 100%; overflow: hidden }
+body { background: var(--bg); color: var(--fg); font-family: var(--font) }
+canvas { position: fixed; inset: 0; width: 100%; height: 100% }
+#chart { touch-action: none; cursor: grab; outline: none }
+#chart.drag { cursor: grabbing }
+#grid { pointer-events: none }
+button, select, input { font: inherit; color: inherit }
+[hidden] { display: none !important }
+
+.hint { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: 14px; opacity: .6 }
+
+.app-audio-wrap { position: absolute; left: 0; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: flex-start; max-width: 100vw; font-size: 16px; line-height: 2rem; user-select: none; -webkit-user-select: none }
+.app-audio { position: relative; z-index: 1; padding: .5rem 0 0; min-width: 0 }
+.app-audio summary { list-style: none; display: flex; align-items: center; max-width: calc(100vw - 3rem); position: relative; height: 2rem; padding-left: .5rem; cursor: pointer; white-space: nowrap; outline: none }
+.app-audio summary::-webkit-details-marker { display: none }
+.app-audio summary::before { content: ''; position: absolute; left: .65rem; right: 1rem; bottom: .25rem; border-bottom: .13rem dashed currentColor; opacity: .25 }
+.app-audio summary:hover::before, .app-audio[open] summary::before { opacity: 1 }
+.app-audio summary:focus-visible::before { border-bottom-style: solid; opacity: .95 }
+.app-audio.aa-error summary::before { opacity: 0 }
+.aa-icon { width: 1.4rem; height: 1.4rem; fill: currentColor; flex: none }
+summary .aa-icon { margin-top: .2rem }
+.aa-title { overflow: hidden; text-overflow: ellipsis; max-width: 320px; margin-left: .25rem }
+.aa-dropdown { position: absolute; left: 0; top: 0; z-index: -1; min-width: 100%; max-height: calc(100vh - 1rem); overflow-y: auto; margin: 0; padding: 2.5rem 0 .5rem; list-style: none; background: color-mix(in srgb, currentColor 10%, var(--bg)) }
+.aa-dropdown ul { list-style: none; margin: .5rem 0 0; padding: 0 }
+.aa-dropdown ul[data-title]::before { content: attr(data-title); display: block; padding: 0 .5rem; opacity: .5 }
+.aa-item { display: block; width: 100%; padding: 0 .5rem; border: 0; background: none; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 2rem; max-width: 100vw; box-sizing: border-box }
+.aa-item:hover, .aa-item:focus-visible { background: color-mix(in srgb, currentColor 25%, transparent); outline: none }
+.aa-play { margin-top: .5rem; height: 2rem; padding: 0 .25rem; border: 0; background: none; cursor: pointer; display: flex; align-items: center }
+.aa-credit { flex-basis: 100%; padding-left: 2.4rem; font-size: 11px; line-height: 1.2; color: inherit; opacity: .6; text-decoration: none; max-width: calc(100vw - 3rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.aa-credit:hover { opacity: 1 }
+.aa-progress { position: fixed; top: 0; left: 0; height: .2rem; background: var(--fg); z-index: 3 }
+
+/* settings-panel, typer theme: its tones come from the palette (--t08 the text, --t9 the panel), set by app.js */
+.settings-panel { position: fixed; left: 1rem; bottom: 2.5rem; z-index: 1; max-width: calc(100vw - 4rem); margin: 0; padding: .5rem 1rem; border-radius: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; line-height: 1.15; color: var(--t08); text-shadow: var(--ts) }
+.settings-panel h2 { display: inline-block; margin: 0; padding: .5rem 0; font-size: 16px; font-weight: 400; line-height: 1; vertical-align: baseline }
+.settings-panel h2 a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--link) }
+.settings-panel h2 a:hover { border-bottom-color: var(--t0) }
+.field { display: inline-flex; align-items: center; height: 24px; padding: 4.8px; margin-left: 1rem; vertical-align: top; cursor: pointer }
+.field > span:first-child { padding-right: 12px; color: var(--t25) }
+.field:hover > span:first-child { color: var(--t08) }
+.select { position: relative; display: inline-block }
+.select select { appearance: none; -webkit-appearance: none; height: 24px; min-width: 4em; margin-right: -3px; padding: 0 12px 0 6px; border: 0; border-radius: 2px; outline: none; cursor: pointer; line-height: 24px; color: var(--t25); text-shadow: var(--ts);
+  background: linear-gradient(hsl(from var(--sel) h s calc(l + 7)), hsl(from var(--sel) h s calc(l - 7))) var(--sel);
+  box-shadow: inset 1px 0 rgb(from var(--light) r g b / .04), inset 0 1px rgb(from var(--light) r g b / .15), inset 0 -1px 1px rgb(from var(--light) r g b / .07), 0 1px 2px rgb(from var(--shade) r g b / .35) }
+.select select:hover, .select select:focus-visible { --sel: var(--sel-hi) }
+.select option { background: var(--t9); color: var(--t08) }
+.select::before, .select::after { content: ''; position: absolute; right: 4px; top: 50%; border: 2.4px solid transparent; pointer-events: none; color: var(--t25) }
+.select::before { margin-top: -6.5px; border-bottom: 4.8px solid; border-top: 0 }
+.select::after { margin-top: 1px; border-top: 4.8px solid; border-bottom: 0 }
+.field input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0 8px 0 0; border-radius: 2px; cursor: pointer; background: var(--box); box-shadow: inset 0 1px 2px rgb(from var(--shade) r g b / .18), 0 1px rgb(from var(--light) r g b / .2) }
+.field input[type=checkbox]:hover { background: var(--box-on) }
+.field input[type=checkbox]:checked { background: var(--check) 0 -3px / 19px no-repeat, var(--box-on) }
+.field input[type=range] { appearance: none; -webkit-appearance: none; width: 64px; height: 16px; margin: 0; background: none; cursor: pointer }
+.field input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--box); box-shadow: inset 0 1px 2px rgb(from var(--shade) r g b / .18) }
+.field input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--box) }
+.field input[type=range]::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 10px; height: 10px; margin-top: -3px; border-radius: 50%; background: var(--t25) }
+.field input[type=range]::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--t25) }
+.field output { min-width: 2.2em; padding-left: 6px; color: var(--t25); font-variant-numeric: tabular-nums }
+.field input:focus-visible, .swatch:focus-visible, .settings-panel a:focus-visible { outline: 1px solid var(--t08); outline-offset: 2px }
+.swatch { display: inline-flex; flex-wrap: wrap; align-content: flex-start; width: 18px; height: 18px; padding: 0; border: 0; cursor: pointer; background: rgb(120 120 120 / .2) }
+.swatch span { width: 50%; height: 50% }
+
+@media (max-width: 640px) {
+  .aa-title { max-width: calc(100vw - 12rem) } /* the play button and fps beside it */
+  .settings-panel { white-space: normal; right: 1rem; max-width: none; padding: .25rem .5rem .5rem }
+  .settings-panel h2 { display: block; padding: .5rem 0 .25rem 4.8px }
+  .field { margin-left: 0; margin-right: .5rem }
+}

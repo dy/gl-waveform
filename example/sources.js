@@ -44,20 +44,28 @@ const TAP = `registerProcessor('tap', class extends AudioWorkletProcessor {
   }
 })`
 
+/** A node in context that hands each channel of what is connected to it to onChunk, an array of Float32Array a block of
+ *  2048 frames; it must reach the destination to run, so it does, silently. AudioWorklet needs https or localhost. */
+export async function tap(context, onChunk, channels = 2) {
+  const url = URL.createObjectURL(new Blob([TAP], { type: 'text/javascript' }))
+  try { await context.audioWorklet.addModule(url) } finally { URL.revokeObjectURL(url) }
+  const node = new AudioWorkletNode(context, 'tap', { channelCount: channels, channelCountMode: 'explicit' }), mute = context.createGain()
+  mute.gain.value = 0
+  node.connect(mute).connect(context.destination)
+  node.port.onmessage = e => onChunk(e.data)
+  return node
+}
+
 /** Samples of a live input as they come: a MediaStream (the microphone) or a media element (radio, with crossOrigin set).
  *  onChunk gets an array of Float32Array, one per channel. Elements are heard; the microphone is not, to avoid feedback.
  *  Call it from a click, so the browser lets the audio start. */
 export async function capture(input, onChunk, channels = 2) {
-  const context = new AudioContext(), url = URL.createObjectURL(new Blob([TAP], { type: 'text/javascript' }))
-  try { await context.audioWorklet.addModule(url) } finally { URL.revokeObjectURL(url) }
+  const context = new AudioContext(), node = await tap(context, onChunk, channels)
   const source = input instanceof MediaStream ? context.createMediaStreamSource(input) : context.createMediaElementSource(input)
-  const tap = new AudioWorkletNode(context, 'tap', { channelCount: channels, channelCountMode: 'explicit' }), mute = context.createGain()
-  mute.gain.value = 0
-  source.connect(tap).connect(mute).connect(context.destination)
+  source.connect(node)
   if (!(input instanceof MediaStream)) source.connect(context.destination)
-  tap.port.onmessage = e => onChunk(e.data)
   await context.resume()
-  return { rate: context.sampleRate, stop() { tap.port.onmessage = null; source.disconnect(); context.close() } }
+  return { rate: context.sampleRate, stop() { node.port.onmessage = null; source.disconnect(); context.close() } }
 }
 
 /** The microphone, captured: { rate, stop() } */

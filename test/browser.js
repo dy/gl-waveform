@@ -3,7 +3,8 @@ import { chromium } from 'playwright'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-export const origin = 'http://gl-waveform.test'
+// https: the demos capture sound through an AudioWorklet, which only a secure context has
+export const origin = 'https://gl-waveform.test'
 
 /** Open a page at origin; gpu: true asks for the hardware GPU (default is SwiftShader, deterministic) */
 export async function open({ gpu = false, width = 1024, height = 768 } = {}) {

@@ -2,65 +2,32 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Explore long waveforms, numeric signals and fast streaming data with gl-waveform.">
+<meta name="description" content="gl-waveform: music, radio, your microphone or an hour of samples as it comes, in random palettes.">
 <title>gl-waveform</title>
-<link rel="stylesheet" href="./style.css">
-<body class="waveform">
-<header>
-  <h1><a href="https://github.com/dy/gl-waveform">gl-waveform</a></h1>
-  <nav aria-label="Source">
-    <select id="source" aria-label="Source"><optgroup label="Signals"><option value="voice">Long waveform</option><option value="osc">Oscillators</option><option value="noise">Noise</option><option value="walk">Random walk</option><option value="steps">Steps</option><option value="gaps">Gaps &amp; spikes</option></optgroup><option value="file" hidden>Loaded file</option></select>
-    <button id="play" aria-label="Play" hidden>Play</button><button id="open">Open file</button><input id="file" type="file" accept="audio/*,.csv,.txt,.json" hidden>
-    <button id="stream" aria-pressed="false" disabled>Stream</button>
-  </nav>
-  <output id="perf"></output>
-  <button id="settings" aria-expanded="false" aria-controls="panel">Settings</button>
-</header>
-<main>
-  <div class="plot" id="plot"><canvas id="grid" aria-hidden="true"></canvas><canvas id="chart" tabindex="0" aria-label="Waveform: drag to pan, wheel or pinch to zoom, Home to fit."></canvas><canvas id="axes" aria-hidden="true"></canvas><div id="playhead" hidden></div></div>
-  <audio id="player" preload="auto" hidden></audio><input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Playback position" hidden>
-  <output id="note" hidden></output>
-  <p id="error" role="alert" hidden></p>
-</main>
-<footer>
-  <nav aria-label="View"><button id="fit">Whole signal</button><button id="spike">1-sample spike</button><button id="clip">Clipping</button><button id="silence">Silence</button><button id="samples">Samples</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></nav>
-  <output id="status" role="status">Generating…</output><a id="credit" target="_blank" rel="noopener" hidden></a>
-  <output id="readout"></output>
-  <output id="view" hidden></output>
-</footer>
-<aside id="panel" aria-label="Settings" hidden>
-  <button id="close-settings" aria-label="Close settings">×</button>
-  <form id="controls">
-      <fieldset id="generator"><legend>Data</legend>
-        <label>Samples<select id="count"><option>512</option><option>8192</option><option>65536</option><option>1000000</option><option>10000000</option><option value="172800000" selected>172.8 million  1 hour</option></select></label>
-        <label>Cycles<input id="cycles" type="number" min="1" max="1000" step="1" value="8"></label>
-        <label>Magnitude<input id="magnitude" type="number" min="0" max="1000000" step="any" value="1"></label>
-        <label>Offset<input id="offset" type="number" min="-1000000" max="1000000" step="any" value="0"></label>
-      </fieldset>
-      <fieldset><legend>Appearance</legend>
-        <div id="colors" class="colors"></div>
-        <label>Background<input id="background" type="color" value="#19212d"></label>
-        <label>Line width <output id="thickness-value">1.5 px</output><input id="thickness" type="range" min="0.5" max="8" step="0.5" value="1.5"></label>
-        <label>Opacity <output id="opacity-value">90%</output><input id="opacity" type="range" min="0.05" max="1" step="0.05" value="0.9"></label>
-        <label>Envelope<select id="fill"><option value="rms">RMS band</option><option value="density">Density</option><option value="solid">Solid</option></select></label>
-        <label class="check"><input id="grid-on" type="checkbox" checked>Grid</label>
-      </fieldset>
-      <fieldset><legend>View</legend>
-        <div class="pair"><label>Value min<input id="low" type="number" step="any" value="-1.25"></label><label>Value max<input id="high" type="number" step="any" value="1.25"></label></div>
-        <button id="auto-fit" type="button">Fit values</button>
-        <label>Horizontal axis<select id="units"><option value="samples">Samples</option><option value="time" selected>Time</option></select></label>
-        <label id="rate-row">Sample rate  Hz<input id="rate" type="number" min="1" max="384000" step="1" value="48000"></label>
-      </fieldset>
-      <fieldset id="streaming"><legend>Streaming</legend>
-        <label>Samples / frame<select id="block"><option>1024</option><option>16384</option><option selected>65536</option><option>262144</option></select></label>
-        <label>Frame rate<input id="speed" type="number" min="1" max="240" step="1" value="60"></label>
-        <label class="check"><input id="follow" type="checkbox" checked>Follow new samples</label>
-      </fieldset>
-      <button type="reset" class="reset">Reset settings</button>
-    </form>
-</aside>
-<script type="module">
-import('./demo.js').catch(e => { const error = document.getElementById('error'); error.hidden = false; error.textContent = e.message })
-</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500&display=swap">
+<link rel="stylesheet" href="./app.css">
+<body>
+<canvas id="chart" tabindex="0" aria-label="Waveform, the newest sound on the right: drag or scroll back, wheel or pinch to zoom time, Shift and wheel or a vertical pinch to zoom the amplitude, double click to fit"></canvas>
+<canvas id="grid" aria-hidden="true"></canvas>
+<p class="hint" id="hint">▶ to listen</p>
+<div class="aa-progress" id="progress"></div>
+<div class="app-audio-wrap">
+  <details class="app-audio" id="source">
+    <summary aria-label="Select source"><svg class="aa-icon" viewBox="0 0 819 1024" aria-hidden="true"><path d="M507.094 814.755c13.33 0 26.618-5.179 36.834-15.395l136.231-136.030c13.976-14.827 24.43-44.527 0-73.668l-136.231-136.231c-20.431-20.431-53.239-20.431-73.668 0s-20.431 53.435 0 73.859l46.967 46.967h-208.92v-268.557c0-28.885-23.142-52.229-52.046-52.229s-52.229 23.35-52.229 52.229v320.792c0 28.885 23.35 52.046 52.229 52.046h261.155l-47.17 47.17c-20.431 20.431-20.431 53.239 0 73.668 10.216 10.216 23.504 15.395 36.834 15.395z"/></svg><span class="aa-title" id="title">Select source</span>&nbsp;▾</summary>
+    <div class="aa-dropdown" id="sources">
+      <ul><li><button class="aa-item" id="open">Open file</button><input id="file" type="file" accept="audio/*,.csv,.txt,.json" hidden></li><li><button class="aa-item" data-id="mic">Microphone</button></li></ul>
+    </div>
+  </details>
+  <button class="aa-play" id="play" aria-label="Play"><svg class="aa-icon" viewBox="0 0 819 1024" aria-hidden="true"><path id="play-icon" d="M213.308 291.971c0-29.549 23.948-53.504 53.497-53.504 9.185 0 14.999 2.398 25.225 6.47l375.259 218.333c17.454 10.348 25.533 26.969 28.647 46.117v5.376c-3.122 19.144-11.203 35.769-28.647 46.117l-375.251 218.325c-10.245 4.080-16.055 6.462-25.225 6.462-29.549 0-53.497-23.955-53.497-53.504v-440.211z"/></svg></button>
+  <a class="aa-credit" id="credit" target="_blank" rel="noopener"></a>
+</div>
+<form class="settings-panel" id="panel" autocomplete="off" onsubmit="return false">
+  <h2><a href="https://github.com/dy/gl-waveform">gl-waveform</a></h2>
+  <span class="field"><span>palette</span><button type="button" class="swatch" id="swatch" title="Randomize palette" aria-label="Randomize palette"></button></span>
+  <label class="field"><span>envelope</span><span class="select"><select id="envelope"><option value="rms" selected>rms</option><option value="density">density</option><option value="none">none</option></select></span></label>
+  <label class="field"><span>width</span><input type="range" id="width" min="0.5" max="6" step="0.5" value="1"></label>
+  <label class="field"><span>grid</span><input type="checkbox" id="grid-on" checked></label>
+</form>
+<script type="module" src="./demo.js"></script>
 </body>
 </html>

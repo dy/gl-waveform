@@ -30,6 +30,7 @@ function layout() {
 }
 function stop() { running = false; status(); $('stream').textContent = 'Stream'; $('stream').setAttribute('aria-pressed', 'false') }
 function status() {
+  if (!lanes.length) return
   const count = document.createElement('b'); count.textContent = `${label(lanes[0]?.length || 0)} samples`
   $('status').replaceChildren(`${title}  ${names.length} ${names.length === 1 ? 'trace' : 'traces'}  `, count, loading ? '…' : live ? '  live' : indexed === indexed ? `  indexed ${Math.round(indexed)} ms` : '')
 }
@@ -82,8 +83,14 @@ function install(labels, heading, data, count = data[0].length) {
   for (const id of ['spike', 'clip', 'silence']) $(id).hidden = source !== 'voice'
   value(0, count); fitValues(); layout(); status(); error(''); notice(); paint = true
 }
-// Channels that are all the same, as in a mono recording published as stereo, draw as one
-const distinct = data => data.filter((d, c) => !c || d.some((v, i) => v !== data[0][i]))
+// Channels within -30 dB of the first, as a mono recording published as stereo (an MP3's joint stereo leaves them -40 dB
+// apart), draw as one
+const distinct = data => data.filter((d, c) => {
+  if (!c) return true
+  let diff = 0, sum = 0
+  for (let i = 0; i < d.length; i++) { diff += (d[i] - data[0][i]) ** 2; sum += data[0][i] ** 2 }
+  return diff > sum * 1e-3
+})
 const channels = n => n === 2 ? ['Left', 'Right'] : n === 1 ? ['Mono'] : Array.from({ length: n }, (_, i) => `Channel ${i + 1}`)
 function timed(rate) { $('rate').value = rate; $('units').value = 'time'; $('rate-row').hidden = false }
 // Live chunks onto the lanes, the view following the end

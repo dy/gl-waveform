@@ -63,10 +63,10 @@ gestures(canvas, {
 
 // ── look ──────────────────────────────────────────────────────────────────
 
-// The line in the ink, the RMS band between it and the page
+// The line and the RMS band in the ink, the envelope around the band softer, toward the page
 const paint = () => {
   const env = $('envelope').value
-  wf.update({ color: css(look.color(1)), rms: env === 'rms' ? css(look.color(.55)) : false, density: env === 'density', thickness: +$('width').value })
+  wf.update({ color: css(look.color(1)), rms: env === 'rms' ? null : false, peaks: env === 'rms' ? css(look.color(.4)) : null, density: env === 'density', thickness: +$('width').value })
   dirty = true
 }
 palette(l => { look = l; paint() })

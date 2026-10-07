@@ -114,6 +114,14 @@ test('render: density shades the fill by how often a Laplace signal of the colum
   assert.ok(Math.abs(square.high / 255 - laplace(1)) < .03, `a square at 90 % of its peak: ${square.high} (${laplace(1).toFixed(3)} of 255)`)
 })
 
+test('render: the RMS band in the line color, the envelope lighter around it', async () => {
+  let r = await run('twoTone')
+  assert.deepEqual(r.default.band, [0, 0, 255, 255], 'the band takes the line color')
+  assert.deepEqual(r.default.edge, [115, 115, 255, 255], 'the envelope, the line color lightened 45 % toward white')
+  assert.deepEqual(r.peaks.edge, [255, 0, 0, 255], 'peaks sets the envelope')
+  assert.deepEqual(r.none.edge, [0, 0, 255, 255], 'without the band, the envelope takes the line color')
+})
+
 test('render: NaN is a gap, ±Infinity is clamped to the edge', async () => {
   let r = await run('gaps')
   assert.equal(r.inGap, 0, 'nothing drawn over NaN')

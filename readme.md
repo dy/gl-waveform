@@ -46,7 +46,8 @@ Option | Default | Meaning
 `amplitude` | `[-1, 1]` | Values at the viewport's bottom and top; `[1, -1]` flips.
 `viewport` | whole canvas | `[x, y, width, height]` in CSS px from the canvas' top-left corner.
 `color` | blue | Line and envelope: a CSS color, `oklch()` included, or `[r, g, b, a]` in 0..1.
-`rms` | `color`, lightened | RMS band color; `false` hides the band.
+`rms` | `color` | RMS band color; `false` hides the band.
+`peaks` | `color`, lightened | The envelope around the RMS band, zoomed out: softer than the band, so a column's body reads darker than its peaks. Without the band (`rms: false`, `density`), `color`.
 `density` | `false` | Zoomed out, the fill is as bright as a Laplace-distributed signal of the column's RMS is often at that level, e^(−√2·\|v\|/rms) of its brightness on the axis, in place of the RMS band; a level reached once stays at 30 %. Speech is close to Laplace (Gazor & Zhang 2003), music between it and Gaussian.
 `thickness` | `1` | Line width in CSS px, at least one device pixel.
 `pixelRatio` | `devicePixelRatio` | Device px per CSS px.
@@ -70,7 +71,7 @@ Properties: `wf.gl`, `wf.canvas`, `wf.length`, `wf.range` (resolved), `wf.amplit
 
 ## Rendering
 
-* **Zoomed out**, over one sample per device pixel: each column shows the exact min and max of its samples, and neighbouring columns join into one outline, so a one-sample spike in 10M samples stays visible at full zoom-out. The RMS band spans −rms..+rms within min..max, rms = √mean(x²) over the column; it fades in from 1 to 4 samples per pixel.
+* **Zoomed out**, over one sample per device pixel: each column shows the exact min and max of its samples, and neighbouring columns join into one outline, so a one-sample spike in 10M samples stays visible at full zoom-out. The RMS band spans −rms..+rms within min..max, rms = √mean(x²) over the column, in the line's color; the envelope around it is lighter (`peaks`). Both fade in from 1 to 4 samples per pixel, where the line's color turns into the envelope's.
 * **Zoomed in**: an anti-aliased line through the samples. Dots appear at 6 CSS px per sample and reach full size at 12.
 * **No seam**: as columns thin out to one sample, the outline becomes the line, so crossing one sample per pixel changes neither peaks nor stroke; ink per sample changes by about 1%.
 * **Stable pans**: column edges sit on multiples of samples per pixel, so a pan moves the zoomed-out view by whole pixels and never reshuffles samples between columns. From 1024 samples per pixel, edges round to multiples of 256 samples, at most 1/8 px off, so a column is whole pyramid nodes.
@@ -108,7 +109,7 @@ Zooming continuously on `requestAnimationFrame` runs at 60 fps at every size. `u
 * `pick(x)` returns `{ from, to, min, max, rms }`, with `x` in CSS px from the viewport's left. Was `pick(event | x)` returning `{ average, sdev, x, y, offset }`.
 * `viewport` is in CSS px; was device px.
 * `amplitude` defaults to `[-1, 1]`; was the data's min/max.
-* Added: `rms`, dots, ±Infinity clamping, context loss handling, `length`.
+* Added: `rms`, `peaks`, dots, ±Infinity clamping, context loss handling, `length`.
 * Removed, with replacements where one exists:
   * `new Waveform()` without a target, `container`, `regl` and `new Waveform(otherWaveform)`: pass a canvas or a WebGL2 context.
   * Setters `wf.range = …`, `wf.amplitude = …`, `wf.viewport = …`, `wf.color = …`: use `update()`. `range` and `amplitude` stay as getters.

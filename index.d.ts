@@ -12,8 +12,10 @@ export interface Options {
   viewport?: [number, number, number, number] | null
   /** Envelope and line color. null: default blue. */
   color?: Color | null
-  /** RMS band color; false hides the band; null or true: color, lightened. */
+  /** RMS band color; false hides the band; null or true: color. */
   rms?: Color | boolean | null
+  /** The envelope's color zoomed out, around the RMS band. null: color, lightened, with the band; color without it. */
+  peaks?: Color | null
   /** Zoomed out, shade the fill by how often the signal reaches each level, in place of the RMS band. null: false. */
   density?: boolean | null
   /** Line width in CSS px, at least one device pixel. null: 1. */

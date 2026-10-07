@@ -418,3 +418,17 @@ export function farPixels() {
   near.canvas.remove(); far.canvas.remove()
   return { worst, frames, ink }
 }
+
+// A sine zoomed out, 250 samples a px: the RMS band in the line's color, the envelope around it lighter, or as peaks says
+export function twoTone() {
+  let data = Float32Array.from({ length: 1e5 }, (_, i) => Math.sin(i * 2 * Math.PI / 200) * .8)
+  let wf = new Waveform(canvas(400, 101), { pixelRatio: 1, data, color: [0, 0, 1, 1] }), out = {}
+  // the zero line is row 50; .9 of .8 is 36 rows up, beyond the band's ±.566
+  for (let [name, o] of [['default', {}], ['peaks', { peaks: [1, 0, 0, 1] }], ['none', { rms: false, peaks: null }]]) {
+    wf.clear().update(o).render()
+    let p = read(wf.gl)
+    out[name] = { band: p.px(200, 50), edge: p.px(200, 14) }
+  }
+  wf.canvas.remove()
+  return out
+}

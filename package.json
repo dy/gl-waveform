@@ -1,6 +1,6 @@
 {
   "name": "gl-waveform",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "description": "WebGL2 renderer for numeric signals, time series and audio: exact peaks, RMS band, sample-accurate line",
   "type": "module",
   "main": "index.js",

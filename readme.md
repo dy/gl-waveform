@@ -48,7 +48,7 @@ Option | Default | Meaning
 `color` | blue | Line and envelope: a CSS color, `oklch()` included, or `[r, g, b, a]` in 0..1.
 `rms` | `color` | RMS band color; `false` hides the band.
 `peaks` | `color`, lightened | The envelope around the RMS band, zoomed out: softer than the band, so a column's body reads darker than its peaks. Without the band (`rms: false`, `density`), `color`.
-`density` | `false` | Zoomed out, the fill is as bright as a Laplace-distributed signal of the column's RMS is often at that level, e^(−√2·\|v\|/rms) of its brightness on the axis, in place of the RMS band; a level reached once stays at 30 %. Speech is close to Laplace (Gazor & Zhang 2003), music between it and Gaussian.
+`density` | `false` | Zoomed out, the fill as bright as noise of the column's RMS is often at each level, against on the axis, in place of the RMS band. `'gaussian'` (or `true`): 10 % + 90 % · e^(−v²/2rms²), a full body that softens toward the peaks, a peak reached once still at 10 %. `'laplace'`: e^(−√2·\|v\|/rms), a soft cloud without outline, as speech is distributed (Gazor & Zhang 2003).
 `thickness` | `1` | Line width in CSS px, at least one device pixel.
 `pixelRatio` | `devicePixelRatio` | Device px per CSS px.
 

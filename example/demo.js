@@ -66,7 +66,7 @@ gestures(canvas, {
 // The line and the RMS band in the ink, the envelope around the band softer, toward the page
 const paint = () => {
   const env = $('envelope').value
-  wf.update({ color: css(look.color(1)), rms: env === 'rms' ? null : false, peaks: env === 'rms' ? css(look.color(.4)) : null, density: env === 'density', thickness: +$('width').value })
+  wf.update({ color: css(look.color(1)), rms: env === 'rms' ? null : false, peaks: env === 'rms' ? css(look.color(.4)) : null, density: env === 'gaussian' || env === 'laplace' ? env : false, thickness: +$('width').value })
   dirty = true
 }
 palette(l => { look = l; paint() })

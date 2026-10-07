@@ -212,8 +212,9 @@ export function density() {
   let n = 1e5, sine = Float32Array.from({ length: n }, (_, i) => Math.sin(i * 2 * Math.PI / 200) * .8)
   let square = Float32Array.from({ length: n }, (_, i) => (i % 200 < 100 ? .8 : -.8))
   let wf = new Waveform(canvas(400, 101), { pixelRatio: 1, color: [1, 1, 1, 1], rms: false }), out = {}
+  try { wf.update({ density: 'histogram' }); out.invalid = 'accepted' } catch (e) { out.invalid = e.name }
   // the zero line is row 50; .9 of .8 is 36 rows up
-  for (let [name, data, dense] of [['plain', sine, false], ['sine', sine, true], ['square', square, true]]) {
+  for (let [name, data, dense] of [['plain', sine, false], ['sine', sine, true], ['square', square, 'gaussian'], ['laplace', sine, 'laplace']]) {
     wf.clear().update({ data, density: dense }).render()
     let p = read(wf.gl)
     out[name] = { zero: p.a(200, 50), high: p.a(200, 14) }

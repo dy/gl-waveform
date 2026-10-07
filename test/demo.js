@@ -65,7 +65,8 @@ test('demo: sound comes in from the right as it plays; the hour streams in; drag
     await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'dragged back in time')
     s = await shot(); await page.keyboard.down('Shift'); await page.mouse.wheel(0, -300); await page.keyboard.up('Shift'); await page.waitForTimeout(100)
     assert.notEqual(await shot(), s, 'zoomed in amplitude')
-    s = await shot(); await page.locator('#envelope').selectOption('density'); await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'envelope')
+    s = await shot(); await page.locator('#envelope').selectOption('gaussian'); await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'envelope')
+    s = await shot(); await page.locator('#envelope').selectOption('laplace'); await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'laplace')
     s = await shot(); await page.locator('#swatch').click(); await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'a new palette')
 
     await page.locator('#source summary').click(); await page.locator('[data-id=hour]').click()

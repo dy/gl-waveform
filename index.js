@@ -11,6 +11,7 @@ const B = 256        // samples per pyramid leaf
 const C = 1 << 16    // samples per storage chunk, a multiple of B
 const TW = 2048      // data texture width, texels
 const DOT = 6        // CSS px between samples where dots appear; they reach full size at twice that
+const FLOOR = .1     // Gaussian density's least, where a column reaches at all
 
 const ATTRS = { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false, depth: false, stencil: false }
 const COLOR = [0.25, 0.45, 0.85, 1]
@@ -23,7 +24,7 @@ precision highp float;
 precision highp int;
 uniform highp sampler2D data; // envelope: per column [lo, hi, rms lo, rms hi]; line: per sample [y, y]; lo > hi is a gap
 uniform vec2 origin;          // viewport corner, device px
-uniform int count, line, dense;
+uniform int count, line, dense; // dense: 0 the RMS band, 1 Gaussian density over a floor, 2 Laplace density
 uniform float pps, off, hw, rad; // px per sample, first sample position in samples, half line width, dot radius
 uniform float zero, fade;        // silence's y, device px; how much a column holds several samples, 0..1
 uniform vec4 color, rms;         // premultiplied
@@ -54,11 +55,11 @@ void main() {
       a = b;
     }
     vec4 t = at(x);
-    if (dense == 1 && t.x <= t.y) {
-      // how often a Laplace-distributed signal of the column's RMS R is at this level, against zero: e^(−√2·|v| / R).
-      // Speech is close to Laplace (Gazor & Zhang 2003), so most of a column's samples sit near the axis
-      float R = max(max(t.w - zero, zero - t.z), 1e-6);
-      r = mix(1., exp(-${Math.SQRT2} * abs(p.y - zero) / R), fade);
+    if (dense > 0 && t.x <= t.y) {
+      // how often noise of the column's RMS R is at this level, against at zero: Gaussian e^(−v²/2R²) over a floor, so a
+      // one-sample peak still shows; or Laplace e^(−√2·|v|/R), as speech is (Gazor & Zhang 2003), a soft cloud
+      float R = max(max(t.w - zero, zero - t.z), 1e-6), v = abs(p.y - zero) / R;
+      r = mix(1., dense == 1 ? ${FLOOR} + ${1 - FLOOR} * exp(-.5 * v * v) : exp(-${Math.SQRT2} * v), fade);
     }
     else r = clamp(min(t.w, p.y + .5) - max(t.z, p.y - .5), 0., 1.);
   } else {
@@ -79,8 +80,8 @@ void main() {
     d = min(d, e);
   }
   float c = clamp(max(hw + .5 - d, rad + .5 - e), 0., 1.);
-  // dense: the fill as bright as the signal is often there, a peak reached once still at 30 %
-  frag = dense == 1 && line == 0 ? color * c * mix(.3, 1., r) : rms * r + color * c * (1. - rms.a * r);
+  // dense: the fill as bright as the signal is often there
+  frag = dense > 0 && line == 0 ? color * c * r : rms * r + color * c * (1. - rms.a * r);
 }`
 
 const UNIFORMS = ['data', 'origin', 'count', 'line', 'dense', 'pps', 'off', 'hw', 'rad', 'zero', 'fade', 'color', 'rms']
@@ -101,7 +102,7 @@ export default class Waveform {
   #color = COLOR
   #rms = null       // color, false to hide, null for #color
   #peaks = null     // the envelope's color zoomed out, null for a tint of #color with the RMS band, #color without
-  #density = false  // fill shaded by how often the signal reaches each level, in place of the RMS band
+  #density = false  // 'gaussian' or 'laplace': the fill shaded by how often the signal is at each level, in place of the RMS band
   #thickness = 1
   #pixelRatio = null
   #o = new Float64Array(4)    // query scratch
@@ -139,7 +140,10 @@ export default class Waveform {
     if (o.color !== undefined) this.#color = o.color == null ? COLOR : rgba(o.color, this.gl)
     if (o.rms !== undefined) this.#rms = o.rms === false ? false : o.rms == null || o.rms === true ? null : rgba(o.rms, this.gl)
     if (o.peaks !== undefined) this.#peaks = o.peaks == null ? null : rgba(o.peaks, this.gl)
-    if (o.density !== undefined) this.#density = !!o.density
+    if (o.density !== undefined) {
+      if (o.density != null && ![true, false, 'gaussian', 'laplace'].includes(o.density)) throw TypeError(`gl-waveform: density must be gaussian, laplace, true or false, not ${o.density}`)
+      this.#density = o.density === true ? 'gaussian' : o.density || false
+    }
     this.#draw = null
     return this
   }
@@ -236,7 +240,7 @@ export default class Waveform {
     gl.uniform1f(u.off, d.off)
     gl.uniform1f(u.hw, d.hw)
     gl.uniform1f(u.rad, d.rad)
-    gl.uniform1i(u.dense, +this.#density)
+    gl.uniform1i(u.dense, { gaussian: 1, laplace: 2 }[this.#density] ?? 0)
     gl.uniform1f(u.zero, d.zero)
     gl.uniform1f(u.fade, d.fade)
     // the RMS band in the line's color, the envelope around it lighter: zoomed out the envelope takes peaks', zoomed in

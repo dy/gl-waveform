@@ -16,8 +16,11 @@ export interface Options {
   rms?: Color | boolean | null
   /** The envelope's color zoomed out, around the RMS band. null: color, lightened, with the band; color without it. */
   peaks?: Color | null
-  /** Zoomed out, shade the fill by how often the signal reaches each level, in place of the RMS band. null: false. */
-  density?: boolean | null
+  /**
+   * Zoomed out, shade the fill by how often noise of the column's RMS is at each level, in place of the RMS band:
+   * 'gaussian' (or true) 10 % + 90 % · e^(−v²/2rms²); 'laplace' e^(−√2·|v|/rms). null: false.
+   */
+  density?: boolean | 'gaussian' | 'laplace' | null
   /** Line width in CSS px, at least one device pixel. null: 1. */
   thickness?: number | null
   /** Device px per CSS px. null: devicePixelRatio. */

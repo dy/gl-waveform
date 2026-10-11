@@ -154,6 +154,27 @@ export function edits({ seed, steps, W, pr }) {
   return { cols, bad: bad.slice(0, 3), nbad: bad.length }
 }
 
+// A view panned as a playhead is followed: by whole columns, by parts of one, back, from a range before the data to
+// past its end; now and then zoomed a little, or the samples under it set anew. Each column then takes the stats of
+// the column before over the same samples, or its own: either way as the reference has them
+export function pans({ seed, n, W, pr, spp, steps }) {
+  let r = random(seed), d = noise(n, r, { nan: 3, inf: 4 }), wf = new Waveform(canvas(W, 8), { pixelRatio: pr, data: d })
+  let from = -spp * W * .3, bad = [], cols = 0
+  for (let k = 0; k < steps; k++) {
+    let op = r()
+    if (op < .5) from += Math.round(r() * 8 - 2) * spp
+    else if (op < .8) from += (r() * 8 - 2) * spp
+    else if (op < .9) spp *= 1 + (r() - .5) * .02
+    else { let s = noise(Math.min(n, Math.floor(r() * spp * 4) + 1), r), at = Math.max(0, Math.min(n - s.length, Math.floor(from + r() * spp * W))); d.set(s, at); wf.set(s, at) }
+    if (k % 7 === 6) from += spp * W * .9
+    wf.update({ range: [from, from + spp * W] })
+    bad.push(...compare(wf, i => d[i], W, pr))
+    cols += W
+  }
+  wf.canvas.remove()
+  return { cols, bad: bad.slice(0, 3), nbad: bad.length }
+}
+
 // Samples at ~1e9: a 3000-sample island after a NaN gap, viewed from far out down to 1e-3 samples per px
 export function far({ seed, W, pr }) {
   let r = random(seed), at = 1e9 - 1000, s = noise(3000, r, { inf: 3 }), wf = new Waveform(canvas(W, 8), { pixelRatio: pr })

@@ -74,7 +74,7 @@ Properties: `wf.gl`, `wf.canvas`, `wf.length`, `wf.range` (resolved), `wf.amplit
 * **Zoomed out**, over one sample per device pixel: each column shows the exact min and max of its samples, and neighbouring columns join into one outline, so a one-sample spike in 10M samples stays visible at full zoom-out. The RMS band spans −rms..+rms within min..max, rms = √mean(x²) over the column, in the line's color; the envelope around it is lighter (`peaks`). Both fade in from 1 to 4 samples per pixel, where the line's color turns into the envelope's.
 * **Zoomed in**: an anti-aliased line through the samples. Dots appear at 6 CSS px per sample and reach full size at 12.
 * **No seam**: as columns thin out to one sample, the outline becomes the line, so crossing one sample per pixel changes neither peaks nor stroke; ink per sample changes by about 1%.
-* **Stable pans**: column edges sit on multiples of samples per pixel, so a pan moves the zoomed-out view by whole pixels and never reshuffles samples between columns. From 1024 samples per pixel, edges round to multiples of 256 samples, at most 1/8 px off, so a column is whole pyramid nodes.
+* **Stable pans**: column edges sit on multiples of samples per pixel, so a pan moves the zoomed-out view by whole pixels and never reshuffles samples between columns, and a column over the same samples as one before takes its stats: a pan computes only the columns it brings in, for one more array of the columns. From 1024 samples per pixel, edges round to multiples of 256 samples, at most 1/8 px off, so a column is whole pyramid nodes.
 * **NaN** is a gap. **±Infinity** and values past `amplitude` clamp to the viewport edge; `pick()` reports them as they are.
 * **Blending** is premultiplied, over whatever is under the viewport, so the canvas can overlay a spectrogram or a grid. The context must have `premultipliedAlpha` (the default).
 * **Context loss**: nothing throws while the context is lost; on restore, each waveform that had rendered uploads again and redraws.
@@ -95,11 +95,11 @@ v4 reduced samples on the GPU instead: it needed float32 fraction-splitting, mul
 
 Samples | `update({ data })` | Zoom frame, mean / p95 | Pan frame, mean / p95 | Unchanged frame | `push()` of 1024 | Pyramid
 ---|---|---|---|---|---|---
-1M | 1.8 ms | 0.52 / 2.2 ms | 0.11 / 0.3 ms | 0.01 ms | 4 µs | 0.25 MB
-10M | 18 ms | 0.77 / 3.1 ms | 2.9 / 3.3 ms | 0.01 ms | 4 µs | 2.5 MB
-172.8M (1 h) | 297 ms | 0.90 / 3.2 ms | 2.8 / 3.3 ms | 0.01 ms | 14 µs | 43 MB
+1M | 1.8 ms | 0.52 / 2.2 ms | 0.08 / 0.2 ms | 0.01 ms | 4 µs | 0.25 MB
+10M | 18 ms | 0.77 / 3.1 ms | 0.11 / 0.2 ms | 0.01 ms | 4 µs | 2.5 MB
+172.8M (1 h) | 297 ms | 0.90 / 3.2 ms | 0.11 / 0.2 ms | 0.01 ms | 14 µs | 43 MB
 
-Zooming continuously on `requestAnimationFrame` runs at 60 fps at every size. `update({ data })` is one pass at about 1.7 ns per sample of speech. Frames cost most between 256 and 1024 samples per pixel (the pan row), where columns scan partial leaves. Of 723 zoom frames over 172.8M samples, two took over 4 ms: the first after loading (30 ms) and one at 633 samples per pixel (7 ms).
+Zooming continuously on `requestAnimationFrame` runs at 60 fps at every size. `update({ data })` is one pass at about 1.7 ns per sample of speech. Zoom frames cost most between 256 and 1024 samples per pixel, where columns scan partial leaves; a pan there (the pan row, 7 CSS px a frame at 1000 samples per pixel) computes only the columns it brings in. Of 723 zoom frames over 172.8M samples, two took over 4 ms: the first after loading (30 ms) and one at 633 samples per pixel (7 ms).
 
 ## Changes from v4
 

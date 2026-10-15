@@ -38,40 +38,59 @@ test('the hour keeps its silence, clipping and single-sample spike, the same in 
   assert.ok(left.subarray(667000, 692000).some(v => Math.abs(v) === 1))
   const whole = generator('voice').next(9000), chunks = generator('voice'), a = chunks.next(3333), b = chunks.next(5667)
   whole.forEach((d, i) => assert.deepEqual([...d], [...a[i], ...b[i]]))
+  // the left alone, written over one block, as the demo streams it
+  const one = generator('voice', { channels: 1 }), buf = new Float32Array(5667)
+  assert.deepEqual([...one.next(3333, [buf.subarray(0, 3333)])[0], ...one.next(5667, [buf])[0]], [...whole[0]])
 })
 
-test('demo: sound comes in from the right as it plays; the hour streams in; drag, zoom, palettes, numbers', async () => {
+test('demo: a recording drawn before ▶ and played over it; the hour streams in; drag, zoom, palettes, numbers', async () => {
   const { browser, page } = await open({ width: 1000, height: 700 }), errors = []
   page.on('pageerror', e => errors.push(e.message))
-  await page.route(url => !url.href.startsWith(origin), route => route.abort()) // offline: the libraries' stand-ins
+  // offline: the libraries' stand-ins, and a tone for every recording
+  await page.route(url => !url.href.startsWith(origin), route => /upload\.wikimedia\.org/.test(route.request().url())
+    ? route.fulfill({ body: wav(110, 6), contentType: 'audio/wav', headers: { 'access-control-allow-origin': '*' } }) : route.abort())
   try {
     await page.goto(origin + '/index.html')
-    await page.waitForFunction(() => document.getElementById('title').textContent.startsWith('Bach'))
-    assert.equal(await ink(page, 'chart'), 0, 'nothing before a click')
+    const text = id => page.locator('#' + id).textContent(), shot = id => page.locator('#' + id).evaluate(c => c.toDataURL())
+    const progress = () => page.evaluate(() => parseFloat(document.getElementById('progress').style.width) || 0)
+    await page.waitForFunction(() => /^288\D000 samples/.test(document.getElementById('stats').textContent))
+    assert.ok((await text('title')).startsWith('Bach'))
+    assert.ok(await ink(page, 'chart', 0, .1) > 50 && await ink(page, 'chart', .9, 1) > 50, 'the first screen, before a click: 6 s of tone across the view')
     for (const id of ['swatch', 'envelope', 'width', 'grid-on']) assert.ok(await page.locator('#' + id).count(), id)
 
-    await page.locator('#file').setInputFiles({ name: 'tone.wav', mimeType: 'audio/wav', buffer: wav(220, 4) })
-    await page.waitForFunction(() => document.getElementById('play').getAttribute('aria-label') === 'Pause')
-    await page.waitForTimeout(1200)
-    assert.ok(await ink(page, 'chart', .8, 1) > 50, 'the newest on the right')
-    assert.equal(await ink(page, 'chart', 0, .2), 0, 'nothing yet on the left')
     await page.locator('#play').click()
+    await page.waitForFunction(() => document.getElementById('play').getAttribute('aria-label') === 'Pause')
+    await page.waitForFunction(() => parseFloat(document.getElementById('progress').style.width) > 0) // the context's clock started
+    let wave = await shot('chart'), grid = await shot('grid'), p = await progress()
+    await page.waitForTimeout(400)
+    assert.ok(await progress() > p, `the playhead moves on from ${p} %`)
+    assert.notEqual(await shot('grid'), grid, 'the playhead drawn where it is')
+    assert.equal(await shot('chart'), wave, 'the waveform holds still as it plays, its amplitude too')
+    await page.locator('#play').click(); p = await progress(); await page.waitForTimeout(300)
+    assert.equal(await page.locator('#play').getAttribute('aria-label'), 'Play')
+    assert.equal(await progress(), p, 'paused')
 
-    const box = await page.locator('#chart').boundingBox(), shot = () => page.locator('#chart').evaluate(c => c.toDataURL())
-    let s = await shot(); await page.mouse.move(box.x + 500, box.y + 300); for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -400) // in from 20 s to under the second of sound there is
-    await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'zoomed in time')
-    s = await shot()
+    await page.locator('#file').setInputFiles({ name: 'tone.wav', mimeType: 'audio/wav', buffer: wav(220, 4) })
+    await page.waitForFunction(() => /^192\D000 samples/.test(document.getElementById('stats').textContent))
+    assert.equal(await page.locator('#play').getAttribute('aria-label'), 'Pause', 'an opened file plays once decoded')
+    assert.ok(await ink(page, 'chart', 0, .1) > 50 && await ink(page, 'chart', .9, 1) > 50, 'drawn whole')
+
+    const box = await page.locator('#chart').boundingBox()
+    let s = await shot('chart'); await page.mouse.move(box.x + 500, box.y + 300); for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -400) // in from 4 s to under a second
+    await page.waitForTimeout(100); assert.notEqual(await shot('chart'), s, 'zoomed in time')
+    s = await shot('chart')
     await page.mouse.move(box.x + 300, box.y + 350); await page.mouse.down(); await page.mouse.move(box.x + 600, box.y + 350, { steps: 5 }); await page.mouse.up()
-    await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'dragged back in time')
-    s = await shot(); await page.keyboard.down('Shift'); await page.mouse.wheel(0, -300); await page.keyboard.up('Shift'); await page.waitForTimeout(100)
-    assert.notEqual(await shot(), s, 'zoomed in amplitude')
-    s = await shot(); await page.locator('#envelope').selectOption('gaussian'); await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'envelope')
-    s = await shot(); await page.locator('#envelope').selectOption('laplace'); await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'laplace')
-    s = await shot(); await page.locator('#swatch').click(); await page.waitForTimeout(100); assert.notEqual(await shot(), s, 'a new palette')
+    await page.waitForTimeout(100); assert.notEqual(await shot('chart'), s, 'dragged back in time')
+    s = await shot('chart'); await page.keyboard.down('Shift'); await page.mouse.wheel(0, -300); await page.keyboard.up('Shift'); await page.waitForTimeout(100)
+    assert.notEqual(await shot('chart'), s, 'zoomed in amplitude')
+    s = await shot('chart'); await page.locator('#envelope').selectOption('gaussian'); await page.waitForTimeout(100); assert.notEqual(await shot('chart'), s, 'envelope')
+    s = await shot('chart'); await page.locator('#envelope').selectOption('laplace'); await page.waitForTimeout(100); assert.notEqual(await shot('chart'), s, 'laplace')
+    s = await shot('chart'); await page.locator('#swatch').click(); await page.waitForTimeout(100); assert.notEqual(await shot('chart'), s, 'a new palette')
 
     await page.locator('#source summary').click(); await page.locator('[data-id=hour]').click()
     await page.waitForTimeout(1500)
     assert.ok(await ink(page, 'chart', .9, 1) > 100, 'the hour comes in from the right')
+    assert.match(await text('stats'), /samples\n\+[\d\s]+ \/s$/, 'samples held, and pushed a second')
     await page.locator('#file').setInputFiles({ name: 'values.json', mimeType: 'application/json', buffer: Buffer.from('[1000,2000,null,-3000]') })
     await page.waitForFunction(() => document.getElementById('title').textContent === 'values.json'); await page.waitForTimeout(200)
     assert.ok(await ink(page, 'chart') > 50, 'numbers drawn whole')

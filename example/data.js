@@ -1,14 +1,15 @@
 import voice from './voice.js'
 
-export function generator(source, { cycles = 8, count = 8192, magnitude = 1, offset = 0, rate = 48000 } = {}) {
+// voice: synthetic speech, its first `channels` of Left and Right
+export function generator(source, { cycles = 8, count = 8192, magnitude = 1, offset = 0, rate = 48000, channels = 2 } = {}) {
   let pos = 0, seed = 1, walk = 0
   const rnd = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 2 ** 32 * 2 - 1 }
   const voices = [voice(1, rate), voice(2, rate)]
-  const names = source === 'osc' ? ['Sine', 'Saw', 'Triangle'] : source === 'voice' ? ['Left', 'Right'] : [{ noise: 'Noise', walk: 'Random walk', steps: 'Steps', gaps: 'Gaps & spikes' }[source]]
-  return { names, next(n) {
-    const data = names.map(() => new Float32Array(n))
+  const names = source === 'osc' ? ['Sine', 'Saw', 'Triangle'] : source === 'voice' ? ['Left', 'Right'].slice(0, channels) : [{ noise: 'Noise', walk: 'Random walk', steps: 'Steps', gaps: 'Gaps & spikes' }[source]]
+  // next(n) returns n samples per channel, in new arrays or written over `data`'s
+  return { names, next(n, data = names.map(() => new Float32Array(n))) {
     if (source === 'voice') {
-      voices.forEach((fill, c) => fill(data[c], 0, n))
+      data.forEach((d, c) => voices[c](d, 0, n))
       // The original long-waveform landmarks, stable across streaming blocks.
       for (const d of data) {
         for (const [a, b] of [[.083, .0863], [.308, .3122], [.55, .5555], [.87, .8722]]) {

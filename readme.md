@@ -4,7 +4,7 @@ WebGL2 renderer for numeric signals, time series and audio. Zoomed out, every pi
 
 [<img src="example/preview.png" width="968" alt="Beethoven's Egmont Overture coming in from the right, yellow on red, its RMS band inside">](https://dy.github.io/gl-waveform/)
 
-[Demo](https://dy.github.io/gl-waveform/): Bach's cello, Chopin, Vivaldi, Beethoven, a blackbird, a poem read aloud, live radio, the microphone or your own audio, CSV or JSON, coming in from the right as it sounds, in random palettes; or an hour of synthetic speech, 172.8 million samples, pushed as fast as it is generated, with a one-sample spike, silences and clipping. Drag or scroll back; wheel or pinch zooms time, Shift+wheel or a vertical pinch the amplitude. The [v4 demos](https://dy.github.io/gl-waveform/example/old.html) ([multiscale](https://dy.github.io/gl-waveform/example/old-multi.html)) run on v5 too.
+[Demo](https://dy.github.io/gl-waveform/): Bach's cello, Chopin, Vivaldi, Beethoven, a blackbird, a poem read aloud or your own audio, drawn whole before it plays; live radio or the microphone coming in from the right as it sounds; CSV or JSON; in random palettes; or an hour of synthetic speech, 172.8 million samples, pushed for half of each frame, with a one-sample spike, silences and clipping. Drag or scroll back; wheel or pinch zooms time, Shift+wheel or a vertical pinch the amplitude. The [v4 demos](https://dy.github.io/gl-waveform/example/old.html) ([multiscale](https://dy.github.io/gl-waveform/example/old-multi.html)) run on v5 too.
 
 ## Usage
 

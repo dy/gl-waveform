@@ -6,10 +6,12 @@
 <title>gl-waveform</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500&display=swap">
 <link rel="stylesheet" href="./example/app.css">
+<style>.stats { position: fixed; top: 2.25rem; right: 1rem; z-index: 2; margin: 0; font: 12px/1.5 var(--font); font-variant-numeric: tabular-nums; text-align: right; white-space: pre; pointer-events: none }</style>
 <body>
-<canvas id="chart" tabindex="0" aria-label="Waveform, the newest sound on the right: drag or scroll back, wheel or pinch to zoom time, Shift and wheel or a vertical pinch to zoom the amplitude, double click to fit"></canvas>
+<canvas id="chart" tabindex="0" aria-label="Waveform: drag or scroll through it, wheel or pinch to zoom time, Shift and wheel or a vertical pinch to zoom the amplitude, double click to fit"></canvas>
 <canvas id="grid" aria-hidden="true"></canvas>
 <p class="hint" id="hint">▶ to listen</p>
+<p class="stats" id="stats"></p>
 <div class="aa-progress" id="progress"></div>
 <div class="app-audio-wrap">
   <details class="app-audio" id="source">

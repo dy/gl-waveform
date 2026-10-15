@@ -56,6 +56,8 @@ test('demo: a recording drawn before ▶ and played over it; the hour streams in
     await page.waitForFunction(() => /^288\D000 samples/.test(document.getElementById('stats').textContent))
     assert.ok((await text('title')).startsWith('Bach'))
     assert.ok(await ink(page, 'chart', 0, .1) > 50 && await ink(page, 'chart', .9, 1) > 50, 'the first screen, before a click: 6 s of tone across the view')
+    assert.ok(await page.locator('#hint').isHidden(), 'no ▶ hint over a waveform')
+    assert.ok(await page.evaluate(() => getComputedStyle(document.body).visibility === 'visible'), 'the page shown once set up')
     for (const id of ['swatch', 'envelope', 'width', 'grid-on']) assert.ok(await page.locator('#' + id).count(), id)
 
     await page.locator('#play').click()
@@ -66,16 +68,26 @@ test('demo: a recording drawn before ▶ and played over it; the hour streams in
     assert.ok(await progress() > p, `the playhead moves on from ${p} %`)
     assert.notEqual(await shot('grid'), grid, 'the playhead drawn where it is')
     assert.equal(await shot('chart'), wave, 'the waveform holds still as it plays, its amplitude too')
-    await page.locator('#play').click(); p = await progress(); await page.waitForTimeout(300)
+    await page.locator('#play').click(); await page.waitForTimeout(100); p = await progress(); await page.waitForTimeout(300) // the frame after the pause drawn
     assert.equal(await page.locator('#play').getAttribute('aria-label'), 'Play')
     assert.equal(await progress(), p, 'paused')
+
+    // a click puts the playhead there; Space plays from it and stops, a drag moves the view and not the playhead
+    const box = await page.locator('#chart').boundingBox()
+    await page.mouse.click(box.x + box.width / 2, box.y + 350); await page.waitForTimeout(100)
+    assert.ok(Math.abs(await progress() - 50) < .5, `the playhead where clicked, the middle of the 6 s: ${await progress()} %`)
+    await page.keyboard.press('Space')
+    await page.waitForFunction(() => parseFloat(document.getElementById('progress').style.width) > 50.5)
+    await page.keyboard.press('Space'); await page.waitForTimeout(100); p = await progress()
+    assert.equal(await page.locator('#play').getAttribute('aria-label'), 'Play', 'Space stops')
+    await page.mouse.move(box.x + 300, box.y + 350); await page.mouse.down(); await page.mouse.move(box.x + 500, box.y + 350, { steps: 5 }); await page.mouse.up()
+    assert.equal(await progress(), p, 'a drag is not a click')
 
     await page.locator('#file').setInputFiles({ name: 'tone.wav', mimeType: 'audio/wav', buffer: wav(220, 4) })
     await page.waitForFunction(() => /^192\D000 samples/.test(document.getElementById('stats').textContent))
     assert.equal(await page.locator('#play').getAttribute('aria-label'), 'Pause', 'an opened file plays once decoded')
     assert.ok(await ink(page, 'chart', 0, .1) > 50 && await ink(page, 'chart', .9, 1) > 50, 'drawn whole')
 
-    const box = await page.locator('#chart').boundingBox()
     let s = await shot('chart'); await page.mouse.move(box.x + 500, box.y + 300); for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -400) // in from 4 s to under a second
     await page.waitForTimeout(100); assert.notEqual(await shot('chart'), s, 'zoomed in time')
     s = await shot('chart')

@@ -1,16 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="loading">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="gl-waveform: music, radio, your microphone or an hour of samples as it comes, in random palettes.">
 <title>gl-waveform</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500&display=swap">
 <link rel="stylesheet" href="./example/app.css">
-<style>.stats { position: fixed; top: 2.25rem; right: 1rem; z-index: 2; margin: 0; font: 12px/1.5 var(--font); font-variant-numeric: tabular-nums; text-align: right; white-space: pre; pointer-events: none }</style>
+<script>addEventListener('error', () => document.documentElement.classList.remove('loading'))</script>
+<style>.loading { visibility: hidden } .stats { position: fixed; top: 2.25rem; right: 1rem; z-index: 2; margin: 0; font: 12px/1.5 var(--font); font-variant-numeric: tabular-nums; text-align: right; white-space: pre; pointer-events: none }</style>
 <body>
-<canvas id="chart" tabindex="0" aria-label="Waveform: drag or scroll through it, wheel or pinch to zoom time, Shift and wheel or a vertical pinch to zoom the amplitude, double click to fit"></canvas>
+<canvas id="chart" tabindex="0" aria-label="Waveform: click to place the playhead, Space to play or stop, drag or scroll through it, wheel or pinch to zoom time, Shift and wheel or a vertical pinch to zoom the amplitude, double click to fit"></canvas>
 <canvas id="grid" aria-hidden="true"></canvas>
-<p class="hint" id="hint">▶ to listen</p>
+<p class="hint" id="hint" hidden>▶ to listen</p>
 <p class="stats" id="stats"></p>
 <div class="aa-progress" id="progress"></div>
 <div class="app-audio-wrap">

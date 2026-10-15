@@ -96,6 +96,7 @@ function play() {
   if (!clip || node) return
   const a = view.end - view.span
   if (!(head >= a && head < Math.min(view.end, clip.length))) head = clamp(Math.ceil(a), 0, clip.length - 1)
+  last = head
   const n = node = new AudioBufferSourceNode(ctx, { buffer: clip })
   n.onended = () => { if (node === n) { node = null; head = clip.length; want = false; ui.playing(false); dirty = true } }
   n.connect(ctx.destination)
@@ -106,10 +107,28 @@ function pause() {
   if (!node) return
   head = playhead(); node.onended = null; node.stop(); node = null; dirty = true
 }
-// Playing, the view holds the playhead at its middle once it gets there, till the end of the sound
+// Playing, past the middle of the view the playhead stays where it is and the view moves under it, till the end of
+// the sound; last, the playhead a frame before
+let last = 0
 function chase(p) {
-  if (chasing && p > view.end - view.span / 2 && p < view.end) view.end = Math.min(p + view.span / 2, wf.length)
+  if (chasing && p > view.end - view.span / 2 && p <= view.end) view.end = Math.min(view.end + p - last, wf.length)
+  last = p
 }
+// A click puts the playhead there; playing, it plays on from it. A drag is not a click
+let down = [0, 0]
+canvas.addEventListener('pointerdown', e => down = [e.clientX, e.clientY])
+canvas.addEventListener('click', e => {
+  if (!clip || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 3) return
+  const on = !!node
+  pause()
+  head = clamp(Math.round(view.end - view.span + e.clientX / w * view.span), 0, clip.length)
+  on ? play() : dirty = true
+})
+// Space plays and stops, as ▶ does, where it has no use of its own
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' || e.repeat || e.target.closest?.('button, input, select, textarea, summary, a')) return
+  e.preventDefault(); $('play').click()
+})
 
 // ── view ──────────────────────────────────────────────────────────────────
 
@@ -154,7 +173,7 @@ function rule([from, to], p) {
   const { g, px } = rules($('grid'))
   if (!look) return
   const ink = look.color(.75), [, top, , height] = box()
-  if ($('grid-on').checked) {
+  if ($('grid-on').checked && !loading) {
     const [a, b] = [from / rate, to / rate], dt = b - a >= 120 ? [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600].find(s => s >= (b - a) / (w / 90)) ?? 3600 : step(b - a, w, 90)
     for (let t = Math.max(0, Math.ceil(a / dt)) * dt; t <= b; t += dt) {
       const x = Math.round((t - a) / (b - a) * w / px) * px
@@ -168,17 +187,15 @@ function rule([from, to], p) {
       g.fillStyle = css(ink); g.fillRect(0, y, 4, px); g.fillText(pretty(+v.toPrecision(6)), 6, y + 4.5)
     }
   }
-  // the playhead: the ink between two strokes of the page, so it shows over the waveform too
+  // the playhead
   if (p == null || p < from || p > to) return
-  const x = Math.round((p - from) / (to - from) * w / px) * px
-  g.fillStyle = css(look.color(0)); g.fillRect(x - 1, top, 3, height)
-  g.fillStyle = css(look.color(1)); g.fillRect(x, top, 1, height)
+  g.fillStyle = css(look.color(1)); g.fillRect(Math.round((p - from) / (to - from) * w / px) * px, top, 1, height)
 }
-// Samples held, and pushed a second, under the fps meter; read once a second
+// Samples held, and pushed a second, under the fps meter; read once a second, and as soon as there are samples
 let said = '', read = 0
 function meter(now) {
-  if (now - read < 1000) return
-  const r = t2 > t1 ? fed * 1e3 / (t2 - t1) : 0, text = `${pretty(wf.length)} samples${r ? `\n+${pretty(+r.toPrecision(3))} /s` : ''}`
+  if (now - read < 1000 && (said || !wf.length)) return
+  const r = t2 > t1 ? fed * 1e3 / (t2 - t1) : 0, text = !wf.length ? '' : `${pretty(wf.length)} samples${r ? `\n+${pretty(+r.toPrecision(3))} /s` : ''}`
   if (text !== said) $('stats').textContent = said = text
   fed = t1 = t2 = 0; read = now
 }
@@ -226,5 +243,7 @@ requestAnimationFrame(function frame(now) {
 })
 
 layout()
-whole(current) || current.id === 'hour' ? start(current, false) : ui.show(current)
-document.fonts?.ready.then(() => dirty = true)
+if (whole(current) || current.id === 'hour') start(current, false)
+else { ui.show(current); $('hint').hidden = false } // sound that waits for a click
+// shown once set up and its fonts are in, so nothing on it changes as it appears
+Promise.resolve(document.fonts?.ready).then(() => { document.documentElement.classList.remove('loading'); dirty = true })

@@ -47,8 +47,8 @@ Option | Default | Meaning
 `viewport` | whole canvas | `[x, y, width, height]` in CSS px from the canvas' top-left corner.
 `color` | blue | Line and envelope: a CSS color, `oklch()` included, or `[r, g, b, a]` in 0..1.
 `rms` | `color` | RMS band color; `false` hides the band.
-`peaks` | `color`, lightened | The envelope around the RMS band, zoomed out: softer than the band, so a column's body reads darker than its peaks. Without the band (`rms: false`, `density`), `color`.
-`density` | `false` | Zoomed out, the fill as bright as noise of the column's RMS is often at each level, against on the axis, in place of the RMS band. `'gaussian'` (or `true`): 10 % + 90 % · e^(−v²/2rms²), a full body that softens toward the peaks, a peak reached once still at 10 %. `'laplace'`: e^(−√2·\|v\|/rms), a soft cloud without outline, as speech is distributed (Gazor & Zhang 2003).
+`peaks` | `color`, lightened | The envelope around the RMS band, zoomed out: softer than the band, so a column's body reads darker than its peaks. Without the band (`rms: false`), `color`. With `density`, the fill past the body: `color` at 30 % for `'gaussian'`, none for `'laplace'` and `'flat'`.
+`density` | `false` | Zoomed out, the fill shaded by how often noise of the column's RMS is at each level, g against 1 on the axis, in place of the RMS band: `color` × g, and `peaks` × (1 − g) graded from the axis to a third of it at the column's extreme, so the fill fades all the way out and a peak reached once still shows. `'gaussian'` (or `true`): g = e^(−v²/2rms²), a full body. `'laplace'`: g = e^(−√2·\|v\|/rms), a soft cloud, as speech is distributed (Gazor & Zhang 2003). `'flat'`: g = e^(−(\|v\|/1.72·rms)⁴), one shade to about the RMS, soft past it. All three are the generalized normal of unit variance, e^(−(\|v\|/α)^β), α = √(Γ(1/β)/Γ(3/β)), at β 2, 1 and 4 (Nadarajah 2005).
 `thickness` | `1` | Line width in CSS px, at least one device pixel.
 `pixelRatio` | `devicePixelRatio` | Device px per CSS px.
 

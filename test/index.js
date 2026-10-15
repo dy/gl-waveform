@@ -110,17 +110,30 @@ test('render: crossing one sample per px keeps peaks and ink per sample', async 
   assert.ok(Math.abs(above.ink / below.ink - 1) < .02, `ink per sample: ${above.ink} vs ${below.ink}`)
 })
 
-test('render: density shades the fill by how often noise of the column\'s RMS is at each level, Gaussian or Laplace', async () => {
-  let { plain, sine, square, laplace, invalid } = await run('density')
+test('render: density shades the fill by how often noise of the column\'s RMS is at each level, Gaussian, Laplace or flat', async () => {
+  let { plain, sine, square, laplace, flat, invalid, peaks } = await run('density')
   assert.deepEqual([plain.zero, plain.high], [255, 255], 'without density the envelope is solid')
   assert.equal(sine.zero, 255, 'on the axis: full')
-  // at .9 of the peak P, rms P/√2 for the sine, P for the square
-  const gauss = rms => .1 + .9 * Math.exp(-.5 * (.9 / rms) ** 2), lap = rms => Math.exp(-Math.SQRT2 * .9 / rms)
+  // at .9 of the peak P, rms P/√2 for the sine, P for the square: the body as often as g, past it 30 % fading to a third
+  // of it at the peak, .9 of the way there
+  const fill = g => g + (1 - g) * .3 * (1 - 2 / 3 * .9)
+  const gauss = rms => fill(Math.exp(-.5 * (.9 / rms) ** 2)), lap = rms => Math.exp(-Math.SQRT2 * .9 / rms)
   assert.ok(Math.abs(sine.high / 255 - gauss(Math.SQRT1_2)) < .03, `Gaussian, a sine at 90 % of its peak: ${sine.high} (${gauss(Math.SQRT1_2).toFixed(3)} of 255)`)
   assert.ok(Math.abs(square.high / 255 - gauss(1)) < .03, `Gaussian, a square at 90 % of its peak: ${square.high} (${gauss(1).toFixed(3)} of 255)`)
   assert.ok(Math.abs(laplace.high / 255 - lap(Math.SQRT1_2)) < .03, `Laplace, a sine at 90 % of its peak: ${laplace.high} (${lap(Math.SQRT1_2).toFixed(3)} of 255)`)
   assert.equal(laplace.zero, 255)
-  assert.equal(invalid, 'TypeError', 'an unknown density throws')
+  // flat: the generalized normal at β 4 of unit variance, α = √(Γ(1/4)/Γ(3/4)) (Nadarajah 2005), Γ(1/4) = 3.6256099082,
+  // Γ(3/4) = 1.2254167024 (DLMF 5.4); no peaks past it. Full to past the sine's RMS, soft by its peak
+  const flatG = v => Math.exp(-((v / Math.sqrt(3.6256099082 / 1.2254167024)) ** 4))
+  assert.equal(flat.zero, 255)
+  assert.ok(Math.abs(flat.mid / 255 - flatG(.5 * Math.SQRT2)) < .03 && flat.mid > 245, `flat, a sine at half its peak: ${flat.mid} (${flatG(.5 * Math.SQRT2).toFixed(3)} of 255)`)
+  assert.ok(Math.abs(flat.high / 255 - flatG(.9 * Math.SQRT2)) < .03, `flat, a sine at 90 % of its peak: ${flat.high} (${flatG(.9 * Math.SQRT2).toFixed(3)} of 255)`)
+  // peaks red at .9 of the sine's peak: white × g, red × (1 − g) × (1 − ⅔ · .9), premultiplied
+  const g = Math.exp(-.5 * (.9 / Math.SQRT1_2) ** 2), red = (1 - g) * (1 - 2 / 3 * .9)
+  assert.deepEqual(peaks.zero, [255, 255, 255, 255], 'peaks leaves the body on the axis in the line color')
+  for (let [got, want, what] of [[peaks.high[0], g + red, 'red'], [peaks.high[1], g, 'green'], [peaks.high[3], g + red, 'alpha']])
+    assert.ok(Math.abs(got / 255 - want) < .03, `peaks past the body, ${what}: ${got} (${want.toFixed(3)} of 255)`)
+  assert.deepEqual(invalid, ['TypeError', 'TypeError'], 'an unknown density throws, an Object method among them')
 })
 
 test('render: the RMS band in the line color, the envelope lighter around it', async () => {

@@ -227,19 +227,22 @@ export function spike() {
 }
 
 // A sine at .8 zoomed out, with and without density: alpha on the zero line and at 90 % of the peak; a square wave's
-// the same way. Density shades a level by S = 1 − (|v| / P)^k, k = 2q / (1 − q), q = RMS² / peak² (index.js), shown
-// as mix(.3, 1, S): a sine's q = 1/2 gives S(.9 P) = .19, drawn at .43; a square's q, capped at .98, keeps S near 1.
+// the same way (index.js FRAG: g of the column's RMS, the rest in peaks graded to the extreme).
 export function density() {
   let n = 1e5, sine = Float32Array.from({ length: n }, (_, i) => Math.sin(i * 2 * Math.PI / 200) * .8)
   let square = Float32Array.from({ length: n }, (_, i) => (i % 200 < 100 ? .8 : -.8))
   let wf = new Waveform(canvas(400, 101), { pixelRatio: 1, color: [1, 1, 1, 1], rms: false }), out = {}
-  try { wf.update({ density: 'histogram' }); out.invalid = 'accepted' } catch (e) { out.invalid = e.name }
-  // the zero line is row 50; .9 of .8 is 36 rows up
-  for (let [name, data, dense] of [['plain', sine, false], ['sine', sine, true], ['square', square, 'gaussian'], ['laplace', sine, 'laplace']]) {
+  out.invalid = ['histogram', 'toString'].map(d => { try { wf.update({ density: d }); return 'accepted' } catch (e) { return e.name } })
+  // the zero line is row 50; .9 of .8 is 36 rows up, .5 of it 20
+  for (let [name, data, dense] of [['plain', sine, false], ['sine', sine, true], ['square', square, 'gaussian'], ['laplace', sine, 'laplace'], ['flat', sine, 'flat']]) {
     wf.clear().update({ data, density: dense }).render()
     let p = read(wf.gl)
-    out[name] = { zero: p.a(200, 50), high: p.a(200, 14) }
+    out[name] = { zero: p.a(200, 50), mid: p.a(200, 30), high: p.a(200, 14) }
   }
+  // peaks red: the body white on the axis, red mixed in past it
+  wf.clear().update({ data: sine, density: true, peaks: [1, 0, 0, 1] }).render()
+  let p = read(wf.gl)
+  out.peaks = { zero: p.px(200, 50), high: p.px(200, 14) }
   wf.canvas.remove()
   return out
 }

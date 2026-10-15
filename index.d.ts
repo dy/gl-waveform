@@ -18,9 +18,10 @@ export interface Options {
   peaks?: Color | null
   /**
    * Zoomed out, shade the fill by how often noise of the column's RMS is at each level, in place of the RMS band:
-   * 'gaussian' (or true) 10 % + 90 % · e^(−v²/2rms²); 'laplace' e^(−√2·|v|/rms). null: false.
+   * 'gaussian' (or true) e^(−v²/2rms²); 'laplace' e^(−√2·|v|/rms); 'flat' e^(−(|v|/1.72·rms)⁴), one shade to about the
+   * RMS, soft past it. null: false.
    */
-  density?: boolean | 'gaussian' | 'laplace' | null
+  density?: boolean | 'gaussian' | 'laplace' | 'flat' | null
   /** Line width in CSS px, at least one device pixel. null: 1. */
   thickness?: number | null
   /** Device px per CSS px. null: devicePixelRatio. */

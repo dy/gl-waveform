@@ -52,8 +52,9 @@ test('v4 multiscale demo: lanes of one stream, inked and moving', async () => {
   let { browser, page, errors } = await load('/example/old-multi.html')
   try {
     await page.waitForFunction(() => document.querySelector('canvas').width > 0)
-    await page.waitForTimeout(500)
+    // the first frames, however long software GL takes over them
     let bands = await ink(page, 8)
+    for (let t = Date.now(); bands.some(n => n <= 200) && Date.now() - t < 10000; bands = await ink(page, 8)) await page.waitForTimeout(100)
     for (let n of bands) assert.ok(n > 200, `ink in every band: ${bands}`)
     let a = await page.locator('canvas').evaluate(c => c.toDataURL())
     await page.waitForTimeout(200)

@@ -85,7 +85,7 @@ Properties: `wf.gl`, `wf.canvas`, `wf.length`, `wf.range` (resolved), `wf.amplit
 2. A pyramid over the samples keeps `[min, max, Σx², count]` in doubles per node of 256·2ᴸ samples: 0.25 bytes per sample, built in one pass, updated in O(k + log n) by `push()` and `set()`.
 3. Each frame, the CPU reads every device-pixel column from the pyramid in doubles: exact min, max and RMS from O(log n) nodes plus at most two partial leaves. Absolute sample positions never reach the GPU, so float32 has nothing to round.
 4. The results go into one RGBA32F texel per column (zoomed out) or per visible sample (zoomed in), already in viewport pixels: tens of KB per frame. GPU memory is that texture, whatever the data length.
-5. One draw per viewport: a quad whose fragment shader measures the distance to the joined column spans, or to the line and its dots, and turns it into anti-aliased coverage.
+5. One draw per viewport: a quad whose fragment shader measures the distance to the joined column spans, or to the line and its dots, and turns it into anti-aliased coverage. A pixel first reads the rows its column can ink, found on the CPU with the texels, and stops past them: only pixels near the shape do the work.
 
 v4 reduced samples on the GPU instead: it needed float32 fraction-splitting, multipass textures and GPU memory proportional to the data, and drew mean ± deviation rather than peaks.
 

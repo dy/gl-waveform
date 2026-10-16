@@ -16,6 +16,11 @@ export const recordings = [
 // Live radio whose servers allow reading the samples
 export const streams = [
   { id: 'wqxr', name: 'WQXR, classical radio', url: 'https://stream.wqxr.org/wqxr', page: 'https://www.wqxr.org' },
+  { id: 'francemusique', name: 'France Musique, Paris', url: 'https://icecast.radiofrance.fr/francemusique-midfi.mp3', page: 'https://www.radiofrance.fr/francemusique' },
+  { id: 'swissclassic', name: 'Radio Swiss Classic', url: 'https://stream.srg-ssr.ch/m/rsc_de/mp3_128', page: 'https://www.radioswissclassic.ch' },
+  { id: 'brklassik', name: 'BR-Klassik, Munich', url: 'https://dispatcher.rndfnk.com/br/brklassik/live/mp3/mid', page: 'https://www.br-klassik.de' },
+  { id: 'wfmt', name: 'WFMT, Chicago', url: 'https://wfmt.streamguys1.com/main-mp3', page: 'https://www.wfmt.com' },
+  { id: 'mpr', name: 'Classical MPR, Minnesota', url: 'https://cms.stream.publicradio.org/cms.mp3', page: 'https://www.classicalmpr.org' },
   { id: 'paradise', name: 'Radio Paradise, mellow mix', url: 'https://stream.radioparadise.com/mellow-128', page: 'https://radioparadise.com' }
 ]
 

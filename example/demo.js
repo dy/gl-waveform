@@ -6,11 +6,10 @@
 import Waveform from '../index.js'
 import { generator, parse } from './data.js'
 import { download } from './sources.js'
-import { $, clamp, css, alpha, palette, picker, sound, gestures, timeline, glide, rules, pretty, step } from './app.js'
+import { $, clamp, css, alpha, palette, picker, sound, gestures, timeline, rules, pretty, step } from './app.js'
 
 const SPAN = 20, KEEP = 2 ** 25, HOUR = 172800000, RATE = 48000 // seconds in view at first; samples held, older ones drawn from their peaks; the rate sound is decoded at
 const canvas = $('chart'), wf = new Waveform(canvas)
-const newest = glide()
 let rate = RATE, view = timeline(rate * SPAN), amp = 1, fitted = 1, look = null, w = 0, h = 0, pr = 0, dirty = true, task = 0
 
 const ui = picker(start, [['Signals', [{ id: 'hour', name: 'An hour of synthetic speech' }]]])
@@ -21,10 +20,11 @@ const whole = it => it.url && !it.live && !numbers(it) // a recording or an audi
 // ── data ──────────────────────────────────────────────────────────────────
 
 // Chunks as they sound, mixed to one channel; past KEEP samples the oldest are let go, their peaks kept
+let came = 0 // when the last block of sound came
 function take(chunk) {
   const n = chunk[0].length, mono = new Float32Array(n)
   for (const c of chunk) for (let i = 0; i < n; i++) mono[i] += c[i] / chunk.length
-  push(mono)
+  push(mono); came = performance.now()
   if (wf.length > KEEP) wf.drop(0, wf.length - KEEP / 2)
 }
 // For the meter: samples pushed after the first since it last read, and the times of that first and the last
@@ -38,7 +38,7 @@ function push(d) {
 // A new source: data in a view span samples wide, at ±top, which a double click comes back to. Sound as it comes is
 // at full scale, ±1, so a louder passage never shrinks what is drawn
 function reset(sr, span = sr * SPAN, data = new Float32Array(0), top = 1) {
-  rate = sr; view = timeline(span); fitted = amp = top; wf.update({ data }); dirty = true
+  rate = sr; view = timeline(span); fitted = amp = top; wf.update({ data }); dirty = true; newest = steady()
   if (data.length) $('hint').hidden = true // ▶ beside the title is enough over a waveform
 }
 // Data held whole fills the height: the 1-2-5 value at or above its peak, with headroom; for sound, ±1 at most
@@ -82,11 +82,11 @@ async function load(it, id) {
   } catch (e) { if (id === task) { pause(); ui.show(it, e.message) } }
   finally { if (id === task) loading = false }
 }
-// The playhead, in samples: the sound leaving the speakers now, by the context's output clock
-function playhead() {
+// The playhead, in samples: the sound leaving the speakers at time t, by the context's output clock
+function heard(t = performance.now()) {
   if (!node) return head
-  const o = ctx.getOutputTimestamp?.(), now = o?.performanceTime > 0 ? o.contextTime + (performance.now() - o.performanceTime) / 1e3 : ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0)
-  return Math.min(head + Math.max(now - t0, 0) * clip.sampleRate, clip.length)
+  const o = ctx.getOutputTimestamp?.(), s = o?.performanceTime > 0 ? o.contextTime + (t - o.performanceTime) / 1e3 : ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0)
+  return Math.min(head + Math.max(s - t0, 0) * clip.sampleRate, clip.length)
 }
 // ▶ plays what is in view: from the playhead if it shows, else from the view's start. The context is made here, in a
 // click, so the browser lets the sound begin
@@ -96,7 +96,7 @@ function play() {
   if (!clip || node) return
   const a = view.end - view.span
   if (!(head >= a && head < Math.min(view.end, clip.length))) head = clamp(Math.ceil(a), 0, clip.length - 1)
-  last = head
+  last = head; shown = steady()
   const n = node = new AudioBufferSourceNode(ctx, { buffer: clip })
   n.onended = () => { if (node === n) { node = null; head = clip.length; want = false; ui.playing(false); dirty = true } }
   n.connect(ctx.destination)
@@ -105,7 +105,7 @@ function play() {
 function pause() {
   want = false; ui.playing(false)
   if (!node) return
-  head = playhead(); node.onended = null; node.stop(); node = null; dirty = true
+  head = heard(); node.onended = null; node.stop(); node = null; dirty = true
 }
 // Playing, past the middle of the view the playhead stays where it is and the view moves under it, till the end of
 // the sound; last, the playhead a frame before
@@ -139,8 +139,25 @@ function layout() {
   for (const c of [canvas, $('grid')]) { c.width = Math.round(w * pr); c.height = Math.round(h * pr) }
   wf.update({ viewport: box(), pixelRatio: pr }); dirty = true
 }
-// The view's right edge at most: a recording's end, else the newest sample, gliding as it comes
-const edge = () => clip ? wf.length : newest(wf.length, rate, audio.playing)
+// A position drawn at frame time t, the time the frame shows: it runs at rate from frame to frame and eases toward
+// target over a quarter second, so it moves the same every frame though the sound's clocks come in steps and the
+// frame's code runs early or late; never back, nor past most. It starts at the target, and jumps there after frames
+// not drawn or a second off; a clock that skips and comes back only speeds it up or holds it a moment
+function steady() {
+  let p = 0, at = -Infinity
+  return (target, rate, t, most = Infinity) => {
+    const dt = (t - at) / 1e3, next = p + dt * rate, e = target - next
+    at = t
+    return p = dt > .1 || Math.abs(e) > rate ? target : clamp(next + e * (1 - Math.exp(-dt / .25)), p, most)
+  }
+}
+// The playhead as drawn; the newest sample drawn of sound as it comes, two blocks behind the last that came, so it
+// runs on between them
+let shown = steady(), newest = steady()
+let latest = 0
+const BLOCK = 2048
+// The view's right edge at most: a recording's end, else the newest sample drawn
+const edge = () => clip ? wf.length : latest
 // A recording's view stays where it is put; sound as it comes is followed from the right till dragged back
 const moved = () => { if (clip) view.follow = false; dirty = true }
 gestures(canvas, {
@@ -233,8 +250,9 @@ requestAnimationFrame(function frame(now) {
   meter(now)
   if (!dirty && !audio.playing && !node) return
   dirty = false
-  const p = clip ? playhead() : null
+  const p = clip ? shown(node ? heard(now) : head, node ? clip.sampleRate : 0, now, clip.length) : null
   if (node) chase(p)
+  latest = clip ? 0 : audio.playing ? newest(Math.min(wf.length, wf.length - 2 * BLOCK + (now - came) / 1e3 * rate), rate, now, wf.length) : wf.length
   const range = view.range(edge())
   wf.update({ range, amplitude: [-amp, amp] }).clear().render()
   rule(range, p)

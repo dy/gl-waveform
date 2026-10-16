@@ -135,14 +135,17 @@ export function picker(pick, groups = []) {
 // ── sound ─────────────────────────────────────────────────────────────────
 
 /** Plays an item of the picker, or the microphone (not heard, to avoid feedback), through one AudioContext. With chunk,
- *  its samples as they sound, an array of Float32Array per channel; with fftSize, an AnalyserNode on it.
+ *  its samples as they sound, an array of Float32Array per channel; with fftSize, an AnalyserNode on it; heard at volume.
  *  start() must come from a click, so the browser lets the sound begin. */
-export function sound({ chunk, fftSize, loop = false, state = () => {} } = {}) {
+export function sound({ chunk, fftSize, loop = false, volume = 1, state = () => {} } = {}) {
   let context, out, analyser, node, source, element, media, my = 0
   const api = {
     get context() { return context },
     get analyser() { return analyser },
     get element() { return element },
+    // what is heard, 0..1; the samples handed on stay as they are
+    get volume() { return volume },
+    set volume(v) { volume = v; if (element) out.gain.setTargetAtTime(v, context.currentTime, .02) },
     get playing() { return !!(media || element && !element.paused) },
     async start(it) {
       const id = ++my
@@ -162,7 +165,7 @@ export function sound({ chunk, fftSize, loop = false, state = () => {} } = {}) {
       } else {
         const el = element = Object.assign(new Audio(), { crossOrigin: 'anonymous', loop: loop && !it.live, src: it.url })
         for (const type of ['playing', 'pause', 'ended']) el.addEventListener(type, () => { if (el === element) state(api.playing) })
-        source = context.createMediaElementSource(el); out.gain.value = 1
+        source = context.createMediaElementSource(el); out.gain.value = volume
       }
       source.connect(out)
       if (analyser) source.connect(analyser)

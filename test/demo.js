@@ -58,7 +58,8 @@ test('demo: a recording drawn before ▶ and played over it; the hour streams in
     assert.ok(await ink(page, 'chart', 0, .1) > 50 && await ink(page, 'chart', .9, 1) > 50, 'the first screen, before a click: 6 s of tone across the view')
     assert.ok(await page.locator('#hint').isHidden(), 'no ▶ hint over a waveform')
     assert.ok(await page.evaluate(() => getComputedStyle(document.body).visibility === 'visible'), 'the page shown once set up')
-    for (const id of ['swatch', 'envelope', 'width', 'grid-on']) assert.ok(await page.locator('#' + id).count(), id)
+    assert.equal(await page.locator('#volume').inputValue(), '0.1', 'heard at a tenth at first')
+    for (const id of ['swatch', 'envelope', 'volume', 'width', 'grid-on']) assert.ok(await page.locator('#' + id).count(), id)
 
     await page.locator('#play').click()
     await page.waitForFunction(() => document.getElementById('play').getAttribute('aria-label') === 'Pause')

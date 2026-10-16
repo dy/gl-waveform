@@ -13,7 +13,7 @@ const canvas = $('chart'), wf = new Waveform(canvas)
 let rate = RATE, view = timeline(rate * SPAN), amp = 1, fitted = 1, look = null, w = 0, h = 0, pr = 0, dirty = true, task = 0
 
 const ui = picker(start, [['Signals', [{ id: 'hour', name: 'An hour of synthetic speech' }]]])
-const audio = sound({ chunk: take, state: on => { ui.playing(on); if (on) $('hint').hidden = true } })
+const audio = sound({ chunk: take, volume: +$('volume').value, state: on => { ui.playing(on); if (on) $('hint').hidden = true } })
 const numbers = it => /\.(json|csv|txt)$/i.test(it.file?.name)
 const whole = it => it.url && !it.live && !numbers(it) // a recording or an audio file: decoded whole, then played
 
@@ -64,7 +64,7 @@ async function hour(id) {
 // clip, the sound drawn, an AudioBuffer; ctx, the context it plays in; node, its source while it plays; head, the
 // playhead in samples when it last started or stopped, t0 the context's time then; want, to play once decoded;
 // chasing, the view following the playhead till dragged; got, the share downloaded
-let clip = null, ctx = null, node = null, head = 0, t0 = 0, want = false, chasing = true, loading = false, got = 0
+let clip = null, ctx = null, gain = null, node = null, head = 0, t0 = 0, want = false, chasing = true, loading = false, got = 0
 async function load(it, id) {
   reset(RATE); got = 0; loading = true
   try {
@@ -93,13 +93,14 @@ function heard(t = performance.now()) {
 function play() {
   want = chasing = true; ui.playing(true); $('hint').hidden = true
   ctx ??= new AudioContext(); ctx.resume()
+  if (!gain) (gain = new GainNode(ctx, { gain: audio.volume })).connect(ctx.destination)
   if (!clip || node) return
   const a = view.end - view.span
   if (!(head >= a && head < Math.min(view.end, clip.length))) head = clamp(Math.ceil(a), 0, clip.length - 1)
   last = head; shown = steady()
   const n = node = new AudioBufferSourceNode(ctx, { buffer: clip })
   n.onended = () => { if (node === n) { node = null; head = clip.length; want = false; ui.playing(false); dirty = true } }
-  n.connect(ctx.destination)
+  n.connect(gain)
   n.start(0, head / clip.sampleRate); t0 = ctx.currentTime
 }
 function pause() {
@@ -181,6 +182,8 @@ const paint = () => {
 palette(l => { look = l; paint() })
 for (const id of ['envelope', 'width']) $(id).oninput = paint
 $('grid-on').onchange = () => dirty = true
+// heard at a tenth at first, so the first sound is no shock; the waveform is drawn at full scale whatever it is
+$('volume').oninput = () => { audio.volume = +$('volume').value; gain?.gain.setTargetAtTime(audio.volume, ctx.currentTime, .02) }
 addEventListener('resize', layout)
 
 const clock = s => s < 60 ? `${pretty(s)} s` : s < 3600 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`

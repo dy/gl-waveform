@@ -70,9 +70,10 @@ void main() {
     if (dense.x > 0. && t.x <= t.y) {
       // how often noise of the column's RMS R is at this level, against at zero, g = e^(−(v/α)^β), v = y/R. The body in
       // color as often as that, the rest in peaks, which fades from the axis to EDGE of it at the column's extreme on
-      // that side, so the fill grades all the way out
+      // that side, so the fill grades all the way out. Within the line's half width of the axis, the line itself: a
+      // column under a pixel (silence, a signal far under it) is the zero line, never a shade of it
       float R = max(max(t.w - zero, zero - t.z), 1e-6), y = abs(p.y - zero), v = y / R;
-      float g = exp(-pow(v / dense.y, dense.x)), s = clamp(y / max(p.y > zero ? t.y - zero : zero - t.x, 1e-6), 0., 1.);
+      float g = y <= hw ? 1. : exp(-pow(v / dense.y, dense.x)), s = clamp(y / max(p.y > zero ? t.y - zero : zero - t.x, 1e-6), 0., 1.);
       f = mix(color, color * g + peaks * (1. - g) * (1. - ${1 - EDGE} * s), fade);
     }
     else r = clamp(min(t.w, p.y + .5) - max(t.z, p.y - .5), 0., 1.);

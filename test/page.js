@@ -247,6 +247,20 @@ export function density() {
   return out
 }
 
+// Silence, and a signal far under a pixel, zoomed out with density at 2 device px a CSS px, the zero line on a pixel
+// edge (a 2 px line): the alpha of the two rows the line covers, and of the rows just past it, each density's
+export function silence() {
+  let n = 1e5, out = {}
+  let wf = new Waveform(canvas(400, 100), { pixelRatio: 2, color: [1, 1, 1, 1], rms: false })
+  for (let dense of ['gaussian', 'laplace', 'flat']) for (let [name, amp] of [['zero', 0], ['tiny', 1e-5]]) {
+    wf.clear().update({ data: Float32Array.from({ length: n }, (_, i) => Math.sin(i * 2 * Math.PI / 200) * amp), density: dense }).render()
+    let p = read(wf.gl)
+    out[`${dense} ${name}`] = [p.a(200, 48), p.a(200, 49), p.a(200, 50), p.a(200, 51)]
+  }
+  wf.canvas.remove()
+  return out
+}
+
 // A sine at 40 px per sample: the line passes through every column where the samples say, nothing far from it is drawn
 export function line() {
   let d = Float32Array.from({ length: 1000 }, (_, i) => Math.sin(i * 2 * Math.PI / 64) * .8)

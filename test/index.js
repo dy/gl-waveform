@@ -136,6 +136,11 @@ test('render: density shades the fill by how often noise of the column\'s RMS is
   assert.deepEqual(invalid, ['TypeError', 'TypeError'], 'an unknown density throws, an Object method among them')
 })
 
+test('render: with density, silence and a signal under a pixel are the zero line, in the line color', async () => {
+  for (let [what, rows] of Object.entries(await run('silence')))
+    assert.deepEqual(rows, [0, 255, 255, 0], `${what}: the two rows of the line full, none past them`)
+})
+
 test('render: the RMS band in the line color, the envelope lighter around it', async () => {
   let r = await run('twoTone')
   assert.deepEqual(r.default.band, [0, 0, 255, 255], 'the band takes the line color')
